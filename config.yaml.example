@@ -1,0 +1,149 @@
+# ==========================================
+# MCP Chat Studio Configuration
+# ==========================================
+# Copy this file to config.yaml and customize
+
+# ==========================================
+# LLM Configuration
+# ==========================================
+# Supported providers: ollama, openai, anthropic, gemini, azure, groq, together
+
+llm:
+  # Choose your provider (see examples below)
+  provider: ollama
+  model: llama3.2
+  temperature: 0.7
+
+# --- Provider Examples ---
+# Uncomment and modify the one you want to use:
+
+# Ollama (Local - Default, no API key needed)
+# llm:
+#   provider: ollama
+#   model: llama3.2
+#   base_url: http://localhost:11434/v1
+
+# OpenAI
+# llm:
+#   provider: openai
+#   model: gpt-4o
+#   # Set OPENAI_API_KEY in .env
+
+# Anthropic Claude
+# llm:
+#   provider: anthropic
+#   model: claude-3-5-sonnet-20241022
+#   # Set ANTHROPIC_API_KEY in .env
+
+# Google Gemini
+# llm:
+#   provider: gemini
+#   model: gemini-1.5-flash
+#   # Set GOOGLE_API_KEY in .env
+
+# Azure OpenAI
+# llm:
+#   provider: azure
+#   model: gpt-4o
+#   # Set in .env: AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT
+
+# Groq (Ultra-fast inference)
+# llm:
+#   provider: groq
+#   model: llama-3.3-70b-versatile
+#   # Set GROQ_API_KEY in .env
+
+# Together AI
+# llm:
+#   provider: together
+#   model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+#   # Set TOGETHER_API_KEY in .env
+
+# ==========================================
+# OAuth Configuration (Optional)
+# ==========================================
+# For MCP servers that require user authentication
+
+# Option 1: GitHub OAuth (uncomment to use)
+# oauth:
+#   provider: github
+#   client_id: "${OAUTH_CLIENT_ID}"
+#   client_secret: "${OAUTH_CLIENT_SECRET}"
+#   redirect_uri: "http://localhost:3082/api/oauth/callback"
+
+# Option 2: Google OAuth (uncomment to use)
+# oauth:
+#   provider: google
+#   client_id: "${OAUTH_CLIENT_ID}"
+#   client_secret: "${OAUTH_CLIENT_SECRET}"
+#   redirect_uri: "http://localhost:3082/api/oauth/callback"
+
+# Option 3: Custom OAuth2 (uncomment to use)
+# oauth:
+#   authorize_url: "https://your-provider.com/oauth/authorize"
+#   token_url: "https://your-provider.com/oauth/token"
+#   userinfo_url: "https://your-provider.com/api/userinfo"
+#   client_id: "${OAUTH_CLIENT_ID}"
+#   client_secret: "${OAUTH_CLIENT_SECRET}"
+#   redirect_uri: "http://localhost:3082/api/oauth/callback"
+#   scopes: ["openid", "profile"]
+#   use_pkce: true
+
+# ==========================================
+# MCP Servers
+# ==========================================
+mcpServers:
+  # Example: Local stdio server
+  # my-local-server:
+  #   type: stdio
+  #   command: python
+  #   args:
+  #     - -m
+  #     - my_mcp_server
+  #   description: "My custom MCP server"
+  #   startup: true
+
+  # Example: Node.js MCP server (npx)
+  # filesystem:
+  #   type: stdio
+  #   command: npx
+  #   args:
+  #     - "@modelcontextprotocol/server-filesystem"
+  #     - "/path/to/allowed/directory"
+  #   description: "File system access"
+
+  # Example: Windows MCP (uv-based)
+  # windows-mcp:
+  #   type: stdio
+  #   command: uv
+  #   args:
+  #     - run
+  #     - windows-mcp
+  #   description: "Windows automation tools"
+  #   startup: true
+
+  # Example: GitHub MCP (needs GITHUB_TOKEN in .env)
+  # github:
+  #   type: stdio
+  #   command: npx
+  #   args:
+  #     - "@modelcontextprotocol/server-github"
+  #   env:
+  #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
+  #   description: "GitHub API tools"
+
+  # Example: SSE server
+  # remote-server:
+  #   type: sse
+  #   url: "https://mcp.example.com/sse"
+  #   description: "Remote MCP server"
+
+  # Example: Server requiring user OAuth
+  # secure-server:
+  #   type: stdio
+  #   command: python
+  #   args:
+  #     - -m
+  #     - my_secure_server
+  #   requiresAuth: true
+  #   description: "Requires user login"

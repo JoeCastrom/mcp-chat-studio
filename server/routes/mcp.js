@@ -1,0 +1,348 @@
+/**
+ * MCP Routes with OAuth Support
+ * Endpoints for MCP server management and tool access
+ */
+
+import { Router } from 'express';
+import { getMCPManager } from '../services/MCPManager.js';
+import { getOAuthManager } from '../services/OAuthManager.js';
+
+const router = Router();
+
+/**
+ * Helper to get session ID from request
+ */
+function getSessionId(req) {
+  return req.cookies?.sessionId || req.headers['x-session-id'];
+}
+
+/**
+ * GET /api/mcp/status
+ * Get status of all configured MCP servers
+ */
+router.get('/status', (req, res) => {
+  try {
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+    const status = mcpManager.getStatus(sessionId);
+    res.json(status);
+  } catch (error) {
+    console.error('[MCP/Status] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mcp/tools
+ * Get all available MCP tools
+ */
+router.get('/tools', (req, res) => {
+  try {
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+    const tools = mcpManager.getAllTools(sessionId);
+    res.json({ tools });
+  } catch (error) {
+    console.error('[MCP/Tools] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mcp/auth-required
+ * Get list of servers that require authentication
+ */
+router.get('/auth-required', (req, res) => {
+  try {
+    const mcpManager = getMCPManager();
+    const servers = mcpManager.getAuthRequiredServers();
+    res.json({ servers });
+  } catch (error) {
+    console.error('[MCP/AuthRequired] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/connect/:serverName
+ * Connect to a specific MCP server
+ * For servers requiring auth, user must be logged in
+ */
+router.post('/connect/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+    const oauth = getOAuthManager();
+
+    const config = mcpManager.configs.get(serverName);
+    if (!config) {
+      return res.status(404).json({ error: `Server not found: ${serverName}` });
+    }
+
+    const requiresAuth = config.requiresAuth || config.requiresOAuth;
+
+    if (requiresAuth) {
+      // Check if user is authenticated
+      if (!sessionId || !oauth?.isAuthenticated(sessionId)) {
+        return res.status(401).json({
+          error: 'Authentication required',
+          message: `${serverName} requires OAuth authentication. Please login first.`
+        });
+      }
+
+      // Get user's access token
+      const userToken = await oauth.getAccessToken(sessionId);
+      if (!userToken) {
+        return res.status(401).json({
+          error: 'Token expired',
+          message: 'Your session has expired. Please login again.'
+        });
+      }
+
+      // Create user-specific connection
+      await mcpManager.getUserConnection(sessionId, serverName, userToken);
+    } else {
+      // Shared connection (no auth needed)
+      await mcpManager.connectServer(serverName);
+    }
+
+    res.json({
+      success: true,
+      message: `Connected to ${serverName}`,
+      status: mcpManager.getStatus(sessionId)[serverName]
+    });
+  } catch (error) {
+    console.error(`[MCP/Connect] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/disconnect/:serverName
+ * Disconnect from a specific MCP server
+ */
+router.post('/disconnect/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+
+    // Try to disconnect user-specific connection first
+    if (sessionId) {
+      await mcpManager.disconnectUserServer(sessionId, serverName);
+    }
+
+    // Also try shared connection
+    await mcpManager.disconnectServer(serverName);
+
+    res.json({
+      success: true,
+      message: `Disconnected from ${serverName}`
+    });
+  } catch (error) {
+    console.error(`[MCP/Disconnect] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/add
+ * Add a new MCP server configuration dynamically
+ */
+router.post('/add', async (req, res) => {
+  try {
+    const { name, type, command, args, url, env, description, requiresAuth, timeout } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Server name is required' });
+    }
+    
+    if (!command && !url) {
+      return res.status(400).json({ error: 'Either command (for stdio) or url (for SSE) is required' });
+    }
+    
+    const mcpManager = getMCPManager();
+    
+    // Build config object
+    const config = {
+      type: type || (command ? 'stdio' : 'sse'),
+      description: description || `Dynamic MCP server: ${name}`,
+      requiresAuth: requiresAuth || false,
+      timeout: timeout || 60000,
+      startup: false  // Don't auto-start dynamic servers
+    };
+    
+    if (command) {
+      config.command = command;
+      config.args = args || [];
+      if (env) config.env = env;
+    } else {
+      config.url = url;
+    }
+    
+    // Debug logging
+    console.log(`[MCP/Add] Adding server "${name}" with config:`, JSON.stringify(config, null, 2));
+    
+    const serverConfig = mcpManager.addServerConfig(name, config);
+    
+    res.json({
+      success: true,
+      message: `Added server: ${name}`,
+      server: serverConfig
+    });
+  } catch (error) {
+    console.error(`[MCP/Add] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/mcp/remove/:serverName
+ * Remove an MCP server configuration
+ */
+router.delete('/remove/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const mcpManager = getMCPManager();
+    
+    await mcpManager.removeServerConfig(serverName);
+    
+    res.json({
+      success: true,
+      message: `Removed server: ${serverName}`
+    });
+  } catch (error) {
+    console.error(`[MCP/Remove] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/call
+ * Call an MCP tool directly
+ */
+router.post('/call', async (req, res) => {
+  try {
+    const { serverName, toolName, args = {} } = req.body;
+    const sessionId = getSessionId(req);
+
+    if (!serverName || !toolName) {
+      return res.status(400).json({ error: 'serverName and toolName are required' });
+    }
+
+    const mcpManager = getMCPManager();
+    const result = await mcpManager.callTool(serverName, toolName, args, sessionId);
+
+    res.json({ result });
+  } catch (error) {
+    console.error(`[MCP/Call] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/call-by-name
+ * Call an MCP tool using full name (serverName__toolName)
+ */
+router.post('/call-by-name', async (req, res) => {
+  try {
+    const { fullName, args = {} } = req.body;
+    const sessionId = getSessionId(req);
+
+    if (!fullName) {
+      return res.status(400).json({ error: 'fullName is required' });
+    }
+
+    const mcpManager = getMCPManager();
+    const result = await mcpManager.callToolByFullName(fullName, args, sessionId);
+
+    res.json({ result });
+  } catch (error) {
+    console.error(`[MCP/CallByName] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mcp/resources/:serverName
+ * List resources from a server
+ */
+router.get('/resources/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+    
+    const resources = await mcpManager.listResources(serverName, sessionId);
+    res.json({ resources });
+  } catch (error) {
+    console.error(`[MCP/Resources] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/resources/read
+ * Read a specific resource
+ */
+router.post('/resources/read', async (req, res) => {
+  try {
+    const { serverName, uri } = req.body;
+    const sessionId = getSessionId(req);
+    
+    if (!serverName || !uri) {
+      return res.status(400).json({ error: 'serverName and uri are required' });
+    }
+    
+    const mcpManager = getMCPManager();
+    const result = await mcpManager.readResource(serverName, uri, sessionId);
+    res.json({ result });
+  } catch (error) {
+    console.error(`[MCP/ReadResource] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mcp/prompts/:serverName
+ * List prompts from a server
+ */
+router.get('/prompts/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const sessionId = getSessionId(req);
+    const mcpManager = getMCPManager();
+    
+    const prompts = await mcpManager.listPrompts(serverName, sessionId);
+    res.json({ prompts });
+  } catch (error) {
+    console.error(`[MCP/Prompts] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/prompts/get
+ * Get a specific prompt
+ */
+router.post('/prompts/get', async (req, res) => {
+  try {
+    const { serverName, name, args = {} } = req.body;
+    const sessionId = getSessionId(req);
+    
+    if (!serverName || !name) {
+      return res.status(400).json({ error: 'serverName and name are required' });
+    }
+    
+    const mcpManager = getMCPManager();
+    const result = await mcpManager.getPrompt(serverName, name, args, sessionId);
+    res.json({ result });
+  } catch (error) {
+    console.error(`[MCP/GetPrompt] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+

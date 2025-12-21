@@ -1,0 +1,4567 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCP Chat - Tool Testing Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* Modern color palette */
+        --bg-base: #0a0a0f;
+        --bg-elevated: #12121a;
+        --bg-surface: #1a1a24;
+        --bg-card: rgba(30, 30, 42, 0.7);
+        --bg-hover: rgba(255, 255, 255, 0.05);
+
+        /* Accent colors */
+        --accent-primary: #6366f1;
+        --accent-secondary: #8b5cf6;
+        --accent-gradient: linear-gradient(
+          135deg,
+          #6366f1 0%,
+          #8b5cf6 50%,
+          #a855f7 100%
+        );
+        --accent-glow: rgba(99, 102, 241, 0.3);
+
+        /* Status colors */
+        --success: #22c55e;
+        --success-bg: rgba(34, 197, 94, 0.15);
+        --warning: #f59e0b;
+        --warning-bg: rgba(245, 158, 11, 0.15);
+        --error: #ef4444;
+        --error-bg: rgba(239, 68, 68, 0.15);
+        --danger: #dc2626;
+
+        /* Text colors */
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+
+        /* Borders */
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border-default: rgba(255, 255, 255, 0.1);
+        --border-accent: rgba(99, 102, 241, 0.4);
+
+        /* Effects */
+        --glass-bg: rgba(255, 255, 255, 0.03);
+        --blur-amount: 20px;
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+        --shadow-glow: 0 0 30px var(--accent-glow);
+
+        /* Spacing */
+        --spacing-xs: 0.25rem;
+        --spacing-sm: 0.5rem;
+        --spacing-md: 1rem;
+        --spacing-lg: 1.5rem;
+        --spacing-xl: 2rem;
+
+        /* Radius */
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-xl: 24px;
+        --radius-full: 9999px;
+
+        /* Transition */
+        --transition-fast: 0.15s ease;
+        --transition-normal: 0.25s ease;
+        --transition-slow: 0.4s ease;
+      }
+
+      /* Light Theme */
+      [data-theme="light"] {
+        --bg-base: #f0f4f8;
+        --bg-primary: #f8fafc;
+        --bg-secondary: #e2e8f0;
+        --bg-elevated: #ffffff;
+        --bg-card: #ffffff;
+        --bg-surface: #f1f5f9;
+        --bg-hover: rgba(0, 0, 0, 0.05);
+        --text-primary: #1e293b;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --border-subtle: rgba(0, 0, 0, 0.08);
+        --border-default: rgba(0, 0, 0, 0.12);
+        --border-accent: rgba(99, 102, 241, 0.5);
+        --glass-bg: rgba(255, 255, 255, 0.85);
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+        --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
+        --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
+        --accent-glow: rgba(99, 102, 241, 0.2);
+      }
+
+      /* Model Badge */
+      .model-badge {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-full);
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: var(--transition-fast);
+      }
+      .model-badge:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-primary);
+        color: var(--text-primary);
+      }
+      .model-badge #modelProvider {
+        font-size: 0.875rem;
+      }
+      .model-badge #modelName {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7rem;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Theme Toggle */
+      .theme-toggle {
+        font-size: 1rem;
+        padding: var(--spacing-xs) var(--spacing-sm);
+      }
+
+      /* Tool Search */
+      .tool-search {
+        padding: var(--spacing-sm);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .tool-search input {
+        width: 100%;
+        padding: var(--spacing-sm);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.8rem;
+      }
+      .tool-search input::placeholder {
+        color: var(--text-muted);
+      }
+      .tool-search input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+      }
+
+      /* Test All Button */
+      .test-all-btn {
+        width: 100%;
+        padding: var(--spacing-sm);
+        background: var(--accent-gradient);
+        border: none;
+        border-radius: var(--radius-sm);
+        color: white;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--transition-fast);
+        margin-top: var(--spacing-sm);
+      }
+      .test-all-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-glow);
+      }
+      .test-all-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-base);
+        color: var(--text-primary);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        line-height: 1.5;
+      }
+
+      /* Animated background */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(
+            ellipse at 20% 20%,
+            rgba(99, 102, 241, 0.08) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 80% 80%,
+            rgba(139, 92, 246, 0.06) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 50% 50%,
+            rgba(168, 85, 247, 0.04) 0%,
+            transparent 70%
+          );
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* ===== HEADER ===== */
+      .header {
+        position: relative;
+        z-index: 100;
+        background: var(--bg-elevated);
+        border-bottom: 1px solid var(--border-subtle);
+        padding: var(--spacing-md) var(--spacing-lg);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        backdrop-filter: blur(var(--blur-amount));
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+
+      .logo-icon {
+        width: 36px;
+        height: 36px;
+        background: var(--accent-gradient);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--shadow-glow);
+      }
+
+      .logo-icon svg {
+        width: 20px;
+        height: 20px;
+        color: white;
+      }
+
+      .logo-text {
+        font-size: 1.125rem;
+        font-weight: 600;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .logo-badge {
+        font-size: 0.65rem;
+        font-weight: 500;
+        padding: 2px 8px;
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-full);
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        align-items: center;
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-xs) var(--spacing-md);
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-full);
+      }
+
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent-gradient);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: white;
+      }
+
+      .user-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 0.875rem;
+        font-weight: 500;
+        font-family: inherit;
+        color: var(--text-primary);
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        white-space: nowrap;
+      }
+
+      .btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-accent);
+      }
+
+      .btn:active {
+        transform: scale(0.98);
+      }
+
+      .btn.active {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        box-shadow: var(--shadow-glow);
+      }
+
+      .btn.primary {
+        background: var(--accent-gradient);
+        border-color: transparent;
+        color: white;
+      }
+
+      .btn.primary:hover {
+        opacity: 0.9;
+        box-shadow: var(--shadow-glow);
+      }
+
+      .btn.success {
+        background: var(--success);
+        border-color: var(--success);
+        color: #000;
+      }
+
+      .btn.danger {
+        background: var(--error-bg);
+        border-color: var(--error);
+        color: var(--error);
+      }
+
+      .btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* ===== MAIN LAYOUT ===== */
+      .main {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ===== SIDEBAR ===== */
+      .sidebar {
+        width: 320px;
+        background: var(--bg-elevated);
+        border-right: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: width var(--transition-normal),
+          opacity var(--transition-normal);
+      }
+
+      .sidebar.collapsed {
+        width: 0;
+        border: none;
+        opacity: 0;
+      }
+
+      .sidebar-header {
+        padding: var(--spacing-md) var(--spacing-lg);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .sidebar-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+      }
+
+      .sidebar-status {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: var(--radius-full);
+        background: var(--success-bg);
+        color: var(--success);
+      }
+
+      .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--spacing-md);
+      }
+
+      /* Custom scrollbar */
+      .sidebar-content::-webkit-scrollbar,
+      .messages::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-track,
+      .messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb,
+      .messages::-webkit-scrollbar-thumb {
+        background: var(--border-default);
+        border-radius: 3px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb:hover,
+      .messages::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted);
+      }
+
+      /* MCP Server Card */
+      .mcp-server {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+        transition: all var(--transition-fast);
+      }
+
+      .mcp-server:hover {
+        border-color: var(--border-accent);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .mcp-server-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-sm);
+      }
+
+      .mcp-server-name {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .mcp-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--warning);
+        box-shadow: 0 0 8px var(--warning);
+        transition: all var(--transition-fast);
+      }
+
+      .mcp-status-dot.connected {
+        background: var(--success);
+        box-shadow: 0 0 8px var(--success);
+      }
+
+      .mcp-server-meta {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-bottom: var(--spacing-sm);
+      }
+
+      .mcp-server-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .mcp-server-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: var(--spacing-sm);
+      }
+
+      .mcp-connect-btn {
+        flex: 1;
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        font-family: inherit;
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+
+      .mcp-connect-btn:hover {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: white;
+      }
+
+      .mcp-connect-btn.connected {
+        background: var(--success-bg);
+        border-color: var(--success);
+        color: var(--success);
+        cursor: default;
+      }
+
+      .mcp-connect-btn.disconnect {
+        flex: none;
+        background: transparent;
+        border-color: var(--border-default);
+        color: var(--text-muted);
+      }
+
+      .mcp-connect-btn.disconnect:hover {
+        background: var(--error);
+        border-color: var(--error);
+        color: white;
+      }
+
+      .mcp-connect-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Icon buttons (edit, delete) */
+      .mcp-icon-btn {
+        padding: 6px 8px;
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        font-size: 0.8rem;
+        line-height: 1;
+      }
+      
+      .mcp-icon-btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-default);
+        color: var(--text-primary);
+      }
+
+      .mcp-edit-btn {
+        padding: 6px 8px;
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        font-size: 0.8rem;
+      }
+
+      .mcp-edit-btn:hover {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: white;
+      }
+
+      .mcp-remove-btn {
+        padding: 6px 8px;
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        font-size: 0.8rem;
+      }
+
+      .mcp-remove-btn:hover {
+        background: var(--error);
+        border-color: var(--error);
+        color: white;
+      }
+      
+      kbd {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-sm);
+        padding: 2px 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+      }
+
+      .auth-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        background: var(--warning-bg);
+        border-radius: var(--radius-sm);
+        color: var(--warning);
+      }
+
+      /* ==========================================
+         TOGGLE SWITCH (Proper Implementation)
+         ========================================== */
+      
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        user-select: none;
+      }
+      
+      /* Hide the actual checkbox */
+      .toggle input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      
+      /* The switch track */
+      .toggle .switch {
+        position: relative;
+        display: inline-block;
+        width: 34px;
+        height: 18px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: 18px;
+        transition: all var(--transition-fast);
+      }
+      
+      /* The switch knob */
+      .toggle .switch::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        background: var(--text-muted);
+        border-radius: 50%;
+        transition: all var(--transition-fast);
+      }
+      
+      /* Checked state - track */
+      .toggle input:checked + .switch {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+      }
+      
+      /* Checked state - knob */
+      .toggle input:checked + .switch::after {
+        left: 18px;
+        background: white;
+      }
+      
+      /* Hover state */
+      .toggle:hover .switch {
+        border-color: var(--accent-primary);
+      }
+
+      /* Settings row with toggles */
+      .settings-row {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-lg);
+        padding: var(--spacing-sm) 0;
+        flex-wrap: wrap;
+      }
+
+      /* Add server button */
+      .add-server-btn {
+        padding: 5px 12px;
+        font-size: 0.75rem;
+        background: var(--accent-gradient);
+        border: none;
+        border-radius: var(--radius-md);
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+      
+      .add-server-btn:hover {
+        filter: brightness(1.1);
+        box-shadow: var(--shadow-glow);
+      }
+
+      /* Sidebar header icon buttons */
+      .sidebar-header .icon-btn {
+        padding: 5px 8px;
+        font-size: 0.8rem;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+      
+      .sidebar-header .icon-btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-default);
+        color: var(--text-primary);
+      }
+
+      /* Keep old .btn styling for backward compat */
+      .sidebar-header .btn {
+        padding: 5px 8px;
+        font-size: 0.8rem;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+      }
+      
+      .sidebar-header .btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-default);
+      }
+
+      /* Tool List */
+      .tools-list {
+        margin-top: var(--spacing-md);
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .tools-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-sm);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .tool-item {
+        background: var(--glass-bg);
+        border: 1px solid var(--border-subtle);
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--spacing-xs);
+        transition: all var(--transition-fast);
+        cursor: pointer;
+        position: relative;
+      }
+
+      .tool-item:hover {
+        border-color: var(--border-accent);
+        background: var(--bg-hover);
+        transform: translateX(4px);
+      }
+
+      .tool-item.selected {
+        border-color: var(--accent-primary);
+        background: rgba(99, 102, 241, 0.15);
+      }
+
+      .tool-item .tool-actions {
+        display: flex;
+        gap: var(--spacing-xs);
+        margin-top: var(--spacing-xs);
+      }
+
+      .tool-item .tool-action-btn {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: var(--radius-sm);
+        background: var(--glass-bg);
+        border: 1px solid var(--border-default);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+
+      .tool-item .tool-action-btn:hover {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: white;
+      }
+
+      .tool-item .tool-action-btn.force {
+        background: var(--accent-secondary);
+        border-color: var(--accent-secondary);
+        color: white;
+      }
+
+      .tool-name {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--accent-primary);
+        font-family: "JetBrains Mono", monospace;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+
+      .tool-name .use-icon {
+        opacity: 0;
+        width: 12px;
+        height: 12px;
+        transition: opacity var(--transition-fast);
+      }
+
+      .tool-item:hover .tool-name .use-icon {
+        opacity: 1;
+      }
+
+      .tool-desc {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-top: 2px;
+        line-height: 1.4;
+      }
+
+      /* Tool Schema Viewer */
+      .tool-schema {
+        display: none;
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px dashed var(--border-subtle);
+        font-size: 0.7rem;
+      }
+      
+      .tool-item.expanded .tool-schema {
+        display: block;
+      }
+      
+      .tool-item.expanded {
+        background: var(--bg-surface);
+        border-color: var(--accent-primary);
+      }
+      
+      .schema-section {
+        margin-bottom: var(--spacing-xs);
+      }
+      
+      .schema-section-title {
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      
+      .param-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      
+      .param-item {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        padding: 4px 6px;
+        background: var(--glass-bg);
+        border-radius: var(--radius-sm);
+      }
+      
+      .param-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        color: var(--accent-primary);
+      }
+      
+      .param-type {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+        background: var(--bg-secondary);
+        border-radius: 3px;
+        color: var(--text-secondary);
+      }
+      
+      .param-required {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+        background: var(--error-bg);
+        color: var(--error);
+        border-radius: 3px;
+      }
+      
+      .param-optional {
+        font-size: 0.55rem;
+        padding: 1px 4px;
+        background: var(--bg-secondary);
+        color: var(--text-muted);
+        border-radius: 3px;
+      }
+      
+      .param-desc {
+        width: 100%;
+        color: var(--text-muted);
+        font-size: 0.65rem;
+      }
+      
+      .param-enum {
+        width: 100%;
+        font-size: 0.6rem;
+        color: var(--text-secondary);
+      }
+      
+      .param-enum code {
+        background: var(--bg-secondary);
+        padding: 1px 3px;
+        border-radius: 2px;
+        margin-right: 2px;
+      }
+      
+      .schema-actions {
+        display: flex;
+        gap: var(--spacing-xs);
+        margin-top: var(--spacing-sm);
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      /* Selected tool indicator */
+      .selected-tool-badge {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid var(--accent-secondary);
+        border-radius: var(--radius-full);
+        font-size: 0.75rem;
+        color: var(--accent-secondary);
+      }
+
+      .selected-tool-badge .clear-btn {
+        background: none;
+        border: none;
+        color: var(--accent-secondary);
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+      }
+
+      .selected-tool-badge .clear-btn:hover {
+        color: var(--error);
+      }
+
+      /* Tool Toggle Button */
+      .tool-toggle-btn {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        margin-top: var(--spacing-sm);
+        background: var(--glass-bg);
+        border: 1px dashed var(--border-default);
+        border-radius: var(--radius-sm);
+        color: var(--accent-primary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--spacing-sm);
+      }
+
+      .tool-toggle-btn:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-primary);
+      }
+
+      .tool-toggle-btn span {
+        font-size: 0.65rem;
+      }
+
+      /* ==========================================
+         INSPECTOR TAB STYLES
+         ========================================== */
+      
+      .tab-nav {
+        display: flex;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-sm);
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      
+      .tab-btn {
+        padding: var(--spacing-sm) var(--spacing-lg);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-md);
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+      
+      .tab-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+      
+      .tab-btn.active {
+        background: var(--accent-primary);
+        color: white;
+        border-color: var(--accent-primary);
+      }
+      
+      .content-panel {
+        display: none;
+        flex: 1;
+        overflow: hidden;
+      }
+      
+      .content-panel.active {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .inspector-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+        overflow-y: auto;
+      }
+      
+      .inspector-section {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: var(--spacing-md);
+      }
+      
+      .inspector-section h3 {
+        margin: 0 0 var(--spacing-md) 0;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+      }
+      
+      .inspector-toolbar {
+        display: flex;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+      }
+      
+      .inspector-toolbar select {
+        flex: 1;
+        min-width: 150px;
+      }
+      
+      .inspector-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+      }
+      
+      .inspector-field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+      }
+      
+      .inspector-field label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+      }
+      
+      .inspector-field label .required {
+        color: var(--error);
+      }
+      
+      .inspector-field label .type-badge {
+        font-size: 0.65rem;
+        padding: 1px 4px;
+        background: var(--bg-secondary);
+        border-radius: 3px;
+        color: var(--text-muted);
+      }
+      
+      .inspector-response {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      
+      .inspector-response.success {
+        border-left: 3px solid var(--success);
+      }
+      
+      .inspector-response.error {
+        border-left: 3px solid var(--error);
+      }
+      
+      .inspector-response-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-sm);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      
+      .inspector-status {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        font-size: 0.8rem;
+      }
+      
+      .inspector-status.success { color: var(--success); }
+      .inspector-status.error { color: var(--error); }
+
+      /* Modal Styles */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all var(--transition-normal);
+      }
+
+      .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .modal {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-xl);
+        padding: var(--spacing-xl);
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+        transform: translateY(20px);
+        transition: transform var(--transition-normal);
+      }
+
+      .modal-overlay.active .modal {
+        transform: translateY(0);
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-lg);
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        background: var(--accent-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: var(--spacing-xs);
+        border-radius: var(--radius-sm);
+        transition: all var(--transition-fast);
+      }
+
+      .modal-close:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      .form-group {
+        margin-bottom: var(--spacing-md);
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: var(--spacing-xs);
+      }
+
+      .form-input {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-family: inherit;
+        transition: all var(--transition-fast);
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+      }
+
+      .form-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .form-row {
+        display: flex;
+        gap: var(--spacing-md);
+      }
+
+      .form-row .form-group {
+        flex: 1;
+      }
+
+      .form-select {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-family: inherit;
+        cursor: pointer;
+      }
+
+      .form-hint {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-top: var(--spacing-xs);
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        margin-top: var(--spacing-lg);
+      }
+
+      .modal-actions .btn {
+        flex: 1;
+      }
+
+      .add-server-btn {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: 0.7rem;
+        background: var(--accent-primary);
+        border: none;
+        border-radius: var(--radius-sm);
+        color: white;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+      }
+
+      .add-server-btn:hover {
+        background: var(--accent-secondary);
+      }
+
+      /* ===== CHAT CONTAINER ===== */
+      .chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: var(--bg-base);
+      }
+
+      /* Messages Area */
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--spacing-xl);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+      }
+
+      /* Message Bubble */
+      .message {
+        max-width: 75%;
+        padding: var(--spacing-md) var(--spacing-lg);
+        border-radius: var(--radius-lg);
+        line-height: 1.6;
+        font-size: 0.9375rem;
+        animation: messageIn 0.3s ease;
+      }
+
+      @keyframes messageIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .message.user {
+        background: var(--accent-gradient);
+        color: white;
+        align-self: flex-end;
+        border-bottom-right-radius: var(--radius-sm);
+        box-shadow: var(--shadow-md), var(--shadow-glow);
+      }
+
+      .message.assistant {
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-subtle);
+        align-self: flex-start;
+        border-bottom-left-radius: var(--radius-sm);
+      }
+
+      /* Streaming typing cursor */
+      .typing-cursor {
+        color: var(--accent-primary);
+        animation: blink 0.7s infinite;
+      }
+      
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+      }
+
+      .message.tool {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-left: 3px solid var(--accent-secondary);
+        align-self: flex-start;
+        font-size: 0.875rem;
+        max-width: 85%;
+      }
+
+      .message.tool .tool-header {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--border-subtle);
+        font-size: 0.75rem;
+        color: var(--accent-secondary);
+        font-weight: 600;
+      }
+
+      .message.tool .tool-header svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .message.tool .tool-content {
+        color: var(--text-secondary);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .message.error {
+        background: var(--error-bg);
+        border: 1px solid var(--error);
+        color: var(--error);
+        align-self: center;
+        text-align: center;
+      }
+
+      .message.system {
+        background: var(--glass-bg);
+        border: 1px dashed var(--border-default);
+        color: var(--text-muted);
+        align-self: center;
+        font-size: 0.8rem;
+        padding: var(--spacing-sm) var(--spacing-md);
+      }
+
+      /* Code blocks */
+      .message pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: var(--spacing-md);
+        border-radius: var(--radius-md);
+        overflow-x: auto;
+        margin-top: var(--spacing-sm);
+        font-size: 0.8rem;
+        border: 1px solid var(--border-subtle);
+      }
+
+      .message code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85em;
+      }
+
+      .message:not(pre) code {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      /* Loading indicator */
+      .loading-dots {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: var(--spacing-md);
+      }
+
+      .loading-dots .dot {
+        width: 8px;
+        height: 8px;
+        background: var(--accent-primary);
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+
+      .loading-dots .dot:nth-child(1) {
+        animation-delay: -0.32s;
+      }
+      .loading-dots .dot:nth-child(2) {
+        animation-delay: -0.16s;
+      }
+
+      @keyframes bounce {
+        0%,
+        80%,
+        100% {
+          transform: scale(0.4);
+          opacity: 0.4;
+        }
+        40% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      /* ===== INPUT AREA ===== */
+      .input-area {
+        padding: var(--spacing-lg) var(--spacing-xl);
+        background: linear-gradient(
+          to top,
+          var(--bg-elevated) 0%,
+          transparent 100%
+        );
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .input-container {
+        display: flex;
+        gap: var(--spacing-md);
+        align-items: flex-end;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .input-wrapper {
+        flex: 1;
+        position: relative;
+      }
+
+      textarea {
+        width: 100%;
+        padding: var(--spacing-md) var(--spacing-lg);
+        background: var(--bg-card);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-lg);
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+        font-family: inherit;
+        resize: none;
+        min-height: 52px;
+        max-height: 200px;
+        line-height: 1.5;
+        transition: all var(--transition-fast);
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+      }
+
+      textarea::placeholder {
+        color: var(--text-muted);
+      }
+
+      .send-btn {
+        min-width: 100px;
+        padding: var(--spacing-md) var(--spacing-lg);
+        background: var(--accent-gradient);
+        border: none;
+        border-radius: var(--radius-lg);
+        color: white;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--spacing-sm);
+      }
+
+      .send-btn:hover {
+        opacity: 0.9;
+        box-shadow: var(--shadow-glow);
+        transform: translateY(-1px);
+      }
+
+      .send-btn:active {
+        transform: translateY(0);
+      }
+
+      .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .send-btn.cancel {
+        background: var(--warning);
+        color: #000;
+      }
+
+      .send-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      /* Settings Row */
+      .settings-row {
+        display: flex;
+        justify-content: center;
+        gap: var(--spacing-lg);
+        margin-top: var(--spacing-md);
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        cursor: pointer;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: var(--radius-sm);
+        transition: all var(--transition-fast);
+      }
+
+      .toggle:hover {
+        background: var(--bg-hover);
+      }
+
+      .toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent-primary);
+        cursor: pointer;
+      }
+
+      /* Empty state */
+      .empty-state {
+        padding: var(--spacing-lg);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .sidebar {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          z-index: 200;
+          box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar.collapsed {
+          display: none;
+        }
+
+        .message {
+          max-width: 90%;
+        }
+
+        .input-area {
+          padding: var(--spacing-md);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            ></path>
+          </svg>
+        </div>
+        <span class="logo-text">MCP Chat</span>
+        <span class="logo-badge">Studio</span>
+      </div>
+      <div class="header-actions">
+        <!-- Model Badge -->
+        <div id="modelBadge" class="model-badge" onclick="showSettingsModal()" title="Click to change LLM settings">
+          <span id="modelProvider">🦙</span>
+          <span id="modelName">llama3.1:8b</span>
+        </div>
+        
+        <!-- Theme Toggle -->
+        <button class="btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+          <span id="themeIcon">🌙</span>
+        </button>
+        
+        <div id="userSection"></div>
+        <button class="btn" onclick="showSettingsModal()" title="LLM Settings">
+          ⚙️
+        </button>
+        <button class="btn" id="toggleSidebar">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          MCP Tools
+        </button>
+        <button class="btn" id="clearChat">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+          Clear
+        </button>
+        <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          ?
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">MCP Servers</span>
+          <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+            <button class="add-server-btn" onclick="showAddServerModal()" title="Add MCP Server">
+              + Add
+            </button>
+            <button class="btn" onclick="exportConfig()" title="Export Config">
+              📥
+            </button>
+            <button class="btn" onclick="importConfigFile()" title="Import Config">
+              📤
+            </button>
+            <span class="sidebar-status" id="serverCount">0 connected</span>
+          </div>
+        </div>
+        
+        <!-- Hidden file input for import -->
+        <input type="file" id="configFileInput" accept=".yaml,.yml,.json" style="display: none;" onchange="handleConfigFileImport(event)">
+        
+        <!-- Tool Search -->
+        <div class="tool-search">
+          <input type="text" id="toolSearchInput" placeholder="🔍 Search tools..." oninput="filterTools(this.value)">
+          <label class="toggle" style="font-size: 0.75rem; margin-bottom: 4px;">
+            <input type="checkbox" id="includeRiskyTools">
+            <span class="switch"></span>
+            <span>⚠️ Include risky tools</span>
+          </label>
+          <button class="test-all-btn" id="testAllBtn" onclick="testAllTools()" title="Test all connected tools">
+            🧪 Test All Tools
+          </button>
+        </div>
+        
+        <div class="sidebar-content" id="mcpServers">
+          <div class="empty-state">
+            <div class="loading-dots">
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+            </div>
+            Loading servers...
+          </div>
+        </div>
+      </aside>
+
+      <div class="chat-container">
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="switchTab('chat')" id="chatTabBtn">
+            💬 Chat
+          </button>
+          <button class="tab-btn" onclick="switchTab('inspector')" id="inspectorTabBtn">
+            🔧 Inspector
+          </button>
+        </div>
+        
+        <!-- Chat Panel (default) -->
+        <div class="content-panel active" id="chatPanel">
+          <div class="messages" id="messages">
+            <div class="message assistant">
+              👋 Welcome to <strong>MCP Chat Studio</strong>! I'm your AI
+              assistant with MCP tool support. Connect to MCP servers using the
+              sidebar to enable powerful tools. Some servers may require
+              authentication - click "Login" to connect to secured services.
+            </div>
+          </div>
+
+          <div class="input-area">
+            <div class="input-container">
+              <div class="input-wrapper">
+                <textarea
+                  id="userInput"
+                  placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+                  rows="1"
+                ></textarea>
+              </div>
+              <button class="send-btn" id="sendBtn">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                Send
+              </button>
+            </div>
+            <div class="settings-row">
+              <label class="toggle">
+                <input type="checkbox" id="useTools" checked />
+                <span class="switch"></span>
+                <span>Use MCP Tools</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="useStream" checked />
+                <span class="switch"></span>
+                <span>⚡ Stream</span>
+              </label>
+              <div id="selectedToolBadge"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Inspector Panel -->
+        <div class="content-panel" id="inspectorPanel">
+          <div class="inspector-panel">
+            <!-- Tool Selector -->
+            <div class="inspector-section">
+              <h3>🔧 Select Tool</h3>
+              <div class="inspector-toolbar">
+                <select class="form-select" id="inspectorServerSelect" onchange="loadInspectorTools()">
+                  <option value="">-- Select Server --</option>
+                </select>
+                <select class="form-select" id="inspectorToolSelect" onchange="generateInspectorForm()">
+                  <option value="">-- Select Tool --</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Input Form -->
+            <div class="inspector-section" id="inspectorFormSection" style="display: none;">
+              <h3>📝 Input Parameters</h3>
+              <div id="inspectorToolDescription" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: var(--spacing-md);"></div>
+              <div class="inspector-form" id="inspectorForm">
+                <!-- Dynamic fields will be generated here -->
+              </div>
+              <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm);">
+                <button class="btn primary" onclick="executeInspectorTool()" id="inspectorExecuteBtn">
+                  ▶️ Execute
+                </button>
+                <button class="btn" onclick="clearInspectorForm()">
+                  🗑️ Clear
+                </button>
+              </div>
+            </div>
+            
+            <!-- Response Display -->
+            <div class="inspector-section" id="inspectorResponseSection" style="display: none;">
+              <h3>📤 Response</h3>
+              <div class="inspector-response-header" id="inspectorResponseHeader">
+                <div class="inspector-status" id="inspectorResponseStatus"></div>
+                <button class="btn" onclick="copyInspectorResponse()" style="font-size: 0.7rem; padding: 2px 8px;">
+                  📋 Copy JSON
+                </button>
+              </div>
+              <div class="inspector-response" id="inspectorResponseBody"></div>
+            </div>
+            
+            <!-- Protocol Log -->
+            <div class="inspector-section">
+              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📜 Protocol Log</span>
+                <button class="btn" onclick="clearProtocolLog()" style="font-size: 0.65rem; padding: 2px 6px;">
+                  🗑️ Clear
+                </button>
+              </h3>
+              <div id="protocolLog" style="max-height: 300px; overflow-y: auto; font-size: 0.75rem;">
+                <div style="color: var(--text-muted); font-style: italic;">Execute a tool to see protocol messages...</div>
+              </div>
+            </div>
+            
+            <!-- SSE Events Viewer -->
+            <div class="inspector-section">
+              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📡 SSE Events</span>
+                <div style="display: flex; gap: 4px;">
+                  <button id="sseConnectBtn" class="btn" onclick="toggleSSEViewer()" style="font-size: 0.65rem; padding: 2px 6px;">
+                    🔌 Connect
+                  </button>
+                  <button class="btn" onclick="clearSSEEvents()" style="font-size: 0.65rem; padding: 2px 6px;">
+                    🗑️ Clear
+                  </button>
+                </div>
+              </h3>
+              <div id="sseStatus" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
+                Not connected - select an SSE server and click Connect
+              </div>
+              <div id="sseEvents" style="max-height: 250px; overflow-y: auto; font-size: 0.75rem;">
+                <div style="color: var(--text-muted); font-style: italic;">Connect to an SSE server to see real-time events...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Add Server Modal -->
+    <div class="modal-overlay" id="addServerModal">
+      <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Add MCP Server</h2>
+          <button class="modal-close" onclick="hideAddServerModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Import YAML/JSON Button -->
+        <div style="margin-bottom: var(--spacing-md); display: flex; gap: var(--spacing-sm);">
+          <button type="button" class="btn" onclick="showImportConfigModal()" style="flex: 1;">
+            📋 Import YAML/JSON
+          </button>
+        </div>
+        
+        <form id="addServerForm" onsubmit="submitAddServer(event)">
+          <div class="form-group">
+            <label class="form-label">Server Name *</label>
+            <input type="text" class="form-input" id="serverName" placeholder="my-mcp-server" required oninput="updateConfigPreview()">
+            <div class="form-hint">A unique identifier for this server</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Transport *</label>
+            <select class="form-select" id="serverType" onchange="toggleServerTypeFields(); updateConfigPreview()">
+              <option value="stdio">STDIO (spawn local process)</option>
+              <option value="sse">SSE (HTTP endpoint)</option>
+            </select>
+          </div>
+
+          <div id="stdioFields">
+            <div class="form-group">
+              <label class="form-label">Command *</label>
+              <input type="text" class="form-input" id="serverCommand" placeholder="python" oninput="updateConfigPreview()">
+              <div class="form-hint">Use python, node, npx, or an absolute path to an executable</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Arguments</label>
+              <textarea class="form-input" id="serverArgs" rows="2" placeholder="-m my_module&#10;--port 8080" oninput="updateConfigPreview()"></textarea>
+              <div class="form-hint">One argument per line. We'll pass them exactly as argv.</div>
+            </div>
+          </div>
+
+          <div id="sseFields" style="display: none;">
+            <div class="form-group">
+              <label class="form-label">URL *</label>
+              <input type="url" class="form-input" id="serverUrl" placeholder="http://localhost:8000/sse" oninput="updateConfigPreview()">
+              <div class="form-hint">The SSE endpoint URL for the MCP server</div>
+            </div>
+          </div>
+
+          <!-- Environment Variables Section -->
+          <div class="form-group">
+            <label class="form-label">Environment Variables</label>
+            <div id="envVarsContainer">
+              <!-- Dynamic rows will be added here -->
+            </div>
+            <button type="button" class="btn" onclick="addEnvVarRow()" style="margin-top: var(--spacing-xs); font-size: 0.8rem;">
+              + Add Variable
+            </button>
+            <div class="form-hint">Add API keys, URLs, or other environment variables</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Description (optional)</label>
+            <input type="text" class="form-input" id="serverDescription" placeholder="My custom MCP server">
+          </div>
+
+          <!-- Config Preview -->
+          <div class="form-group">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Generated Config Preview</span>
+              <button type="button" class="btn" onclick="copyConfigToClipboard()" style="font-size: 0.7rem; padding: 2px 8px;">
+                📋 Copy YAML
+              </button>
+            </label>
+            <pre id="configPreview" style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: var(--spacing-sm); font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; max-height: 150px; overflow-y: auto; white-space: pre-wrap; color: var(--text-secondary);"></pre>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="hideAddServerModal()">Cancel</button>
+            <button type="submit" class="btn primary" id="addServerSubmitBtn">Add Server</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Import Config Modal -->
+    <div class="modal-overlay" id="importConfigModal">
+      <div class="modal" style="max-width: 550px;">
+        <div class="modal-header">
+          <h2 class="modal-title">📋 Import Config</h2>
+          <button class="modal-close" onclick="hideImportConfigModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paste YAML or JSON config</label>
+          <textarea class="form-input" id="importConfigText" rows="10" placeholder="command: python
+args:
+  - -m
+  - my_mcp_server
+env:
+  API_KEY: your-key-here"></textarea>
+          <div class="form-hint">
+            Supports single server config or full mcpServers object. We'll parse and fill the form.
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="hideImportConfigModal()">Cancel</button>
+          <button type="button" class="btn primary" onclick="parseAndImportConfig()">Import</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">⚙️ LLM Settings</h2>
+          <button class="modal-close" onclick="hideSettingsModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        
+        <form id="settingsForm" onsubmit="saveSettings(event)">
+          <div class="form-group">
+            <label class="form-label">Provider *</label>
+            <select class="form-select" id="llmProvider" onchange="onProviderChange()">
+              <option value="ollama">🦙 Ollama (Local)</option>
+              <option value="openai">🤖 OpenAI</option>
+              <option value="anthropic">🎭 Anthropic Claude</option>
+              <option value="gemini">💎 Google Gemini</option>
+              <option value="azure">☁️ Azure OpenAI</option>
+              <option value="groq">⚡ Groq</option>
+              <option value="together">🤝 Together AI</option>
+            </select>
+            <div class="form-hint" id="providerHint">Local LLM server - no API key needed</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Model *</label>
+            <input type="text" class="form-input" id="llmModel" placeholder="llama2">
+            <div class="form-hint">Model name (e.g., llama2, gpt-4, mistral)</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Temperature</label>
+            <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+              <input type="range" id="llmTemperature" min="0" max="2" step="0.1" value="0.7" style="flex: 1;">
+              <span id="tempValue" style="min-width: 40px; text-align: center;">0.7</span>
+            </div>
+            <div class="form-hint">0 = precise, 1 = creative, 2 = very random</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Base URL (optional)</label>
+            <input type="url" class="form-input" id="llmBaseUrl" placeholder="http://localhost:11434/v1">
+            <div class="form-hint">Custom API endpoint URL</div>
+          </div>
+
+          <div class="form-group" id="apiKeyGroup" style="display: none;">
+            <label class="form-label">API Key</label>
+            <input type="password" class="form-input" id="llmApiKey" placeholder="sk-...">
+            <div class="form-hint">Your OpenAI API key (stored in session only)</div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="hideSettingsModal()">Cancel</button>
+            <button type="submit" class="btn primary">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal-overlay" id="confirmDeleteModal">
+      <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+          <h2 class="modal-title">🗑️ Remove Server</h2>
+          <button class="modal-close" onclick="hideConfirmDeleteModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <p style="margin: var(--spacing-md) 0; color: var(--text-secondary);">
+          Remove server "<span id="deleteServerName" style="color: var(--text-primary); font-weight: 500;"></span>"?
+        </p>
+        <p style="margin: var(--spacing-md) 0; color: var(--text-muted); font-size: 0.875rem;">
+          This will disconnect and remove the server configuration.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="hideConfirmDeleteModal()">Cancel</button>
+          <button type="button" class="btn" style="background: var(--danger); color: white;" onclick="confirmDeleteServer()">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // State
+      let messages = [
+        {
+          role: "assistant",
+          content:
+            '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click "Login" to connect to secured services.',
+        },
+      ];
+      let isLoading = false;
+      let isAuthenticated = false;
+      let userInfo = null;
+      let currentAbortController = null;
+      let currentLoadingEl = null;
+      let selectedTool = null;  // Track selected tool for force mode
+
+      // Elements
+      const messagesEl = document.getElementById("messages");
+      const userInputEl = document.getElementById("userInput");
+      const sendBtnEl = document.getElementById("sendBtn");
+      const useToolsEl = document.getElementById("useTools");
+      const useStreamEl = document.getElementById("useStream");
+      const mcpServersEl = document.getElementById("mcpServers");
+      const sidebarEl = document.getElementById("sidebar");
+      const toggleSidebarEl = document.getElementById("toggleSidebar");
+      const clearChatEl = document.getElementById("clearChat");
+      const userSectionEl = document.getElementById("userSection");
+      const serverCountEl = document.getElementById("serverCount");
+
+      // Reset loading state helper
+      function resetLoadingState() {
+        isLoading = false;
+        sendBtnEl.disabled = false;
+        sendBtnEl.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        Send
+      `;
+        sendBtnEl.classList.remove("cancel");
+        if (currentLoadingEl) {
+          currentLoadingEl.remove();
+          currentLoadingEl = null;
+        }
+        currentAbortController = null;
+        userInputEl.focus();
+      }
+
+      // Cancel current request
+      function cancelRequest() {
+        if (currentAbortController) {
+          currentAbortController.abort();
+          appendMessage("system", "Request cancelled");
+          resetLoadingState();
+        }
+      }
+
+      // Check URL params for login status
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("login") === "success") {
+        appendMessage(
+          "system",
+          "✅ Login successful! You can now connect to authenticated MCP servers."
+        );
+        window.history.replaceState({}, "", "/");
+      } else if (urlParams.get("error")) {
+        appendMessage("error", `Login failed: ${urlParams.get("error")}`);
+        window.history.replaceState({}, "", "/");
+      }
+
+      // Auto-resize textarea
+      userInputEl.addEventListener("input", () => {
+        userInputEl.style.height = "auto";
+        userInputEl.style.height =
+          Math.min(userInputEl.scrollHeight, 200) + "px";
+      });
+
+      // Send on Enter (Shift+Enter for newline)
+      userInputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      sendBtnEl.addEventListener("click", sendMessage);
+      toggleSidebarEl.addEventListener("click", () => {
+        sidebarEl.classList.toggle("collapsed");
+        toggleSidebarEl.classList.toggle("active");
+      });
+      clearChatEl.addEventListener("click", clearChat);
+
+      // Escape key to cancel loading
+      document.addEventListener("keydown", (e) => {
+        // Escape: Cancel loading or close modals
+        if (e.key === "Escape") {
+          if (isLoading) {
+            cancelRequest();
+          } else {
+            // Close any open modals
+            document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+          }
+        }
+        
+        // Ctrl+K: Focus tool search
+        if (e.ctrlKey && e.key === "k") {
+          e.preventDefault();
+          const searchInput = document.getElementById('toolSearch');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }
+        
+        // Ctrl+Shift+E: Export chat
+        if (e.ctrlKey && e.shiftKey && e.key === "E") {
+          e.preventDefault();
+          exportChat();
+        }
+        
+        // Ctrl+/: Show shortcuts help
+        if (e.ctrlKey && e.key === "/") {
+          e.preventDefault();
+          showShortcutsHelp();
+        }
+      });
+
+      // Check auth status
+      async function checkAuthStatus() {
+        try {
+          const response = await fetch("/api/oauth/status", {
+            credentials: "include",
+          });
+          const data = await response.json();
+
+          isAuthenticated = data.authenticated;
+
+          if (isAuthenticated) {
+            const userResponse = await fetch("/api/oauth/userinfo", {
+              credentials: "include",
+            });
+            if (userResponse.ok) {
+              userInfo = await userResponse.json();
+            }
+          }
+
+          updateUserSection();
+        } catch (error) {
+          console.error("Auth check failed:", error);
+        }
+      }
+
+      // Update user section in header
+      function updateUserSection() {
+        if (isAuthenticated && userInfo) {
+          const initials = (userInfo.name || userInfo.preferred_username || "U")
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+
+          userSectionEl.innerHTML = `
+          <div class="user-info">
+            <div class="avatar">${initials}</div>
+            <span class="user-name">${
+              userInfo.name || userInfo.preferred_username || "User"
+            }</span>
+          </div>
+          <button class="btn" onclick="logout()">Logout</button>
+        `;
+        } else {
+          userSectionEl.innerHTML = `
+          <button class="btn success" onclick="login()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            Login
+          </button>
+        `;
+        }
+      }
+
+      // Login
+      async function login() {
+        try {
+          const response = await fetch("/api/oauth/login", {
+            credentials: "include",
+          });
+          const data = await response.json();
+
+          if (data.authUrl) {
+            window.location.href = data.authUrl;
+          } else {
+            appendMessage("error", "OAuth not configured on server");
+          }
+        } catch (error) {
+          appendMessage("error", `Login failed: ${error.message}`);
+        }
+      }
+
+      // Logout
+      async function logout() {
+        try {
+          const response = await fetch("/api/oauth/logout", {
+            method: "POST",
+            credentials: "include",
+          });
+          const data = await response.json();
+
+          isAuthenticated = false;
+          userInfo = null;
+          updateUserSection();
+          loadMCPStatus();
+
+          if (data.logoutUrl && data.logoutUrl !== "/") {
+            window.location.href = data.logoutUrl;
+          } else {
+            appendMessage("system", "👋 Logged out successfully");
+          }
+        } catch (error) {
+          appendMessage("error", `Logout failed: ${error.message}`);
+        }
+      }
+
+      // Connect to MCP server
+      async function connectMCP(serverName) {
+        try {
+          const btn = document.querySelector(`[data-server="${serverName}"]`);
+          if (btn) {
+            btn.textContent = "Connecting...";
+            btn.disabled = true;
+          }
+
+          const response = await fetch(`/api/mcp/connect/${serverName}`, {
+            method: "POST",
+            credentials: "include",
+          });
+
+          const data = await response.json();
+
+          if (data.error) {
+            if (response.status === 401) {
+              appendMessage(
+                "system",
+                `🔒 ${serverName} requires authentication. Please login first.`
+              );
+            } else {
+              appendMessage(
+                "error",
+                `Failed to connect to ${serverName}: ${data.error}`
+              );
+            }
+          } else {
+            appendMessage("system", `✅ Connected to ${serverName}!`);
+          }
+
+          loadMCPStatus();
+        } catch (error) {
+          appendMessage("error", `Connection failed: ${error.message}`);
+          loadMCPStatus();
+        }
+      }
+
+      // Disconnect from MCP server
+      async function disconnectMCP(serverName) {
+        try {
+          const btn = document.querySelector(`[data-disconnect="${serverName}"]`);
+          if (btn) {
+            btn.textContent = "Disconnecting...";
+            btn.disabled = true;
+          }
+
+          const response = await fetch(`/api/mcp/disconnect/${serverName}`, {
+            method: "POST",
+            credentials: "include",
+          });
+
+          const data = await response.json();
+
+          if (data.error) {
+            appendMessage("error", `Failed to disconnect from ${serverName}: ${data.error}`);
+          } else {
+            appendMessage("system", `🔌 Disconnected from ${serverName}`);
+            // Clear selected tool if it was from this server
+            if (selectedTool && selectedTool.serverName === serverName) {
+              clearSelectedTool();
+            }
+          }
+
+          loadMCPStatus();
+        } catch (error) {
+          appendMessage("error", `Disconnect failed: ${error.message}`);
+          loadMCPStatus();
+        }
+      }
+
+      // Show Add Server Modal
+      function showAddServerModal() {
+        document.getElementById('addServerModal').classList.add('active');
+        document.getElementById('addServerForm').reset();
+        clearEnvVars();
+        toggleServerTypeFields();
+        updateConfigPreview();
+        // Reset title and button for "Add" mode
+        document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
+        document.getElementById('addServerSubmitBtn').textContent = 'Add Server';
+        document.getElementById('serverName').focus();
+      }
+
+      // Hide Add Server Modal
+      function hideAddServerModal() {
+        document.getElementById('addServerModal').classList.remove('active');
+        document.getElementById('addServerForm').reset();
+        clearEnvVars();
+        toggleServerTypeFields();
+        // Reset title and button
+        document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
+        document.getElementById('addServerSubmitBtn').textContent = 'Add Server';
+      }
+
+      // Toggle fields based on server type
+      function toggleServerTypeFields() {
+        const type = document.getElementById('serverType').value;
+        document.getElementById('stdioFields').style.display = type === 'stdio' ? 'block' : 'none';
+        document.getElementById('sseFields').style.display = type === 'sse' ? 'block' : 'none';
+      }
+
+      // Submit Add Server Form
+      async function submitAddServer(event) {
+        event.preventDefault();
+        
+        const name = document.getElementById('serverName').value.trim();
+        const type = document.getElementById('serverType').value;
+        const description = document.getElementById('serverDescription').value.trim();
+        
+        let payload = { name, type, description };
+        
+        // Collect environment variables
+        const envVars = collectEnvVars();
+        if (Object.keys(envVars).length > 0) {
+          payload.env = envVars;
+        }
+        
+        if (type === 'stdio') {
+          const command = document.getElementById('serverCommand').value.trim();
+          const argsStr = document.getElementById('serverArgs').value.trim();
+          
+          if (!command) {
+            appendMessage('error', 'Command is required for stdio servers');
+            return;
+          }
+          
+          payload.command = command;
+          // Parse arguments: split by newlines, strip YAML list markers (- ), split by spaces, filter empty
+          payload.args = argsStr
+            ? argsStr.split(/[\r\n]+/)
+                .map(line => line.trim().replace(/^-\s+/, '')) // Strip leading "- " (YAML list format)
+                .flatMap(line => line.split(/\s+/))
+                .filter(arg => arg.length > 0)
+            : [];
+        } else {
+          const url = document.getElementById('serverUrl').value.trim();
+          
+          if (!url) {
+            appendMessage('error', 'URL is required for SSE servers');
+            return;
+          }
+          
+          payload.url = url;
+        }
+        
+        try {
+          const response = await fetch('/api/mcp/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          
+          const data = await response.json();
+          
+          if (data.error) {
+            appendMessage('error', `Failed to add server: ${data.error}`);
+          } else {
+            appendMessage('system', `✅ Added server: ${name}`);
+            hideAddServerModal();
+            loadMCPStatus();
+          }
+        } catch (error) {
+          appendMessage('error', `Failed to add server: ${error.message}`);
+        }
+      }
+
+      // ==========================================
+      // ENV VARS MANAGEMENT
+      // ==========================================
+      
+      function addEnvVarRow(key = '', value = '') {
+        const container = document.getElementById('envVarsContainer');
+        const row = document.createElement('div');
+        row.className = 'env-var-row';
+        row.style.cssText = 'display: flex; gap: var(--spacing-xs); margin-bottom: var(--spacing-xs);';
+        row.innerHTML = `
+          <input type="text" class="form-input env-key" placeholder="KEY" value="${escapeHtml(key)}" style="flex: 1;" oninput="updateConfigPreview()">
+          <input type="text" class="form-input env-value" placeholder="value" value="${escapeHtml(value)}" style="flex: 2;" oninput="updateConfigPreview()">
+          <button type="button" class="btn" onclick="this.parentElement.remove(); updateConfigPreview();" style="padding: 4px 8px; color: var(--error);">✕</button>
+        `;
+        container.appendChild(row);
+        updateConfigPreview();
+      }
+      
+      function collectEnvVars() {
+        const env = {};
+        document.querySelectorAll('.env-var-row').forEach(row => {
+          const key = row.querySelector('.env-key').value.trim();
+          const value = row.querySelector('.env-value').value.trim();
+          if (key) {
+            env[key] = value;
+          }
+        });
+        return env;
+      }
+      
+      function clearEnvVars() {
+        document.getElementById('envVarsContainer').innerHTML = '';
+      }
+
+      // ==========================================
+      // CONFIG PREVIEW
+      // ==========================================
+      
+      function updateConfigPreview() {
+        const name = document.getElementById('serverName').value.trim() || 'my-server';
+        const type = document.getElementById('serverType').value;
+        const command = document.getElementById('serverCommand').value.trim();
+        const argsStr = document.getElementById('serverArgs').value.trim();
+        const url = document.getElementById('serverUrl').value.trim();
+        const env = collectEnvVars();
+        
+        let yaml = `mcpServers:\n  ${name}:\n`;
+        
+        if (type === 'stdio') {
+          if (command) yaml += `    command: ${command}\n`;
+          if (argsStr) {
+            const args = argsStr.split(/[\r\n]+/).map(l => l.trim().replace(/^-\s+/, '')).filter(a => a);
+            if (args.length > 0) {
+              yaml += `    args:\n`;
+              args.forEach(arg => {
+                yaml += `      - ${arg}\n`;
+              });
+            }
+          }
+        } else {
+          if (url) yaml += `    url: ${url}\n`;
+        }
+        
+        if (Object.keys(env).length > 0) {
+          yaml += `    env:\n`;
+          for (const [k, v] of Object.entries(env)) {
+            yaml += `      ${k}: ${v}\n`;
+          }
+        }
+        
+        document.getElementById('configPreview').textContent = yaml;
+      }
+      
+      function copyConfigToClipboard() {
+        const yaml = document.getElementById('configPreview').textContent;
+        navigator.clipboard.writeText(yaml).then(() => {
+          appendMessage('system', '📋 Config copied to clipboard');
+        }).catch(err => {
+          console.error('Copy failed:', err);
+        });
+      }
+
+      // ==========================================
+      // IMPORT CONFIG MODAL
+      // ==========================================
+      
+      function showImportConfigModal() {
+        document.getElementById('importConfigModal').classList.add('active');
+        document.getElementById('importConfigText').value = '';
+        document.getElementById('importConfigText').focus();
+      }
+      
+      function hideImportConfigModal() {
+        document.getElementById('importConfigModal').classList.remove('active');
+      }
+      
+      function parseAndImportConfig() {
+        const text = document.getElementById('importConfigText').value.trim();
+        if (!text) {
+          appendMessage('error', 'Please paste a config');
+          return;
+        }
+        
+        try {
+          let config;
+          
+          // Try JSON first
+          try {
+            config = JSON.parse(text);
+          } catch {
+            // Try simple YAML parsing (basic key: value format)
+            config = parseSimpleYaml(text);
+          }
+          
+          // Normalize: extract single server config
+          if (config.mcpServers && typeof config.mcpServers === 'object') {
+            const serverNames = Object.keys(config.mcpServers);
+            if (serverNames.length > 0) {
+              const firstServer = serverNames[0];
+              document.getElementById('serverName').value = firstServer;
+              config = config.mcpServers[firstServer];
+            }
+          }
+          
+          // Fill form fields
+          if (config.command) {
+            document.getElementById('serverType').value = 'stdio';
+            toggleServerTypeFields();
+            document.getElementById('serverCommand').value = config.command;
+          }
+          
+          if (config.url) {
+            document.getElementById('serverType').value = 'sse';
+            toggleServerTypeFields();
+            document.getElementById('serverUrl').value = config.url;
+          }
+          
+          if (config.args && Array.isArray(config.args)) {
+            document.getElementById('serverArgs').value = config.args.join('\n');
+          }
+          
+          // Clear and add env vars
+          clearEnvVars();
+          if (config.env && typeof config.env === 'object') {
+            for (const [key, value] of Object.entries(config.env)) {
+              addEnvVarRow(key, String(value));
+            }
+          }
+          
+          updateConfigPreview();
+          hideImportConfigModal();
+          appendMessage('system', '✅ Config imported! Review and submit.');
+          
+        } catch (error) {
+          appendMessage('error', `Failed to parse config: ${error.message}`);
+        }
+      }
+      
+      // Simple YAML parser (handles basic MCP configs)
+      function parseSimpleYaml(text) {
+        const result = {};
+        const lines = text.split('\n');
+        let currentKey = null;
+        let currentIndent = 0;
+        let inArray = false;
+        let arrayKey = null;
+        let inObject = false;
+        let objectKey = null;
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          
+          const indent = line.search(/\S/);
+          
+          // Array item
+          if (trimmed.startsWith('- ')) {
+            const value = trimmed.slice(2).trim();
+            if (arrayKey && result[arrayKey]) {
+              result[arrayKey].push(value);
+            }
+            continue;
+          }
+          
+          // Key: value pair
+          const colonIndex = trimmed.indexOf(':');
+          if (colonIndex > 0) {
+            const key = trimmed.slice(0, colonIndex).trim();
+            const value = trimmed.slice(colonIndex + 1).trim();
+            
+            if (!value) {
+              // Could be object or array start
+              if (key === 'args') {
+                result[key] = [];
+                arrayKey = key;
+                inArray = true;
+              } else if (key === 'env') {
+                result[key] = {};
+                objectKey = key;
+                inObject = true;
+              } else {
+                currentKey = key;
+              }
+            } else {
+              if (inObject && objectKey) {
+                result[objectKey][key] = value;
+              } else {
+                result[key] = value;
+              }
+            }
+          }
+        }
+        
+        return result;
+      }
+
+      // ==========================================
+      // CONFIRM DELETE MODAL FUNCTIONS
+      // ==========================================
+      
+      let serverToDelete = null;
+      
+      function removeServer(serverName) {
+        // Show custom confirm modal instead of native confirm()
+        serverToDelete = serverName;
+        document.getElementById('deleteServerName').textContent = serverName;
+        document.getElementById('confirmDeleteModal').classList.add('active');
+      }
+      
+      function hideConfirmDeleteModal() {
+        serverToDelete = null;
+        document.getElementById('confirmDeleteModal').classList.remove('active');
+      }
+      
+      async function confirmDeleteServer() {
+        if (!serverToDelete) return;
+        
+        const serverName = serverToDelete;
+        hideConfirmDeleteModal();
+        
+        try {
+          const response = await fetch(`/api/mcp/remove/${encodeURIComponent(serverName)}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          
+          const data = await response.json();
+          
+          if (data.error) {
+            appendMessage('error', `Failed to remove server: ${data.error}`);
+          } else {
+            appendMessage('system', `🗑️ Removed server: ${serverName}`);
+            loadMCPStatus();
+          }
+        } catch (error) {
+          appendMessage('error', `Failed to remove server: ${error.message}`);
+        }
+      }
+      
+      // ==========================================
+      // EDIT SERVER FUNCTION
+      // ==========================================
+      
+      async function editServer(serverName) {
+        try {
+          // Fetch current server config
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+          const serverInfo = status[serverName];
+          
+          if (!serverInfo || !serverInfo.config) {
+            appendMessage('error', 'Could not load server configuration');
+            return;
+          }
+          
+          const config = serverInfo.config;
+          
+          // Open the Add Server modal and pre-fill it
+          showAddServerModal();
+          
+          // Pre-fill the form
+          document.getElementById('serverName').value = serverName;
+          document.getElementById('serverType').value = config.type || 'stdio';
+          document.getElementById('serverCommand').value = config.command || '';
+          document.getElementById('serverArgs').value = (config.args || []).join(' ');
+          document.getElementById('serverUrl').value = config.url || '';
+          document.getElementById('serverDescription').value = config.description || '';
+          
+          // Pre-fill environment variables
+          const envContainer = document.getElementById('envVarsContainer');
+          envContainer.innerHTML = '';
+          if (config.env && Object.keys(config.env).length > 0) {
+            for (const [key, value] of Object.entries(config.env)) {
+              addEnvVarRow(key, value);
+            }
+          }
+          
+          // Update config preview
+          updateConfigPreview();
+          
+          // Change modal title and button to indicate editing
+          document.querySelector('#addServerModal .modal-title').textContent = `Edit Server: ${serverName}`;
+          document.getElementById('addServerSubmitBtn').textContent = 'Save Changes';
+          
+          // Note: The submit will remove old and add new (effectively an edit)
+          appendMessage('system', `✏️ Editing ${serverName} - make changes and submit to save`);
+          
+        } catch (error) {
+          appendMessage('error', `Failed to load server config: ${error.message}`);
+        }
+      }
+
+      // ==========================================
+      // SETTINGS MODAL FUNCTIONS
+      // ==========================================
+      
+      async function showSettingsModal() {
+        // Load current LLM config
+        try {
+          const response = await fetch('/api/llm/config', { credentials: 'include' });
+          const config = await response.json();
+          
+          document.getElementById('llmProvider').value = config.provider || 'ollama';
+          document.getElementById('llmModel').value = config.model || '';
+          document.getElementById('llmTemperature').value = config.temperature || 0.7;
+          document.getElementById('tempValue').textContent = config.temperature || 0.7;
+          document.getElementById('llmBaseUrl').value = config.base_url || '';
+          
+          onProviderChange();
+        } catch (e) {
+          console.error('Failed to load LLM config:', e);
+        }
+        
+        document.getElementById('settingsModal').classList.add('active');
+      }
+      
+      function hideSettingsModal() {
+        document.getElementById('settingsModal').classList.remove('active');
+      }
+      
+      function onProviderChange() {
+        const provider = document.getElementById('llmProvider').value;
+        const hintEl = document.getElementById('providerHint');
+        const apiKeyGroup = document.getElementById('apiKeyGroup');
+        const modelInput = document.getElementById('llmModel');
+        const baseUrlInput = document.getElementById('llmBaseUrl');
+        
+        // Clear base URL when switching providers to use correct default
+        baseUrlInput.value = '';
+        
+        switch (provider) {
+          case 'ollama':
+            hintEl.textContent = 'Local LLM server - no API key needed';
+            apiKeyGroup.style.display = 'none';
+            modelInput.placeholder = 'llama3.2, mistral, codellama...';
+            baseUrlInput.placeholder = 'http://localhost:11434/v1';
+            break;
+          case 'openai':
+            hintEl.textContent = 'OpenAI API - requires OPENAI_API_KEY';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'gpt-4o, gpt-4, gpt-3.5-turbo...';
+            baseUrlInput.placeholder = 'https://api.openai.com/v1';
+            break;
+          case 'anthropic':
+            hintEl.textContent = 'Anthropic Claude - requires ANTHROPIC_API_KEY';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'claude-3-5-sonnet-20241022...';
+            baseUrlInput.placeholder = 'https://api.anthropic.com/v1';
+            break;
+          case 'gemini':
+            hintEl.textContent = 'Google Gemini - requires GOOGLE_API_KEY';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'gemini-1.5-pro, gemini-1.5-flash...';
+            baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com/v1beta';
+            break;
+          case 'azure':
+            hintEl.textContent = 'Azure OpenAI - requires AZURE_OPENAI_API_KEY & ENDPOINT';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'gpt-4o, gpt-4...';
+            baseUrlInput.placeholder = 'https://your-resource.openai.azure.com';
+            break;
+          case 'groq':
+            hintEl.textContent = 'Groq (Ultra-fast) - requires GROQ_API_KEY';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'llama-3.3-70b-versatile, mixtral-8x7b...';
+            baseUrlInput.placeholder = 'https://api.groq.com/openai/v1';
+            break;
+          case 'together':
+            hintEl.textContent = 'Together AI - requires TOGETHER_API_KEY';
+            apiKeyGroup.style.display = 'block';
+            modelInput.placeholder = 'meta-llama/Llama-3.3-70B-Instruct-Turbo...';
+            baseUrlInput.placeholder = 'https://api.together.xyz/v1';
+            break;
+        }
+      }
+      
+      async function saveSettings(event) {
+        event.preventDefault();
+        
+        const provider = document.getElementById('llmProvider').value;
+        const model = document.getElementById('llmModel').value.trim();
+        const temperature = parseFloat(document.getElementById('llmTemperature').value);
+        const base_url = document.getElementById('llmBaseUrl').value.trim();
+        const api_key = document.getElementById('llmApiKey').value.trim();
+        
+        if (!model) {
+          appendMessage('error', 'Model name is required');
+          return;
+        }
+        
+        const payload = { provider, model, temperature };
+        if (base_url) payload.base_url = base_url;
+        if (api_key) payload.api_key = api_key;
+        
+        try {
+          const response = await fetch('/api/llm/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          
+          const data = await response.json();
+          
+          if (data.error) {
+            appendMessage('error', `Failed to save settings: ${data.error}`);
+          } else {
+            appendMessage('system', `✅ LLM settings updated: ${provider} / ${model}`);
+            updateModelBadge(); // Update header badge
+            hideSettingsModal();
+          }
+        } catch (error) {
+          appendMessage('error', `Failed to save settings: ${error.message}`);
+        }
+      }
+      
+      // Temperature slider update
+      document.getElementById('llmTemperature')?.addEventListener('input', (e) => {
+        document.getElementById('tempValue').textContent = e.target.value;
+      });
+
+      // Close modals on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (document.getElementById('addServerModal').classList.contains('active')) {
+            hideAddServerModal();
+          }
+          if (document.getElementById('settingsModal').classList.contains('active')) {
+            hideSettingsModal();
+          }
+          if (document.getElementById('confirmDeleteModal').classList.contains('active')) {
+            hideConfirmDeleteModal();
+          }
+          if (document.getElementById('importConfigModal').classList.contains('active')) {
+            hideImportConfigModal();
+          }
+        }
+      });
+
+      // ==========================================
+      // THEME TOGGLE
+      // ==========================================
+      
+      function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        // Update icon
+        document.getElementById('themeIcon').textContent = newTheme === 'light' ? '☀️' : '🌙';
+      }
+      
+      // Apply saved theme on load
+      (function initTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        const icon = document.getElementById('themeIcon');
+        if (icon) icon.textContent = savedTheme === 'light' ? '☀️' : '🌙';
+      })();
+
+      // ==========================================
+      // MODEL BADGE UPDATE
+      // ==========================================
+      
+      async function updateModelBadge() {
+        try {
+          const response = await fetch('/api/llm/config', { credentials: 'include' });
+          const config = await response.json();
+          
+          const providerEmojis = {
+            'ollama': '🦙',
+            'openai': '🤖',
+            'anthropic': '🎭',
+            'gemini': '💎',
+            'azure': '☁️',
+            'groq': '⚡',
+            'together': '🤝'
+          };
+          
+          document.getElementById('modelProvider').textContent = providerEmojis[config.provider] || '🤖';
+          document.getElementById('modelName').textContent = config.model || 'unknown';
+        } catch (e) {
+          console.error('Failed to update model badge:', e);
+        }
+      }
+      
+      // Update badge on page load
+      updateModelBadge();
+
+      // ==========================================
+      // TOOL SEARCH FILTER
+      // ==========================================
+      
+      function filterTools(searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        const toolItems = document.querySelectorAll('.tool-item');
+        const serverCards = document.querySelectorAll('.mcp-server');
+        
+        toolItems.forEach(item => {
+          const toolName = item.querySelector('.tool-name')?.textContent?.toLowerCase() || '';
+          const toolDesc = item.querySelector('.tool-desc')?.textContent?.toLowerCase() || '';
+          
+          if (!term || toolName.includes(term) || toolDesc.includes(term)) {
+            item.style.display = '';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+        
+        // Hide server cards that have no visible tools
+        serverCards.forEach(card => {
+          const visibleTools = card.querySelectorAll('.tool-item:not([style*="display: none"])');
+          if (!term || visibleTools.length > 0) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      // ==========================================
+      // TEST ALL TOOLS
+      // ==========================================
+      
+      let isTestingTools = false;
+      
+      // Tools that have side effects and should be skipped in safe mode
+      const RISKY_TOOLS = [
+        'click-tool', 'type-tool', 'launch-tool', 'drag-tool', 
+        'key-tool', 'shortcut-tool', 'scroll-tool'
+      ];
+      
+      async function testAllTools() {
+        if (isTestingTools) return;
+        
+        const testBtn = document.getElementById('testAllBtn');
+        
+        // Fetch tools from /api/mcp/tools (has full tool objects with serverName)
+        let toolsData;
+        try {
+          const response = await fetch('/api/mcp/tools', { credentials: 'include' });
+          toolsData = await response.json();
+        } catch (error) {
+          appendMessage('error', `Failed to get tools: ${error.message}`);
+          return;
+        }
+        
+        const tools = toolsData.tools || [];
+        
+        if (tools.length === 0) {
+          appendMessage('error', 'No tools available. Connect to an MCP server first.');
+          return;
+        }
+        
+        isTestingTools = true;
+        testBtn.disabled = true;
+        testBtn.textContent = '🧪 Testing...';
+        
+        // Check if user wants risky tools included
+        const includeRisky = document.getElementById('includeRiskyTools').checked;
+        const toolsToTest = includeRisky 
+          ? tools 
+          : tools.filter(t => !RISKY_TOOLS.includes(t.name.toLowerCase()));
+        const skippedCount = tools.length - toolsToTest.length;
+        
+        if (includeRisky) {
+          appendMessage('system', `🧪 **Starting Full Tool Test** (${toolsToTest.length} tools, ⚠️ risky tools INCLUDED)...`);
+        } else {
+          appendMessage('system', `🧪 **Starting Safe Tool Test** (${toolsToTest.length} tools, ⚠️ ${skippedCount} risky skipped)...`);
+        }
+        
+        const results = { passed: 0, failed: 0, total: 0, skipped: skippedCount };
+        
+        // Group tools by server for display
+        const toolsByServer = {};
+        for (const tool of toolsToTest) {
+          const serverName = tool.serverName || 'unknown';
+          if (!toolsByServer[serverName]) toolsByServer[serverName] = [];
+          toolsByServer[serverName].push(tool);
+        }
+        
+        for (const [serverName, serverTools] of Object.entries(toolsByServer)) {
+          appendMessage('system', `📦 Testing server: **${serverName}** (${serverTools.length} tools)`);
+          
+          for (const tool of serverTools) {
+            results.total++;
+            const startTime = performance.now();
+            
+            try {
+              // Generate minimal test args based on required fields
+              const testArgs = {};
+              if (tool.inputSchema?.properties) {
+                for (const [key, prop] of Object.entries(tool.inputSchema.properties)) {
+                  if (tool.inputSchema.required?.includes(key)) {
+                    if (prop.type === 'string') testArgs[key] = 'test';
+                    else if (prop.type === 'number' || prop.type === 'integer') testArgs[key] = 1;
+                    else if (prop.type === 'boolean') testArgs[key] = true;
+                    else if (prop.type === 'array') testArgs[key] = [];
+                    else if (prop.type === 'object') testArgs[key] = {};
+                  }
+                }
+              }
+              
+              const response = await fetch('/api/mcp/call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  serverName,
+                  toolName: tool.name,
+                  args: testArgs
+                })
+              });
+              
+              const data = await response.json();
+              const duration = Math.round(performance.now() - startTime);
+              
+              if (data.error) {
+                results.failed++;
+                appendMessage('error', `❌ ${tool.name} (${duration}ms): ${data.error}`);
+              } else {
+                const preview = formatToolTestResult(data.result);
+                
+                // Check MCP's isError field (proper MCP protocol)
+                // Response format: { content: [...], isError: true/false }
+                const isError = data.result?.isError === true;
+                
+                if (isError) {
+                  results.failed++;
+                  appendTestResult(tool.name, duration, preview, JSON.stringify(data.result, null, 2), false);
+                } else {
+                  results.passed++;
+                  appendTestResult(tool.name, duration, preview, JSON.stringify(data.result, null, 2), true);
+                }
+              }
+            } catch (error) {
+              const duration = Math.round(performance.now() - startTime);
+              results.failed++;
+              appendMessage('error', `❌ ${tool.name} (${duration}ms): ${error.message}`);
+            }
+          }
+        }
+        
+        // Show skipped tools
+        if (skippedCount > 0) {
+          const skippedNames = tools
+            .filter(t => RISKY_TOOLS.includes(t.name.toLowerCase()))
+            .map(t => t.name)
+            .join(', ');
+          appendMessage('system', `⚠️ Skipped risky tools: ${skippedNames}`);
+        }
+        
+        // Summary
+        const summary = `🧪 **Test Complete**: ${results.passed}/${results.total} passed, ${results.failed} failed, ${results.skipped} skipped`;
+        appendMessage('system', summary);
+        
+        isTestingTools = false;
+        testBtn.disabled = false;
+        testBtn.textContent = '🧪 Test All Tools';
+      }
+      
+      // Format tool test result for preview
+      function formatToolTestResult(result) {
+        if (!result) return 'null';
+        
+        // Handle MCP format: { content: [{ type: 'text', text: '...' }] }
+        if (result.content && Array.isArray(result.content)) {
+          const textParts = result.content
+            .filter(c => c.type === 'text')
+            .map(c => c.text);
+          if (textParts.length > 0) {
+            const text = textParts.join(' ');
+            return text.length > 100 ? text.slice(0, 100) + '...' : text;
+          }
+        }
+        
+        // Handle plain string
+        if (typeof result === 'string') {
+          return result.length > 100 ? result.slice(0, 100) + '...' : result;
+        }
+        
+        // Handle object - stringify and truncate
+        const str = JSON.stringify(result);
+        return str.length > 100 ? str.slice(0, 100) + '...' : str;
+      }
+      
+      // Append test result with preview and copy button
+      function appendTestResult(toolName, duration, preview, fullJson, isSuccess = true) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'message system';
+        
+        const icon = isSuccess ? '✅' : '⚠️';
+        const escapedJson = fullJson.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        
+        msgEl.innerHTML = `
+          <div style="display: flex; align-items: flex-start; gap: var(--spacing-sm);">
+            <span>${icon} <strong>${escapeHtml(toolName)}</strong> <span style="color: var(--text-muted);">(${duration}ms)</span></span>
+            <button class="btn copy-json-btn" style="font-size: 0.65rem; padding: 1px 6px; margin-left: auto;">
+              📋 Copy
+            </button>
+          </div>
+          <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; font-family: 'JetBrains Mono', monospace; word-break: break-all;">
+            📄 ${escapeHtml(preview)}
+          </div>
+        `;
+        
+        // Store JSON in element property (not attribute) to avoid escaping issues
+        const copyBtn = msgEl.querySelector('.copy-json-btn');
+        copyBtn._jsonData = fullJson;
+        copyBtn.onclick = function() {
+          navigator.clipboard.writeText(this._jsonData).then(() => {
+            this.textContent = '✓ Copied';
+          });
+        };
+        
+        messagesEl.appendChild(msgEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      // ==========================================
+      // INSPECTOR TAB FUNCTIONS
+      // ==========================================
+      
+      let inspectorToolsCache = [];
+      let selectedInspectorTool = null;
+      let lastInspectorResponse = null;
+      
+      // Switch between Chat and Inspector tabs
+      function switchTab(tabName) {
+        const chatPanel = document.getElementById('chatPanel');
+        const inspectorPanel = document.getElementById('inspectorPanel');
+        const chatTabBtn = document.getElementById('chatTabBtn');
+        const inspectorTabBtn = document.getElementById('inspectorTabBtn');
+        
+        if (tabName === 'chat') {
+          chatPanel.classList.add('active');
+          inspectorPanel.classList.remove('active');
+          chatTabBtn.classList.add('active');
+          inspectorTabBtn.classList.remove('active');
+        } else {
+          chatPanel.classList.remove('active');
+          inspectorPanel.classList.add('active');
+          chatTabBtn.classList.remove('active');
+          inspectorTabBtn.classList.add('active');
+          
+          // Load servers when switching to Inspector
+          loadInspectorServers();
+        }
+      }
+      
+      // Load connected servers into Inspector dropdown
+      async function loadInspectorServers() {
+        const select = document.getElementById('inspectorServerSelect');
+        
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+          
+          select.innerHTML = '<option value="">-- Select Server --</option>';
+          
+          // API returns servers directly at root, not nested in .servers
+          const servers = status.servers || status;
+          for (const [name, info] of Object.entries(servers)) {
+            if (info.connected) {
+              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${info.toolCount} tools)</option>`;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load servers:', error);
+        }
+      }
+      
+      // Load tools for selected server
+      async function loadInspectorTools() {
+        const serverName = document.getElementById('inspectorServerSelect').value;
+        const toolSelect = document.getElementById('inspectorToolSelect');
+        
+        if (!serverName) {
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          document.getElementById('inspectorFormSection').style.display = 'none';
+          return;
+        }
+        
+        try {
+          const response = await fetch('/api/mcp/tools', { credentials: 'include' });
+          const data = await response.json();
+          
+          inspectorToolsCache = (data.tools || []).filter(t => t.serverName === serverName);
+          
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          for (const tool of inspectorToolsCache) {
+            toolSelect.innerHTML += `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}</option>`;
+          }
+        } catch (error) {
+          console.error('Failed to load tools:', error);
+        }
+      }
+      
+      // Generate input form based on tool schema
+      function generateInspectorForm() {
+        const toolName = document.getElementById('inspectorToolSelect').value;
+        const formSection = document.getElementById('inspectorFormSection');
+        const formEl = document.getElementById('inspectorForm');
+        const descEl = document.getElementById('inspectorToolDescription');
+        
+        if (!toolName) {
+          formSection.style.display = 'none';
+          selectedInspectorTool = null;
+          return;
+        }
+        
+        selectedInspectorTool = inspectorToolsCache.find(t => t.name === toolName);
+        if (!selectedInspectorTool) return;
+        
+        formSection.style.display = 'block';
+        descEl.textContent = selectedInspectorTool.description || '';
+        
+        const schema = selectedInspectorTool.inputSchema;
+        if (!schema || !schema.properties || Object.keys(schema.properties).length === 0) {
+          formEl.innerHTML = '<em style="color: var(--text-muted);">No parameters required</em>';
+          return;
+        }
+        
+        const required = schema.required || [];
+        let html = '';
+        
+        for (const [paramName, paramDef] of Object.entries(schema.properties)) {
+          const isRequired = required.includes(paramName);
+          const typeLabel = paramDef.type || 'any';
+          const reqBadge = isRequired ? '<span class="required">*</span>' : '';
+          
+          html += `
+            <div class="inspector-field">
+              <label>
+                ${escapeHtml(paramName)} ${reqBadge}
+                <span class="type-badge">${typeLabel}</span>
+              </label>
+          `;
+          
+          // Generate appropriate input based on type
+          if (paramDef.type === 'boolean') {
+            html += `
+              <select class="form-select" data-param="${escapeHtml(paramName)}">
+                <option value="">-- Select --</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            `;
+          } else if (paramDef.type === 'number' || paramDef.type === 'integer') {
+            html += `<input type="number" class="form-input" data-param="${escapeHtml(paramName)}" placeholder="${escapeHtml(paramDef.description || '')}" step="${paramDef.type === 'integer' ? '1' : 'any'}">`;
+          } else if (paramDef.type === 'array' || paramDef.type === 'object') {
+            const placeholder = paramDef.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}';
+            html += `<textarea class="form-input" data-param="${escapeHtml(paramName)}" rows="3" placeholder="${placeholder}">${paramDef.default ? JSON.stringify(paramDef.default) : ''}</textarea>`;
+          } else if (paramDef.enum && paramDef.enum.length > 0) {
+            html += `<select class="form-select" data-param="${escapeHtml(paramName)}"><option value="">-- Select --</option>`;
+            for (const val of paramDef.enum) {
+              html += `<option value="${escapeHtml(String(val))}">${escapeHtml(String(val))}</option>`;
+            }
+            html += '</select>';
+          } else {
+            // Default to string input
+            html += `<input type="text" class="form-input" data-param="${escapeHtml(paramName)}" placeholder="${escapeHtml(paramDef.description || '')}">`;
+          }
+          
+          if (paramDef.description) {
+            html += `<small style="color: var(--text-muted);">${escapeHtml(paramDef.description)}</small>`;
+          }
+          
+          html += '</div>';
+        }
+        
+        formEl.innerHTML = html;
+      }
+      
+      // Clear inspector form
+      function clearInspectorForm() {
+        const formEl = document.getElementById('inspectorForm');
+        formEl.querySelectorAll('input, textarea, select').forEach(el => {
+          if (el.tagName === 'SELECT') {
+            el.selectedIndex = 0;
+          } else {
+            el.value = '';
+          }
+        });
+        document.getElementById('inspectorResponseSection').style.display = 'none';
+      }
+      
+      // Execute tool from Inspector
+      async function executeInspectorTool() {
+        if (!selectedInspectorTool) return;
+        
+        const serverName = document.getElementById('inspectorServerSelect').value;
+        const formEl = document.getElementById('inspectorForm');
+        const executeBtn = document.getElementById('inspectorExecuteBtn');
+        const responseSection = document.getElementById('inspectorResponseSection');
+        const responseStatus = document.getElementById('inspectorResponseStatus');
+        const responseBody = document.getElementById('inspectorResponseBody');
+        
+        // Collect form values
+        const args = {};
+        formEl.querySelectorAll('[data-param]').forEach(el => {
+          const param = el.dataset.param;
+          let value = el.value.trim();
+          
+          if (!value) return;
+          
+          // Parse based on expected type
+          const schema = selectedInspectorTool.inputSchema?.properties?.[param];
+          if (schema) {
+            if (schema.type === 'number') {
+              value = parseFloat(value);
+            } else if (schema.type === 'integer') {
+              value = parseInt(value, 10);
+            } else if (schema.type === 'boolean') {
+              value = value === 'true';
+            } else if (schema.type === 'array' || schema.type === 'object') {
+              try {
+                value = JSON.parse(value);
+              } catch {
+                // Keep as string if parse fails
+              }
+            }
+          }
+          
+          args[param] = value;
+        });
+        
+        // Execute
+        executeBtn.disabled = true;
+        executeBtn.textContent = '⏳ Executing...';
+        
+        const startTime = performance.now();
+        
+        // Log the request
+        const requestPayload = {
+          serverName,
+          toolName: selectedInspectorTool.name,
+          args
+        };
+        logProtocolMessage('request', selectedInspectorTool.name, requestPayload);
+        
+        try {
+          const response = await fetch('/api/mcp/call', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(requestPayload)
+          });
+          
+          const data = await response.json();
+          const duration = Math.round(performance.now() - startTime);
+          
+          // Log the response
+          logProtocolMessage('response', selectedInspectorTool.name, data.error || data.result, duration);
+          
+          lastInspectorResponse = data;
+          responseSection.style.display = 'block';
+          
+          const isError = data.error || data.result?.isError === true;
+          
+          if (isError) {
+            responseStatus.className = 'inspector-status error';
+            responseStatus.innerHTML = `❌ Error <span style="color: var(--text-muted);">(${duration}ms)</span>`;
+            responseBody.className = 'inspector-response error';
+          } else {
+            responseStatus.className = 'inspector-status success';
+            responseStatus.innerHTML = `✅ Success <span style="color: var(--text-muted);">(${duration}ms)</span>`;
+            responseBody.className = 'inspector-response success';
+          }
+          
+          responseBody.textContent = JSON.stringify(data.error || data.result, null, 2);
+          
+        } catch (error) {
+          const duration = Math.round(performance.now() - startTime);
+          responseSection.style.display = 'block';
+          responseStatus.className = 'inspector-status error';
+          responseStatus.innerHTML = `❌ Error <span style="color: var(--text-muted);">(${duration}ms)</span>`;
+          responseBody.className = 'inspector-response error';
+          responseBody.textContent = error.message;
+          lastInspectorResponse = { error: error.message };
+        } finally {
+          executeBtn.disabled = false;
+          executeBtn.textContent = '▶️ Execute';
+        }
+      }
+      
+      // Copy inspector response to clipboard
+      function copyInspectorResponse() {
+        if (!lastInspectorResponse) return;
+        const json = JSON.stringify(lastInspectorResponse.error || lastInspectorResponse.result, null, 2);
+        navigator.clipboard.writeText(json).then(() => {
+          appendMessage('system', '📋 Response copied to clipboard');
+        });
+      }
+      
+      // Protocol Logging
+      function logProtocolMessage(direction, toolName, data, duration = null) {
+        const logEl = document.getElementById('protocolLog');
+        
+        // Clear placeholder if first message
+        if (logEl.querySelector('div[style*="italic"]')) {
+          logEl.innerHTML = '';
+        }
+        
+        const timestamp = new Date().toLocaleTimeString();
+        const icon = direction === 'request' ? '→' : '←';
+        const color = direction === 'request' ? 'var(--accent-primary)' : 'var(--success)';
+        const durationStr = duration ? ` <span style="color: var(--text-muted);">(${duration}ms)</span>` : '';
+        
+        const entry = document.createElement('div');
+        entry.style.cssText = 'margin-bottom: 8px; padding: 8px; background: var(--bg-surface); border-radius: 6px; border-left: 3px solid ' + color;
+        entry.innerHTML = `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: ${color}; font-weight: 600;">${icon} ${direction.toUpperCase()}: ${escapeHtml(toolName)}${durationStr}</span>
+            <span style="color: var(--text-muted); font-size: 0.7rem;">${timestamp}</span>
+          </div>
+          <pre style="margin: 0; font-size: 0.7rem; overflow-x: auto; white-space: pre-wrap; color: var(--text-secondary);">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        `;
+        
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      
+      function clearProtocolLog() {
+        document.getElementById('protocolLog').innerHTML = 
+          '<div style="color: var(--text-muted); font-style: italic;">Execute a tool to see protocol messages...</div>';
+      }
+      
+      // ==========================================
+      // CONFIG EXPORT/IMPORT
+      // ==========================================
+      
+      async function exportConfig() {
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+          
+          // Build YAML config
+          let yaml = '# MCP Chat Studio Configuration\n# Exported: ' + new Date().toISOString() + '\n\nmcpServers:\n';
+          
+          for (const [name, info] of Object.entries(status)) {
+            if (!info.config) continue;
+            const cfg = info.config;
+            
+            yaml += `  ${name}:\n`;
+            yaml += `    type: ${cfg.type || 'stdio'}\n`;
+            
+            if (cfg.command) yaml += `    command: ${cfg.command}\n`;
+            if (cfg.args && cfg.args.length > 0) {
+              yaml += `    args:\n`;
+              cfg.args.forEach(arg => yaml += `      - ${arg}\n`);
+            }
+            if (cfg.url) yaml += `    url: ${cfg.url}\n`;
+            if (cfg.description) yaml += `    description: "${cfg.description}"\n`;
+            if (cfg.env && Object.keys(cfg.env).length > 0) {
+              yaml += `    env:\n`;
+              for (const [k, v] of Object.entries(cfg.env)) {
+                yaml += `      ${k}: "${v}"\n`;
+              }
+            }
+            yaml += '\n';
+          }
+          
+          // Download as file
+          const blob = new Blob([yaml], { type: 'text/yaml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mcp-config.yaml';
+          a.click();
+          URL.revokeObjectURL(url);
+          
+          appendMessage('system', '📥 Config exported to mcp-config.yaml');
+        } catch (error) {
+          appendMessage('error', 'Export failed: ' + error.message);
+        }
+      }
+      
+      // ==========================================
+      // EXPORT CHAT HISTORY
+      // ==========================================
+      
+      function exportChat() {
+        const messages = document.querySelectorAll('.message');
+        if (messages.length === 0) {
+          appendMessage('system', 'No messages to export');
+          return;
+        }
+        
+        let markdown = `# MCP Chat Studio - Conversation Export\n`;
+        markdown += `**Exported:** ${new Date().toISOString()}\n\n---\n\n`;
+        
+        messages.forEach(msg => {
+          const isUser = msg.classList.contains('user');
+          const isSystem = msg.classList.contains('system');
+          const isError = msg.classList.contains('error');
+          
+          const content = msg.querySelector('.message-content')?.textContent || msg.textContent;
+          
+          if (isSystem) {
+            markdown += `> 🔔 ${content.trim()}\n\n`;
+          } else if (isError) {
+            markdown += `> ❌ **Error:** ${content.trim()}\n\n`;
+          } else if (isUser) {
+            markdown += `## 👤 User\n\n${content.trim()}\n\n`;
+          } else {
+            markdown += `## 🤖 Assistant\n\n${content.trim()}\n\n`;
+          }
+        });
+        
+        // Download as file
+        const blob = new Blob([markdown], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat-export-${new Date().toISOString().slice(0,10)}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        appendMessage('system', '💬 Chat exported to markdown file');
+      }
+      
+      // ==========================================
+      // KEYBOARD SHORTCUTS HELP
+      // ==========================================
+      
+      function showShortcutsHelp() {
+        const helpHTML = `
+          <div style="padding: var(--spacing-md);">
+            <h3 style="margin-bottom: var(--spacing-md);">⌨️ Keyboard Shortcuts</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Enter</kbd></td><td>Send message</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Shift+Enter</kbd></td><td>New line</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Escape</kbd></td><td>Cancel / Close modal</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+K</kbd></td><td>Focus tool search</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+E</kbd></td><td>Export chat</td></tr>
+              <tr><td style="padding: 8px;"><kbd>Ctrl+/</kbd></td><td>Show this help</td></tr>
+            </table>
+          </div>
+        `;
+        
+        // Create a temporary toast/modal for help
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = helpHTML;
+        toast.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--bg-elevated); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 10000; min-width: 320px;';
+        
+        // Add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.2rem;';
+        closeBtn.onclick = () => toast.remove();
+        toast.appendChild(closeBtn);
+        
+        document.body.appendChild(toast);
+        
+        // Auto-close after 10 seconds
+        setTimeout(() => toast.remove(), 10000);
+      }
+      
+      function importConfigFile() {
+        document.getElementById('configFileInput').click();
+      }
+      
+      async function handleConfigFileImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        try {
+          const text = await file.text();
+          let config;
+          
+          // Try JSON first, then YAML
+          try {
+            config = JSON.parse(text);
+          } catch {
+            config = parseSimpleYaml(text);
+          }
+          
+          // Handle mcpServers wrapper
+          const servers = config.mcpServers || config;
+          let addedCount = 0;
+          
+          for (const [name, cfg] of Object.entries(servers)) {
+            if (typeof cfg !== 'object') continue;
+            
+            const payload = {
+              name,
+              type: cfg.type || 'stdio',
+              description: cfg.description || '',
+              command: cfg.command,
+              args: cfg.args || [],
+              url: cfg.url,
+              env: cfg.env || {}
+            };
+            
+            const response = await fetch('/api/mcp/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
+            
+            const data = await response.json();
+            if (!data.error) addedCount++;
+          }
+          
+          appendMessage('system', `📤 Imported ${addedCount} server(s) from ${file.name}`);
+          loadServers();
+        } catch (error) {
+          appendMessage('error', 'Import failed: ' + error.message);
+        }
+        
+        // Reset file input
+        event.target.value = '';
+      }
+      
+      // ==========================================
+      // SSE EVENT VIEWER
+      // ==========================================
+      
+      let sseConnection = null;
+      
+      function toggleSSEViewer() {
+        const btn = document.getElementById('sseConnectBtn');
+        const statusEl = document.getElementById('sseStatus');
+        const serverSelect = document.getElementById('inspectorServerSelect');
+        const serverName = serverSelect?.value;
+        
+        if (sseConnection) {
+          // Disconnect
+          sseConnection.close();
+          sseConnection = null;
+          btn.textContent = '🔌 Connect';
+          statusEl.textContent = 'Disconnected';
+          statusEl.style.color = 'var(--text-muted)';
+          return;
+        }
+        
+        if (!serverName) {
+          statusEl.textContent = '⚠️ Select a server first';
+          statusEl.style.color = 'var(--warning)';
+          return;
+        }
+        
+        // Try to connect to SSE endpoint
+        // This creates an EventSource to listen for server events
+        try {
+          statusEl.textContent = `Connecting to ${serverName}...`;
+          statusEl.style.color = 'var(--accent-primary)';
+          
+          // Use server status API to check if SSE type
+          fetch('/api/mcp/status', { credentials: 'include' })
+            .then(res => res.json())
+            .then(status => {
+              const server = status[serverName];
+              if (!server) {
+                statusEl.textContent = '⚠️ Server not found';
+                statusEl.style.color = 'var(--error)';
+                return;
+              }
+              
+              if (server.type !== 'sse') {
+                logSSEEvent('info', serverName, 'This server uses stdio transport - SSE events not available');
+                statusEl.textContent = 'stdio server (no SSE events)';
+                statusEl.style.color = 'var(--text-muted)';
+                return;
+              }
+              
+              // For SSE servers, we'd need the config URL
+              // Since MCP SSE is bidirectional, we simulate event logging
+              logSSEEvent('connect', serverName, 'SSE transport detected - monitoring enabled');
+              statusEl.textContent = `Connected to ${serverName}`;
+              statusEl.style.color = 'var(--success)';
+              btn.textContent = '🔌 Disconnect';
+              
+              // Set up a simple heartbeat to show connection
+              sseConnection = {
+                close: () => {
+                  logSSEEvent('disconnect', serverName, 'Connection closed');
+                }
+              };
+            })
+            .catch(err => {
+              statusEl.textContent = '❌ ' + err.message;
+              statusEl.style.color = 'var(--error)';
+            });
+        } catch (error) {
+          statusEl.textContent = '❌ ' + error.message;
+          statusEl.style.color = 'var(--error)';
+        }
+      }
+      
+      function logSSEEvent(type, serverName, data) {
+        const eventsEl = document.getElementById('sseEvents');
+        
+        // Clear placeholder if first event
+        if (eventsEl.querySelector('div[style*="italic"]')) {
+          eventsEl.innerHTML = '';
+        }
+        
+        const timestamp = new Date().toLocaleTimeString();
+        const colors = {
+          connect: 'var(--success)',
+          disconnect: 'var(--error)',
+          message: 'var(--accent-primary)',
+          info: 'var(--text-muted)'
+        };
+        const color = colors[type] || 'var(--text-secondary)';
+        
+        const entry = document.createElement('div');
+        entry.style.cssText = 'margin-bottom: 6px; padding: 6px; background: var(--bg-surface); border-radius: 4px; border-left: 3px solid ' + color;
+        entry.innerHTML = `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+            <span style="color: ${color}; font-weight: 600; font-size: 0.7rem;">${type.toUpperCase()}: ${escapeHtml(serverName)}</span>
+            <span style="color: var(--text-muted); font-size: 0.65rem;">${timestamp}</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-secondary);">${escapeHtml(String(data))}</div>
+        `;
+        
+        eventsEl.appendChild(entry);
+        eventsEl.scrollTop = eventsEl.scrollHeight;
+      }
+      
+      function clearSSEEvents() {
+        document.getElementById('sseEvents').innerHTML = 
+          '<div style="color: var(--text-muted); font-style: italic;">Connect to an SSE server to see real-time events...</div>';
+      }
+
+      // ==========================================
+      // TOOL SCHEMA VIEWER
+      // ==========================================
+      
+      function generateSchemaHTML(tool) {
+        const schema = tool.inputSchema;
+        if (!schema || !schema.properties || Object.keys(schema.properties).length === 0) {
+          return '<div class="schema-section"><em>No parameters required</em></div>';
+        }
+        
+        const required = schema.required || [];
+        let html = '<div class="param-list">';
+        
+        for (const [paramName, paramDef] of Object.entries(schema.properties)) {
+          const isRequired = required.includes(paramName);
+          const typeLabel = paramDef.type || 'any';
+          
+          html += `
+            <div class="param-item">
+              <span class="param-name">${escapeHtml(paramName)}</span>
+              <span class="param-type">${typeLabel}</span>
+              <span class="${isRequired ? 'param-required' : 'param-optional'}">${isRequired ? 'required' : 'optional'}</span>
+          `;
+          
+          if (paramDef.description) {
+            html += `<div class="param-desc">${escapeHtml(paramDef.description)}</div>`;
+          }
+          
+          if (paramDef.enum && paramDef.enum.length > 0) {
+            html += `<div class="param-enum">Values: ${paramDef.enum.map(v => `<code>${escapeHtml(String(v))}</code>`).join(' ')}</div>`;
+          }
+          
+          if (paramDef.default !== undefined) {
+            html += `<div class="param-desc">Default: <code>${escapeHtml(String(paramDef.default))}</code></div>`;
+          }
+          
+          html += '</div>';
+        }
+        
+        html += '</div>';
+        return html;
+      }
+      
+      function toggleToolSchema(toolEl) {
+        // Close any other expanded tools
+        document.querySelectorAll('.tool-item.expanded').forEach(el => {
+          if (el !== toolEl) el.classList.remove('expanded');
+        });
+        
+        // Toggle this tool
+        toolEl.classList.toggle('expanded');
+      }
+
+      // Select a tool (insert prompt) 
+      function selectTool(tool, forceMode = false) {
+        if (forceMode) {
+          selectedTool = tool;
+          updateSelectedToolBadge();
+          userInputEl.placeholder = `Using ${tool.name}... Type your request`;
+          userInputEl.focus();
+        } else {
+          // Insert prompt text
+          const prompt = `Use the ${tool.name} tool to `;
+          userInputEl.value = prompt;
+          userInputEl.focus();
+          userInputEl.setSelectionRange(prompt.length, prompt.length);
+        }
+      }
+
+      // Clear selected tool
+      function clearSelectedTool() {
+        selectedTool = null;
+        updateSelectedToolBadge();
+        userInputEl.placeholder = "Type your message... (Enter to send, Shift+Enter for new line)";
+      }
+
+      // Update selected tool badge UI
+      function updateSelectedToolBadge() {
+        const badgeEl = document.getElementById('selectedToolBadge');
+        if (selectedTool) {
+          badgeEl.innerHTML = `
+            <div class="selected-tool-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+              </svg>
+              <span>Force: ${selectedTool.name}</span>
+              <button class="clear-btn" onclick="clearSelectedTool()" title="Clear selection">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          `;
+        } else {
+          badgeEl.innerHTML = '';
+        }
+      }
+
+      // Send message (or cancel if already loading)
+      async function sendMessage() {
+        if (isLoading) {
+          cancelRequest();
+          return;
+        }
+
+        const content = userInputEl.value.trim();
+        if (!content) return;
+
+        messages.push({ role: "user", content });
+        appendMessage("user", content);
+
+        userInputEl.value = "";
+        userInputEl.style.height = "auto";
+
+        isLoading = true;
+        currentAbortController = new AbortController();
+        sendBtnEl.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+        Cancel
+      `;
+        sendBtnEl.classList.add("cancel");
+        
+        const useStream = useStreamEl.checked && !useToolsEl.checked; // Streaming doesn't work well with tool calls
+        
+        if (useStream) {
+          // ========== STREAMING MODE ==========
+          try {
+            if (currentLoadingEl) {
+              currentLoadingEl.remove();
+              currentLoadingEl = null;
+            }
+            
+            // Create a live message element
+            const liveMessageEl = document.createElement("div");
+            liveMessageEl.className = "message assistant";
+            liveMessageEl.innerHTML = '<span class="typing-cursor">▌</span>';
+            messagesEl.appendChild(liveMessageEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            
+            let fullContent = "";
+            
+            const response = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              signal: currentAbortController.signal,
+              body: JSON.stringify({
+                messages: messages.map((m) => ({
+                  role: m.role,
+                  content: m.content,
+                })),
+                useTools: false, // Disable tools for streaming
+                stream: true
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop(); // Keep incomplete line in buffer
+              
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const data = line.slice(6);
+                
+                if (data === "[DONE]") break;
+                
+                try {
+                  const chunk = JSON.parse(data);
+                  
+                  // Handle error in stream
+                  if (chunk.error) {
+                    throw new Error(chunk.error);
+                  }
+                  
+                  // Extract content delta
+                  const delta = chunk.choices?.[0]?.delta?.content;
+                  if (delta) {
+                    fullContent += delta;
+                    // Update live message (simple formatting)
+                    let formatted = escapeHtml(fullContent);
+                    formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
+                    formatted = formatted.replace(/`([^`]+)`/g, "<code>$1</code>");
+                    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+                    formatted = formatted.replace(/\n/g, "<br>");
+                    liveMessageEl.innerHTML = formatted + '<span class="typing-cursor">▌</span>';
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                  }
+                } catch (e) {
+                  // Skip invalid JSON chunks
+                  if (e.message !== "Unexpected end of JSON input") {
+                    console.warn("Stream parse error:", e);
+                  }
+                }
+              }
+            }
+            
+            // Finalize message (remove cursor)
+            let finalFormatted = escapeHtml(fullContent || "No response generated.");
+            finalFormatted = finalFormatted.replace(/```(\w*)\n?([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
+            finalFormatted = finalFormatted.replace(/`([^`]+)`/g, "<code>$1</code>");
+            finalFormatted = finalFormatted.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+            finalFormatted = finalFormatted.replace(/\n/g, "<br>");
+            liveMessageEl.innerHTML = finalFormatted;
+            
+            messages.push({ role: "assistant", content: fullContent || "No response generated." });
+            
+          } catch (error) {
+            if (error.name !== "AbortError") {
+              appendMessage("error", `Error: ${error.message}`);
+            }
+          } finally {
+            resetLoadingState();
+          }
+          
+        } else {
+          // ========== NON-STREAMING MODE (with tool support) ==========
+          currentLoadingEl = appendLoading();
+          
+          try {
+            const response = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              signal: currentAbortController.signal,
+              body: JSON.stringify({
+                messages: messages.map((m) => ({
+                  role: m.role,
+                  content: m.content,
+                })),
+                useTools: useToolsEl.checked,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.error) {
+              throw new Error(data.error);
+            }
+
+            // Handle tool calls
+            if (data.requiresContinuation && data.toolResults) {
+              if (currentLoadingEl) {
+                currentLoadingEl.remove();
+                currentLoadingEl = null;
+              }
+
+              // Show tool results with better formatting
+              for (const result of data.toolResults) {
+                const toolName = result.name.split("__").pop() || result.name;
+                const displayContent = formatToolResult(result.result);
+                appendToolMessage(toolName, displayContent, result.success);
+              }
+
+              // Add tool messages to history
+              const assistantMsg = data.choices[0].message;
+              messages.push(assistantMsg);
+
+              for (const result of data.toolResults) {
+                messages.push({
+                  role: "tool",
+                  tool_call_id: result.tool_call_id,
+                  content: JSON.stringify(result.result),
+                });
+              }
+
+              // Continue conversation
+              currentLoadingEl = appendLoading();
+
+              const continueResponse = await fetch("/api/chat/continue", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                signal: currentAbortController.signal,
+                body: JSON.stringify({
+                  messages,
+                  useTools: useToolsEl.checked,
+                }),
+              });
+
+              if (!continueResponse.ok) {
+                const errorData = await continueResponse.json().catch(() => ({}));
+                throw new Error(
+                  errorData.error || `HTTP ${continueResponse.status}`
+                );
+              }
+
+              const continueData = await continueResponse.json();
+
+              if (continueData.error) {
+                throw new Error(continueData.error);
+              }
+
+              const finalContent =
+                continueData.choices?.[0]?.message?.content ||
+                "No response generated.";
+              messages.push({ role: "assistant", content: finalContent });
+              appendMessage("assistant", finalContent);
+            } else {
+              // No tool calls, direct response
+              const responseContent =
+                data.choices?.[0]?.message?.content || "No response generated.";
+              messages.push({ role: "assistant", content: responseContent });
+              appendMessage("assistant", responseContent);
+            }
+          } catch (error) {
+            if (error.name !== "AbortError") {
+              appendMessage("error", `Error: ${error.message}`);
+            }
+          } finally {
+            resetLoadingState();
+          }
+        }
+      }
+
+      // Format tool result for display - FIX for JSON-only display issue
+      function formatToolResult(result) {
+        if (!result) return "No result";
+
+        // Handle MCP format: { content: [{ type: 'text', text: '...' }] }
+        if (result.content && Array.isArray(result.content)) {
+          const textParts = [];
+          for (const item of result.content) {
+            if (item.type === "text" && item.text) {
+              textParts.push(item.text);
+            } else if (item.type === "error" || item.isError) {
+              textParts.push(
+                `❌ Error: ${item.text || item.message || "Unknown error"}`
+              );
+            }
+          }
+          if (textParts.length > 0) {
+            return textParts.join("\n");
+          }
+        }
+
+        // Handle simple string result
+        if (typeof result === "string") {
+          return result;
+        }
+
+        // Handle error object
+        if (result.error) {
+          return `❌ Error: ${result.error}`;
+        }
+
+        // Handle isError flag
+        if (result.isError && result.content) {
+          const errorText = Array.isArray(result.content)
+            ? result.content.map((c) => c.text || c).join("\n")
+            : String(result.content);
+          return `❌ Error: ${errorText}`;
+        }
+
+        // Fallback: pretty print JSON
+        try {
+          return JSON.stringify(result, null, 2);
+        } catch {
+          return String(result);
+        }
+      }
+
+      // Append tool message with special formatting
+      function appendToolMessage(toolName, content, success = true) {
+        const div = document.createElement("div");
+        div.className = "message tool";
+
+        const icon = success
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+
+        div.innerHTML = `
+        <div class="tool-header">
+          ${icon}
+          <span>${escapeHtml(toolName)}</span>
+        </div>
+        <div class="tool-content">${escapeHtml(content)}</div>
+      `;
+
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+      }
+
+      // Append message to UI
+      function appendMessage(role, content) {
+        const div = document.createElement("div");
+        div.className = `message ${role}`;
+
+        // Simple markdown-like formatting
+        let formatted = escapeHtml(content);
+        formatted = formatted.replace(
+          /```(\w*)\n?([\s\S]*?)```/g,
+          "<pre><code>$2</code></pre>"
+        );
+        formatted = formatted.replace(/`([^`]+)`/g, "<code>$1</code>");
+        formatted = formatted.replace(
+          /\*\*([^*]+)\*\*/g,
+          "<strong>$1</strong>"
+        );
+        formatted = formatted.replace(/\n/g, "<br>");
+
+        div.innerHTML = formatted;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+      }
+
+      // Append loading indicator
+      function appendLoading() {
+        const div = document.createElement("div");
+        div.className = "message assistant";
+        div.innerHTML = `
+        <div class="loading-dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+      `;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+      }
+
+      // Clear chat
+      function clearChat() {
+        if (isLoading) {
+          cancelRequest();
+        }
+
+        messages = [
+          {
+            role: "assistant",
+            content:
+              '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click "Login" to connect to secured services.',
+          },
+        ];
+        messagesEl.innerHTML = "";
+        appendMessage("assistant", messages[0].content);
+        resetLoadingState();
+      }
+
+      // Escape HTML
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Load MCP status
+      async function loadMCPStatus() {
+        try {
+          const response = await fetch("/api/mcp/status", {
+            credentials: "include",
+          });
+          const status = await response.json();
+
+          if (Object.keys(status).length === 0) {
+            mcpServersEl.innerHTML =
+              '<div class="empty-state">No MCP servers configured</div>';
+            serverCountEl.textContent = "0 connected";
+            return;
+          }
+
+          const connectedCount = Object.values(status).filter(
+            (s) => s.connected
+          ).length;
+          serverCountEl.textContent = `${connectedCount} connected`;
+
+          mcpServersEl.innerHTML = "";
+
+          for (const [name, info] of Object.entries(status)) {
+            const serverEl = document.createElement("div");
+            serverEl.className = "mcp-server";
+
+            const connectBtn = info.connected
+              ? `<button class="mcp-connect-btn connected">✓ Connected</button><button class="mcp-connect-btn disconnect" data-disconnect="${name}" onclick="disconnectMCP('${name}')">Disconnect</button>`
+              : `<button class="mcp-connect-btn" data-server="${name}" onclick="connectMCP('${name}')">Connect</button>`;
+            
+            // Add edit and remove buttons for servers
+            const editBtn = `<button class="mcp-edit-btn" onclick="editServer('${name}')" title="Edit server configuration">✏️</button>`;
+            const removeBtn = `<button class="mcp-remove-btn" onclick="removeServer('${name}')" title="Remove server">🗑️</button>`;
+
+            const authBadge = info.requiresAuth
+              ? `<span class="auth-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Auth</span>`
+              : "";
+
+            serverEl.innerHTML = `
+            <div class="mcp-server-header">
+              <div class="mcp-server-name">
+                <span class="mcp-status-dot ${
+                  info.connected ? "connected" : ""
+                }"></span>
+                ${name}
+              </div>
+              ${authBadge}
+            </div>
+            <div class="mcp-server-meta">
+              <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                </svg>
+                ${info.toolCount} tools
+              </span>
+              <span>${info.type}</span>
+            </div>
+            <div class="mcp-server-actions">
+              ${connectBtn}
+              ${editBtn}
+              ${removeBtn}
+            </div>
+          `;
+
+            // Show tools if connected
+            if (info.connected && info.toolCount > 0) {
+              try {
+                const toolsResponse = await fetch("/api/mcp/tools", {
+                  credentials: "include",
+                });
+                const toolsData = await toolsResponse.json();
+                const serverTools = toolsData.tools.filter(
+                  (t) => t.serverName === name && !t.notConnected
+                );
+
+                if (serverTools.length > 0) {
+                  const toolsContainer = document.createElement("div");
+                  toolsContainer.className = "tools-list";
+
+                  toolsContainer.innerHTML = `<div class="tools-header"><span>Available Tools</span><span>${serverTools.length}</span></div>`;
+
+                  for (const tool of serverTools.slice(0, 8)) {
+                    const toolEl = document.createElement("div");
+                    toolEl.className = "tool-item";
+                    toolEl.dataset.toolName = tool.name;
+                    toolEl.dataset.serverName = tool.serverName;
+                    
+                    // Generate schema HTML
+                    const schemaHTML = generateSchemaHTML(tool);
+                    
+                    toolEl.innerHTML = `
+                    <div class="tool-name">
+                      <svg class="use-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                      ${escapeHtml(tool.name)}
+                    </div>
+                    <div class="tool-desc">${escapeHtml((tool.description || "").slice(0, 80))}${(tool.description || "").length > 80 ? "..." : ""}</div>
+                    <div class="tool-schema">
+                      <div class="schema-section-title">Parameters</div>
+                      ${schemaHTML}
+                      <div class="schema-actions">
+                        <button class="tool-action-btn" onclick="event.stopPropagation(); selectTool({name: '${escapeHtml(tool.name)}', serverName: '${escapeHtml(tool.serverName)}'}, false)" title="Insert a prompt suggestion using this tool">📝 Insert</button>
+                        <button class="tool-action-btn force" onclick="event.stopPropagation(); selectTool({name: '${escapeHtml(tool.name)}', serverName: '${escapeHtml(tool.serverName)}'}, true)" title="Force the LLM to use this specific tool">⚡ Force</button>
+                      </div>
+                    </div>
+                  `;
+                    // Click on tool item toggles schema expansion
+                    toolEl.addEventListener('click', (e) => {
+                      if (e.target.tagName !== 'BUTTON') {
+                        toggleToolSchema(toolEl);
+                      }
+                    });
+                    toolsContainer.appendChild(toolEl);
+                  }
+
+                  if (serverTools.length > 8) {
+                    const moreTools = serverTools.slice(8);
+                    const moreContainerId = `more-tools-${name}`;
+                    
+                    // Create hidden container for additional tools
+                    const moreContainer = document.createElement('div');
+                    moreContainer.id = moreContainerId;
+                    moreContainer.style.display = 'none';
+                    
+                    for (const tool of moreTools) {
+                      const toolEl = document.createElement('div');
+                      toolEl.className = 'tool-item';
+                      toolEl.dataset.toolName = tool.name;
+                      toolEl.dataset.serverName = tool.serverName;
+                      
+                      // Generate schema HTML
+                      const schemaHTML = generateSchemaHTML(tool);
+                      
+                      toolEl.innerHTML = `
+                        <div class="tool-name">
+                          <svg class="use-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                          </svg>
+                          ${escapeHtml(tool.name)}
+                        </div>
+                        <div class="tool-desc">${escapeHtml((tool.description || '').slice(0, 80))}${(tool.description || '').length > 80 ? '...' : ''}</div>
+                        <div class="tool-schema">
+                          <div class="schema-section-title">Parameters</div>
+                          ${schemaHTML}
+                          <div class="schema-actions">
+                            <button class="tool-action-btn" onclick="event.stopPropagation(); selectTool({name: '${escapeHtml(tool.name)}', serverName: '${escapeHtml(tool.serverName)}'}, false)">📝 Insert</button>
+                            <button class="tool-action-btn force" onclick="event.stopPropagation(); selectTool({name: '${escapeHtml(tool.name)}', serverName: '${escapeHtml(tool.serverName)}'}, true)">⚡ Force</button>
+                          </div>
+                        </div>
+                      `;
+                      toolEl.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'BUTTON') {
+                          toggleToolSchema(toolEl);
+                        }
+                      });
+                      moreContainer.appendChild(toolEl);
+                    }
+                    toolsContainer.appendChild(moreContainer);
+                    
+                    // Create toggle button
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'tool-toggle-btn';
+                    toggleBtn.innerHTML = `<span>▼</span> Show ${moreTools.length} more tools`;
+                    toggleBtn.onclick = () => {
+                      const container = document.getElementById(moreContainerId);
+                      const isHidden = container.style.display === 'none';
+                      container.style.display = isHidden ? 'block' : 'none';
+                      toggleBtn.innerHTML = isHidden 
+                        ? `<span>▲</span> Hide ${moreTools.length} tools`
+                        : `<span>▼</span> Show ${moreTools.length} more tools`;
+                    };
+                    toolsContainer.appendChild(toggleBtn);
+                  }
+
+                  serverEl.appendChild(toolsContainer);
+                }
+              } catch (e) {
+                console.error("Failed to load tools:", e);
+              }
+            }
+
+            mcpServersEl.appendChild(serverEl);
+          }
+        } catch (error) {
+          mcpServersEl.innerHTML = `<div class="empty-state" style="color: var(--error)">Failed to load MCP status</div>`;
+        }
+      }
+
+      // Initialize
+      checkAuthStatus();
+      loadMCPStatus();
+
+      // Refresh MCP status periodically
+      setInterval(loadMCPStatus, 30000);
+    </script>
+  </body>
+</html>

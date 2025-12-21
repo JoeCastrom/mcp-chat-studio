@@ -1,0 +1,60 @@
+version: '3.8'
+
+# USAGE:
+# - Use local Ollama:  docker-compose up mcp-chat-studio
+# - Include Ollama:    docker-compose --profile with-ollama up
+# - Just the app:      docker-compose up (uses host.docker.internal for local Ollama)
+
+services:
+  mcp-chat-studio:
+    build: .
+    container_name: mcp-chat-studio
+    ports:
+      - '3082:3082'
+    environment:
+      - PORT=3082
+      # For local Ollama (running on host machine):
+      # On Windows/Mac: host.docker.internal resolves to host
+      # On Linux: use --add-host=host.docker.internal:host-gateway
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # Add your LLM API keys here
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      # OAuth configuration (optional)
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
+    extra_hosts:
+      # Linux support for host.docker.internal
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      # Mount config for easy editing
+      - ./config.yaml:/app/config.yaml:ro
+      # Mount for MCP server logs (optional)
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # Optional: Ollama in Docker (only starts with --profile with-ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    profiles:
+      - with-ollama
+    ports:
+      - '11434:11434'
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  ollama-data:

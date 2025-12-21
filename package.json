@@ -1,0 +1,46 @@
+{
+  "name": "mcp-chat-studio",
+  "version": "1.0.0",
+  "description": "A powerful MCP testing and development tool with multi-provider LLM support",
+  "main": "server/index.js",
+  "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "testing",
+    "development",
+    "tools",
+    "chat"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JoeCastrom/mcp-chat-studio.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Youssef Ghazi",
+    "url": "https://github.com/JoeCastrom"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "lint": "eslint server/**/*.js",
+    "format": "prettier --write \"**/*.{js,json,md}\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "axios": "^1.6.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "js-yaml": "^4.1.0",
+    "uuid": "^9.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4"
+  }
+}
