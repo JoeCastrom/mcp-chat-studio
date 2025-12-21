@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Features
 
 **LLM Support:**
+
 - ✨ Multi-provider LLM support (7 providers)
   - Ollama (local, default)
   - OpenAI (GPT-4o, GPT-4, GPT-3.5)
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Provider-specific request/response transformation
 
 **MCP Protocol:**
+
 - ✨ Dynamic MCP server management (add/remove at runtime)
 - ✨ STDIO transport support
 - ✨ SSE (Server-Sent Events) transport support
@@ -35,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Prompts API support
 
 **Tool Testing:**
+
 - ✨ "Test All Tools" feature - smoke test all connected tools
 - ✨ Response preview and timing measurement
 - ✨ Safe mode - skip risky tools (Click, Type, Launch)
@@ -42,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Tool schema viewer with parameter details
 
 **Inspector:**
+
 - ✨ Manual tool execution without LLM
 - ✨ Auto-generated forms from JSON schema
 - ✨ Raw MCP request/response viewer
@@ -49,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Support for all parameter types (string, number, boolean, array, object, enum)
 
 **Authentication:**
+
 - ✨ OAuth2/OIDC support with PKCE
 - ✨ Provider presets (Keycloak, GitHub, Google)
 - ✨ Custom OAuth2 provider support
@@ -57,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Secure session management
 
 **Configuration:**
+
 - ✨ YAML/JSON config import/export
 - ✨ Paste config from documentation
 - ✨ Live config preview before adding servers
@@ -64,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Config persistence
 
 **UI/UX:**
+
 - ✨ Modern glassmorphism design
 - ✨ Dark/Light theme toggle
 - ✨ Responsive layout
@@ -74,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ Tool count badges
 
 **Developer Experience:**
+
 - ✨ Docker support (Dockerfile + docker-compose)
 - ✨ ESLint and Prettier configuration
 - ✨ Development mode with auto-reload
@@ -116,6 +124,7 @@ This is the initial public release of MCP Chat Studio. All VW-specific code and 
 ## Format Guide
 
 Types of changes:
+
 - `Added` - New features
 - `Changed` - Changes in existing functionality
 - `Deprecated` - Soon-to-be removed features
