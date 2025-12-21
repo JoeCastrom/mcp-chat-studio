@@ -30,15 +30,55 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3080;
+const PORT = process.env.PORT || 3082;
+
+// CORS configuration - secure by default
+function getCorsOrigins() {
+  // Always allow localhost variants
+  const localOrigins = [
+    'http://localhost:3082',
+    'http://127.0.0.1:3082',
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`
+  ];
+  
+  // Allow additional origins via environment variable
+  const envOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
+  
+  return [...new Set([...localOrigins, ...envOrigins])];
+}
+
+const allowedOrigins = getCorsOrigins();
+const corsMode = process.env.CORS_ORIGINS ? 'custom' : 'localhost-only';
 
 // Middleware
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all localhost ports
+    if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('CORS not allowed'), false);
+  },
+  credentials: true,
+}));
+
+// Log CORS configuration at startup
+console.log(`[CORS] Mode: ${corsMode}`);
+if (corsMode === 'custom') {
+  console.log(`[CORS] Origins: ${process.env.CORS_ORIGINS}`);
+} else {
+  console.log('[CORS] Origins: localhost only (set CORS_ORIGINS to allow external origins)');
+}
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.static(join(__dirname, '../public')));

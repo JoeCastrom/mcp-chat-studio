@@ -8,6 +8,8 @@
 [![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
 
+> **📌 Note:** MCP Chat Studio is a **local MCP test bench**. It is designed for development and is not intended to be internet-exposed by default.
+
 ---
 
 ## ✨ Why MCP Chat Studio?
