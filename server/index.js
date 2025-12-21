@@ -33,10 +33,12 @@ const app = express();
 const PORT = process.env.PORT || 3080;
 
 // Middleware
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.static(join(__dirname, '../public')));
@@ -76,10 +78,10 @@ function loadConfig() {
         provider: 'ollama',
         model: 'llama3.2',
         temperature: 0.7,
-        base_url: process.env.LLM_BASE_URL || 'http://localhost:11434/v1'
+        base_url: process.env.LLM_BASE_URL || 'http://localhost:11434/v1',
       },
       oauth: {},
-      mcpServers: {}
+      mcpServers: {},
     };
   }
 }
@@ -93,7 +95,9 @@ async function initializeServices(config) {
   if (oauthManager.isConfigured()) {
     console.log('OAuth configured for Keycloak:', oauthManager.keycloakUrl);
   } else {
-    console.log('OAuth not configured (set KEYCLOAK_URL and OAUTH_CLIENT_ID for MCP OAuth support)');
+    console.log(
+      'OAuth not configured (set KEYCLOAK_URL and OAUTH_CLIENT_ID for MCP OAuth support)'
+    );
   }
 
   // Initialize LLM client
@@ -143,9 +147,9 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     oauth: {
       configured: oauth?.isConfigured() || false,
-      authenticated: sessionId ? oauth?.isAuthenticated(sessionId) : false
+      authenticated: sessionId ? oauth?.isAuthenticated(sessionId) : false,
     },
-    mcp: mcpManager.getStatus(sessionId)
+    mcp: mcpManager.getStatus(sessionId),
   });
 });
 
@@ -158,19 +162,19 @@ app.get('/api/config', (req, res) => {
   res.json({
     llm: {
       model: config.llm?.model,
-      base_url: config.llm?.base_url
+      base_url: config.llm?.base_url,
     },
     oauth: {
       configured: oauth?.isConfigured() || false,
       keycloakUrl: oauth?.keycloakUrl,
-      realm: oauth?.realm
+      realm: oauth?.realm,
     },
     mcpServers: Object.entries(config.mcpServers || {}).map(([name, cfg]) => ({
       name,
       type: cfg.type || (cfg.command ? 'stdio' : 'sse'),
       requiresAuth: cfg.requiresAuth || cfg.requiresOAuth || false,
-      description: cfg.description
-    }))
+      description: cfg.description,
+    })),
   });
 });
 

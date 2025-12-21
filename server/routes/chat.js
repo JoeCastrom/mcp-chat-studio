@@ -39,7 +39,9 @@ router.post('/', async (req, res) => {
     let tools = null;
     if (useTools) {
       tools = mcpManager.getToolsForLLM(sessionId);
-      console.log(`[Chat] Using ${tools.length} MCP tools with simplified schemas (session: ${sessionId?.slice(0, 8) || 'none'}...)`);
+      console.log(
+        `[Chat] Using ${tools.length} MCP tools with simplified schemas (session: ${sessionId?.slice(0, 8) || 'none'}...)`
+      );
     }
 
     if (stream) {
@@ -73,7 +75,7 @@ router.post('/', async (req, res) => {
         return res.json({
           ...response,
           toolResults,
-          requiresContinuation: true
+          requiresContinuation: true,
         });
       }
 
@@ -133,7 +135,7 @@ router.post('/continue', async (req, res) => {
         currentMessages.push({
           role: 'tool',
           tool_call_id: result.tool_call_id,
-          content: JSON.stringify(result.result)
+          content: JSON.stringify(result.result),
         });
       }
     }
@@ -161,7 +163,9 @@ async function processToolCalls(toolCalls, sessionId = null) {
     try {
       userToken = await oauthManager.getAccessToken(sessionId);
       if (userToken) {
-        console.log(`[Chat] OBO: Using user token for tool calls (session: ${sessionId?.slice(0, 8)}...)`);
+        console.log(
+          `[Chat] OBO: Using user token for tool calls (session: ${sessionId?.slice(0, 8)}...)`
+        );
       }
     } catch (error) {
       console.log(`[Chat] No user token available: ${error.message}`);
@@ -173,7 +177,9 @@ async function processToolCalls(toolCalls, sessionId = null) {
       const fullName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments || '{}');
 
-      console.log(`[Chat] Calling tool: ${fullName} (session: ${sessionId?.slice(0, 8) || 'none'}...)`);
+      console.log(
+        `[Chat] Calling tool: ${fullName} (session: ${sessionId?.slice(0, 8) || 'none'}...)`
+      );
 
       // Pass sessionId and userToken for OBO
       const result = await mcpManager.callToolByFullName(fullName, args, sessionId, userToken);
@@ -182,7 +188,7 @@ async function processToolCalls(toolCalls, sessionId = null) {
         tool_call_id: toolCall.id,
         name: fullName,
         result: result,
-        success: true
+        success: true,
       });
     } catch (error) {
       console.error(`[Chat] Tool call failed:`, error.message);
@@ -191,7 +197,7 @@ async function processToolCalls(toolCalls, sessionId = null) {
         tool_call_id: toolCall.id,
         name: toolCall.function.name,
         result: { error: error.message },
-        success: false
+        success: false,
       });
     }
   }

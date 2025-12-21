@@ -8,16 +8,14 @@
  * are incompatible with the JavaScript SDK's Zod validation.
  */
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
   StdioClientTransport,
   getDefaultEnvironment,
-} from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+} from '@modelcontextprotocol/sdk/client/stdio.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
-console.log(
-  "[MCP] Loading MCPManager with raw transport tool calls (bypasses SDK validation)"
-);
+console.log('[MCP] Loading MCPManager with raw transport tool calls (bypasses SDK validation)');
 
 class MCPConnection {
   constructor(serverName, config) {
@@ -42,7 +40,7 @@ class MCPConnection {
 
       // Create client
       this.client = new Client(
-        { name: "minimal-chat-client", version: "1.0.0" },
+        { name: 'minimal-chat-client', version: '1.0.0' },
         { capabilities: {} }
       );
 
@@ -56,19 +54,19 @@ class MCPConnection {
       }
 
       // Create transport based on config type
-      if (this.config.type === "stdio" || this.config.command) {
+      if (this.config.type === 'stdio' || this.config.command) {
         this.transport = new StdioClientTransport({
           command: this.config.command,
           args: this.config.args || [],
           env,
         });
-      } else if (this.config.type === "sse" || this.config.url) {
+      } else if (this.config.type === 'sse' || this.config.url) {
         const url = new URL(this.config.url);
 
         // Build headers with optional auth
         const headers = { ...(this.config.headers || {}) };
         if (userToken && this.requiresAuth) {
-          headers["Authorization"] = `Bearer ${userToken}`;
+          headers['Authorization'] = `Bearer ${userToken}`;
         }
 
         this.transport = new SSEClientTransport(url, {
@@ -86,10 +84,7 @@ class MCPConnection {
       await Promise.race([
         this.client.connect(this.transport),
         new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Connection timeout after ${timeout}ms`)),
-            timeout
-          )
+          setTimeout(() => reject(new Error(`Connection timeout after ${timeout}ms`)), timeout)
         ),
       ]);
 
@@ -101,10 +96,7 @@ class MCPConnection {
 
       return true;
     } catch (error) {
-      console.error(
-        `[MCP][${this.serverName}] Connection failed:`,
-        error.message
-      );
+      console.error(`[MCP][${this.serverName}] Connection failed:`, error.message);
       this.connected = false;
       throw error;
     }
@@ -118,14 +110,14 @@ class MCPConnection {
     // Store original onmessage if exists
     const originalOnMessage = this.transport.onmessage;
 
-    this.transport.onmessage = (message) => {
+    this.transport.onmessage = message => {
       // Check if this is a response to one of our raw requests
       if (message.id && this._pendingRequests.has(message.id)) {
         const { resolve, reject } = this._pendingRequests.get(message.id);
         this._pendingRequests.delete(message.id);
 
         if (message.error) {
-          reject(new Error(message.error.message || "RPC Error"));
+          reject(new Error(message.error.message || 'RPC Error'));
         } else {
           resolve(message.result);
         }
@@ -155,11 +147,11 @@ class MCPConnection {
 
       // Store pending request
       this._pendingRequests.set(id, {
-        resolve: (result) => {
+        resolve: result => {
           clearTimeout(timeoutId);
           resolve(result);
         },
-        reject: (error) => {
+        reject: error => {
           clearTimeout(timeoutId);
           reject(error);
         },
@@ -167,7 +159,7 @@ class MCPConnection {
 
       // Send raw JSON-RPC message
       const message = {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id,
         method,
         params,
@@ -194,10 +186,7 @@ class MCPConnection {
       console.log(`[MCP][${this.serverName}] Found ${this.tools.length} tools`);
       return this.tools;
     } catch (error) {
-      console.error(
-        `[MCP][${this.serverName}] Failed to list tools:`,
-        error.message
-      );
+      console.error(`[MCP][${this.serverName}] Failed to list tools:`, error.message);
       return [];
     }
   }
@@ -215,7 +204,7 @@ class MCPConnection {
     try {
       // Use raw transport messaging to bypass SDK validation
       const result = await this._sendRawRequest(
-        "tools/call",
+        'tools/call',
         { name: toolName, arguments: args },
         this.config.timeout || 60000
       );
@@ -223,10 +212,7 @@ class MCPConnection {
       console.log(`[MCP][${this.serverName}] Tool call successful`);
       return result;
     } catch (error) {
-      console.error(
-        `[MCP][${this.serverName}] Tool call failed:`,
-        error.message
-      );
+      console.error(`[MCP][${this.serverName}] Tool call failed:`, error.message);
       throw error;
     }
   }
@@ -331,11 +317,11 @@ export class MCPManager {
    */
   async initialize(mcpServersConfig) {
     if (!mcpServersConfig) {
-      console.log("[MCPManager] No MCP servers configured");
+      console.log('[MCPManager] No MCP servers configured');
       return;
     }
 
-    console.log("[MCPManager] Initializing MCP servers...");
+    console.log('[MCPManager] Initializing MCP servers...');
 
     for (const [serverName, config] of Object.entries(mcpServersConfig)) {
       this.configs.set(serverName, config);
@@ -346,21 +332,14 @@ export class MCPManager {
         try {
           await this.connectServer(serverName);
         } catch (error) {
-          console.error(
-            `[MCPManager] Failed to connect ${serverName}:`,
-            error.message
-          );
+          console.error(`[MCPManager] Failed to connect ${serverName}:`, error.message);
         }
       } else if (requiresAuth) {
-        console.log(
-          `[MCPManager] ${serverName} requires OAuth - will connect per-user`
-        );
+        console.log(`[MCPManager] ${serverName} requires OAuth - will connect per-user`);
       }
     }
 
-    console.log(
-      `[MCPManager] Initialized ${this.connections.size} MCP connections`
-    );
+    console.log(`[MCPManager] Initialized ${this.connections.size} MCP connections`);
   }
 
   /**
@@ -376,20 +355,16 @@ export class MCPManager {
     // Validate config
     if (!config.type) {
       if (config.command) {
-        config.type = "stdio";
+        config.type = 'stdio';
       } else if (config.url) {
-        config.type = "sse";
+        config.type = 'sse';
       } else {
-        throw new Error(
-          "Server config must have either command (stdio) or url (sse)"
-        );
+        throw new Error('Server config must have either command (stdio) or url (sse)');
       }
     }
 
     this.configs.set(serverName, config);
-    console.log(
-      `[MCPManager] Added server config: ${serverName} (${config.type})`
-    );
+    console.log(`[MCPManager] Added server config: ${serverName} (${config.type})`);
     return { name: serverName, ...config };
   }
 
@@ -399,7 +374,7 @@ export class MCPManager {
    */
   async removeServerConfig(serverName) {
     console.log(`[MCPManager] Removing server: ${serverName}`);
-    
+
     if (!this.configs.has(serverName)) {
       throw new Error(`Server ${serverName} not found`);
     }
@@ -593,7 +568,7 @@ export class MCPManager {
    * Reduces payload size while keeping essential parameter information
    */
   simplifySchema(schema) {
-    if (!schema || typeof schema !== "object") return schema;
+    if (!schema || typeof schema !== 'object') return schema;
 
     const simplified = { ...schema };
 
@@ -605,7 +580,7 @@ export class MCPManager {
 
     // Shorten description if too long (keep first 150 chars)
     if (simplified.description && simplified.description.length > 150) {
-      simplified.description = simplified.description.substring(0, 150) + "...";
+      simplified.description = simplified.description.substring(0, 150) + '...';
     }
 
     // Recursively simplify nested objects
@@ -633,13 +608,13 @@ export class MCPManager {
 
     // Simplify anyOf/oneOf/allOf
     if (simplified.anyOf) {
-      simplified.anyOf = simplified.anyOf.map((s) => this.simplifySchema(s));
+      simplified.anyOf = simplified.anyOf.map(s => this.simplifySchema(s));
     }
     if (simplified.oneOf) {
-      simplified.oneOf = simplified.oneOf.map((s) => this.simplifySchema(s));
+      simplified.oneOf = simplified.oneOf.map(s => this.simplifySchema(s));
     }
     if (simplified.allOf) {
-      simplified.allOf = simplified.allOf.map((s) => this.simplifySchema(s));
+      simplified.allOf = simplified.allOf.map(s => this.simplifySchema(s));
     }
 
     return simplified;
@@ -651,20 +626,20 @@ export class MCPManager {
    */
   getToolsForLLM(sessionId = null) {
     return this.getAllTools(sessionId)
-      .filter((tool) => !tool.notConnected) // Exclude placeholder tools
-      .map((tool) => {
+      .filter(tool => !tool.notConnected) // Exclude placeholder tools
+      .map(tool => {
         // Simplify the input schema to reduce payload size
         const simplifiedSchema = this.simplifySchema(
-          tool.inputSchema || { type: "object", properties: {} }
+          tool.inputSchema || { type: 'object', properties: {} }
         );
 
         return {
-          type: "function",
+          type: 'function',
           function: {
             name: tool.fullName,
             description: tool.description
               ? tool.description.length > 200
-                ? tool.description.substring(0, 200) + "..."
+                ? tool.description.substring(0, 200) + '...'
                 : tool.description
               : `Tool from ${tool.serverName}`,
             parameters: simplifiedSchema,
@@ -693,9 +668,7 @@ export class MCPManager {
     // Fall back to shared connections
     const connection = this.connections.get(serverName);
     if (!connection) {
-      throw new Error(
-        `Server not connected: ${serverName}. It may require authentication.`
-      );
+      throw new Error(`Server not connected: ${serverName}. It may require authentication.`);
     }
 
     return connection.callTool(toolName, args);
@@ -708,14 +681,9 @@ export class MCPManager {
    * @param {string} sessionId - User session ID
    * @param {string} userToken - User's OAuth access token for OBO
    */
-  async callToolByFullName(
-    fullName,
-    args = {},
-    sessionId = null,
-    userToken = null
-  ) {
-    const [serverName, ...toolParts] = fullName.split("__");
-    const toolName = toolParts.join("__"); // Handle tool names with __
+  async callToolByFullName(fullName, args = {}, sessionId = null, userToken = null) {
+    const [serverName, ...toolParts] = fullName.split('__');
+    const toolName = toolParts.join('__'); // Handle tool names with __
 
     // Inject user token into obo_context parameter for OBO (On-Behalf-Of)
     // NOTE: We use 'obo_context' NOT 'ctx' because FastMCP intercepts 'ctx' and replaces
@@ -748,7 +716,7 @@ export class MCPManager {
         configured: true,
         connected: connection?.isConnected() || false,
         toolCount: connection?.tools?.length || 0,
-        type: config.type || (config.command ? "stdio" : "sse"),
+        type: config.type || (config.command ? 'stdio' : 'sse'),
         requiresAuth,
         userConnected: userConnection?.isConnected() || false,
         config, // Include config for export feature
@@ -767,7 +735,7 @@ export class MCPManager {
       if (config.requiresAuth || config.requiresOAuth) {
         servers.push({
           name: serverName,
-          type: config.type || (config.command ? "stdio" : "sse"),
+          type: config.type || (config.command ? 'stdio' : 'sse'),
           description: config.description || `MCP server: ${serverName}`,
         });
       }
@@ -827,7 +795,7 @@ export class MCPManager {
    * Shutdown all connections
    */
   async shutdown() {
-    console.log("[MCPManager] Shutting down all connections...");
+    console.log('[MCPManager] Shutting down all connections...');
 
     // Disconnect shared connections
     for (const serverName of this.connections.keys()) {

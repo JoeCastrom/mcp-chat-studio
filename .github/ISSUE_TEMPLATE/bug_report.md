@@ -32,20 +32,24 @@ assignees: ''
 ## Environment
 
 **System Information:**
+
 - OS: [e.g., Windows 11, macOS 14, Ubuntu 22.04]
 - Node.js version: [e.g., v22.0.0]
 - npm version: [e.g., 10.0.0]
 - Browser: [e.g., Chrome 120, Firefox 121]
 
 **MCP Chat Studio:**
+
 - Version: [e.g., 1.0.0]
 - Installation method: [e.g., npm, Docker]
 
 **LLM Provider:**
+
 - Provider: [e.g., Ollama, OpenAI]
 - Model: [e.g., llama3.2, gpt-4o]
 
 **MCP Servers:**
+
 - Server name(s): [e.g., filesystem, github]
 - Transport: [e.g., STDIO, SSE]
 
@@ -55,7 +59,6 @@ assignees: ''
 
 ```yaml
 # config.yaml (relevant parts)
-
 ```
 
 ```bash

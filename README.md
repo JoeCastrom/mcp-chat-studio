@@ -5,7 +5,7 @@
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-22+-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![CI](https://img.shields.io/github/actions/workflow/status/JoeCastrom/mcp-chat-studio/ci.yml?branch=main&label=CI&style=flat-square)
+[![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
 
 ---

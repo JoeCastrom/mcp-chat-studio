@@ -87,7 +87,7 @@ router.post('/connect/:serverName', async (req, res) => {
       if (!sessionId || !oauth?.isAuthenticated(sessionId)) {
         return res.status(401).json({
           error: 'Authentication required',
-          message: `${serverName} requires OAuth authentication. Please login first.`
+          message: `${serverName} requires OAuth authentication. Please login first.`,
         });
       }
 
@@ -96,7 +96,7 @@ router.post('/connect/:serverName', async (req, res) => {
       if (!userToken) {
         return res.status(401).json({
           error: 'Token expired',
-          message: 'Your session has expired. Please login again.'
+          message: 'Your session has expired. Please login again.',
         });
       }
 
@@ -110,7 +110,7 @@ router.post('/connect/:serverName', async (req, res) => {
     res.json({
       success: true,
       message: `Connected to ${serverName}`,
-      status: mcpManager.getStatus(sessionId)[serverName]
+      status: mcpManager.getStatus(sessionId)[serverName],
     });
   } catch (error) {
     console.error(`[MCP/Connect] Error:`, error.message);
@@ -138,7 +138,7 @@ router.post('/disconnect/:serverName', async (req, res) => {
 
     res.json({
       success: true,
-      message: `Disconnected from ${serverName}`
+      message: `Disconnected from ${serverName}`,
     });
   } catch (error) {
     console.error(`[MCP/Disconnect] Error:`, error.message);
@@ -153,26 +153,28 @@ router.post('/disconnect/:serverName', async (req, res) => {
 router.post('/add', async (req, res) => {
   try {
     const { name, type, command, args, url, env, description, requiresAuth, timeout } = req.body;
-    
+
     if (!name) {
       return res.status(400).json({ error: 'Server name is required' });
     }
-    
+
     if (!command && !url) {
-      return res.status(400).json({ error: 'Either command (for stdio) or url (for SSE) is required' });
+      return res
+        .status(400)
+        .json({ error: 'Either command (for stdio) or url (for SSE) is required' });
     }
-    
+
     const mcpManager = getMCPManager();
-    
+
     // Build config object
     const config = {
       type: type || (command ? 'stdio' : 'sse'),
       description: description || `Dynamic MCP server: ${name}`,
       requiresAuth: requiresAuth || false,
       timeout: timeout || 60000,
-      startup: false  // Don't auto-start dynamic servers
+      startup: false, // Don't auto-start dynamic servers
     };
-    
+
     if (command) {
       config.command = command;
       config.args = args || [];
@@ -180,16 +182,16 @@ router.post('/add', async (req, res) => {
     } else {
       config.url = url;
     }
-    
+
     // Debug logging
     console.log(`[MCP/Add] Adding server "${name}" with config:`, JSON.stringify(config, null, 2));
-    
+
     const serverConfig = mcpManager.addServerConfig(name, config);
-    
+
     res.json({
       success: true,
       message: `Added server: ${name}`,
-      server: serverConfig
+      server: serverConfig,
     });
   } catch (error) {
     console.error(`[MCP/Add] Error:`, error.message);
@@ -205,12 +207,12 @@ router.delete('/remove/:serverName', async (req, res) => {
   try {
     const { serverName } = req.params;
     const mcpManager = getMCPManager();
-    
+
     await mcpManager.removeServerConfig(serverName);
-    
+
     res.json({
       success: true,
-      message: `Removed server: ${serverName}`
+      message: `Removed server: ${serverName}`,
     });
   } catch (error) {
     console.error(`[MCP/Remove] Error:`, error.message);
@@ -273,7 +275,7 @@ router.get('/resources/:serverName', async (req, res) => {
     const { serverName } = req.params;
     const sessionId = getSessionId(req);
     const mcpManager = getMCPManager();
-    
+
     const resources = await mcpManager.listResources(serverName, sessionId);
     res.json({ resources });
   } catch (error) {
@@ -290,11 +292,11 @@ router.post('/resources/read', async (req, res) => {
   try {
     const { serverName, uri } = req.body;
     const sessionId = getSessionId(req);
-    
+
     if (!serverName || !uri) {
       return res.status(400).json({ error: 'serverName and uri are required' });
     }
-    
+
     const mcpManager = getMCPManager();
     const result = await mcpManager.readResource(serverName, uri, sessionId);
     res.json({ result });
@@ -313,7 +315,7 @@ router.get('/prompts/:serverName', async (req, res) => {
     const { serverName } = req.params;
     const sessionId = getSessionId(req);
     const mcpManager = getMCPManager();
-    
+
     const prompts = await mcpManager.listPrompts(serverName, sessionId);
     res.json({ prompts });
   } catch (error) {
@@ -330,11 +332,11 @@ router.post('/prompts/get', async (req, res) => {
   try {
     const { serverName, name, args = {} } = req.body;
     const sessionId = getSessionId(req);
-    
+
     if (!serverName || !name) {
       return res.status(400).json({ error: 'serverName and name are required' });
     }
-    
+
     const mcpManager = getMCPManager();
     const result = await mcpManager.getPrompt(serverName, name, args, sessionId);
     res.json({ result });
@@ -345,4 +347,3 @@ router.post('/prompts/get', async (req, res) => {
 });
 
 export default router;
-

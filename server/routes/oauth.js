@@ -21,7 +21,7 @@ router.get('/status', (req, res) => {
     return res.json({
       configured: false,
       authenticated: false,
-      message: 'OAuth not configured'
+      message: 'OAuth not configured',
     });
   }
 
@@ -30,7 +30,7 @@ router.get('/status', (req, res) => {
   res.json({
     configured: true,
     authenticated: isAuth,
-    sessionId: isAuth ? sessionId : null
+    sessionId: isAuth ? sessionId : null,
   });
 });
 
@@ -59,7 +59,7 @@ router.get('/login', (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
     // Return auth URL (frontend will redirect)
@@ -95,7 +95,7 @@ router.get('/callback', async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     // Redirect to app with success
