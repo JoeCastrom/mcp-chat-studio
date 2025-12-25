@@ -4248,6 +4248,164 @@
       }
 
       // ==========================================
+      // CUSTOM ASSERTIONS ENGINE
+      // ==========================================
+
+      /**
+       * Evaluate custom assertions against a response
+       * Supports: equals, contains, matches, exists, type, length, gt, lt, gte, lte
+       * 
+       * Assertion format:
+       * { path: "$.data.users", operator: "length_gt", value: 0 }
+       * { path: "$.status", operator: "equals", value: "active" }
+       * { path: "$.email", operator: "matches", value: "/@company\\.com$/" }
+       */
+      function evaluateAssertions(response, assertions) {
+        const results = [];
+        
+        for (const assertion of assertions) {
+          const result = evaluateSingleAssertion(response, assertion);
+          results.push(result);
+        }
+        
+        return results;
+      }
+
+      // Evaluate a single assertion
+      function evaluateSingleAssertion(response, assertion) {
+        const { path, operator, value } = assertion;
+        
+        try {
+          // Get value at path (simple JSONPath implementation)
+          const actualValue = getValueAtPath(response, path);
+          
+          let passed = false;
+          let message = '';
+          
+          switch (operator) {
+            case 'equals':
+              passed = JSON.stringify(actualValue) === JSON.stringify(value);
+              message = passed ? `${path} equals expected` : `${path} = ${JSON.stringify(actualValue)}, expected ${JSON.stringify(value)}`;
+              break;
+              
+            case 'not_equals':
+              passed = JSON.stringify(actualValue) !== JSON.stringify(value);
+              message = passed ? `${path} does not equal ${JSON.stringify(value)}` : `${path} unexpectedly equals ${JSON.stringify(value)}`;
+              break;
+              
+            case 'contains':
+              passed = String(actualValue).includes(value);
+              message = passed ? `${path} contains "${value}"` : `${path} does not contain "${value}"`;
+              break;
+              
+            case 'matches':
+              const regex = new RegExp(value.replace(/^\/|\/$/g, ''));
+              passed = regex.test(String(actualValue));
+              message = passed ? `${path} matches ${value}` : `${path} = "${actualValue}" does not match ${value}`;
+              break;
+              
+            case 'exists':
+              passed = actualValue !== undefined;
+              message = passed ? `${path} exists` : `${path} does not exist`;
+              break;
+              
+            case 'not_exists':
+              passed = actualValue === undefined;
+              message = passed ? `${path} does not exist` : `${path} exists but should not`;
+              break;
+              
+            case 'type':
+              const actualType = getType(actualValue);
+              passed = actualType === value;
+              message = passed ? `${path} is type ${value}` : `${path} is ${actualType}, expected ${value}`;
+              break;
+              
+            case 'length':
+              const len = actualValue?.length || 0;
+              passed = len === value;
+              message = passed ? `${path}.length = ${value}` : `${path}.length = ${len}, expected ${value}`;
+              break;
+              
+            case 'length_gt':
+              const len2 = actualValue?.length || 0;
+              passed = len2 > value;
+              message = passed ? `${path}.length > ${value}` : `${path}.length = ${len2}, expected > ${value}`;
+              break;
+              
+            case 'length_gte':
+              const len3 = actualValue?.length || 0;
+              passed = len3 >= value;
+              message = passed ? `${path}.length >= ${value}` : `${path}.length = ${len3}, expected >= ${value}`;
+              break;
+              
+            case 'gt':
+              passed = Number(actualValue) > Number(value);
+              message = passed ? `${path} > ${value}` : `${path} = ${actualValue}, expected > ${value}`;
+              break;
+              
+            case 'gte':
+              passed = Number(actualValue) >= Number(value);
+              message = passed ? `${path} >= ${value}` : `${path} = ${actualValue}, expected >= ${value}`;
+              break;
+              
+            case 'lt':
+              passed = Number(actualValue) < Number(value);
+              message = passed ? `${path} < ${value}` : `${path} = ${actualValue}, expected < ${value}`;
+              break;
+              
+            case 'lte':
+              passed = Number(actualValue) <= Number(value);
+              message = passed ? `${path} <= ${value}` : `${path} = ${actualValue}, expected <= ${value}`;
+              break;
+              
+            default:
+              message = `Unknown operator: ${operator}`;
+          }
+          
+          return { assertion, passed, message, actualValue };
+        } catch (error) {
+          return { assertion, passed: false, message: `Error: ${error.message}`, error: true };
+        }
+      }
+
+      // Simple JSONPath implementation (supports $.path.to.value and $[0].item)
+      function getValueAtPath(obj, path) {
+        if (!path || path === '$') return obj;
+        
+        // Remove leading $. or $
+        const cleanPath = path.replace(/^\$\.?/, '');
+        if (!cleanPath) return obj;
+        
+        const parts = cleanPath.split(/\.|\[|\]/).filter(p => p !== '');
+        let current = obj;
+        
+        for (const part of parts) {
+          if (current === undefined || current === null) return undefined;
+          current = current[part];
+        }
+        
+        return current;
+      }
+
+      // Available assertion operators for UI
+      const ASSERTION_OPERATORS = [
+        { value: 'equals', label: 'Equals' },
+        { value: 'not_equals', label: 'Not Equals' },
+        { value: 'contains', label: 'Contains' },
+        { value: 'matches', label: 'Matches Regex' },
+        { value: 'exists', label: 'Exists' },
+        { value: 'not_exists', label: 'Does Not Exist' },
+        { value: 'type', label: 'Is Type' },
+        { value: 'length', label: 'Length Equals' },
+        { value: 'length_gt', label: 'Length Greater Than' },
+        { value: 'length_gte', label: 'Length At Least' },
+        { value: 'gt', label: 'Greater Than' },
+        { value: 'gte', label: 'At Least' },
+        { value: 'lt', label: 'Less Than' },
+        { value: 'lte', label: 'At Most' },
+      ];
+
+      // ==========================================
       // SCHEMA VALIDATION - CONTRACT TESTING
       // ==========================================
 
