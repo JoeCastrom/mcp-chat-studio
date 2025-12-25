@@ -160,6 +160,9 @@
           <button class="tab-btn" onclick="switchTab('scenarios')" id="scenariosTabBtn">
             🧪 Scenarios
           </button>
+          <button class="tab-btn" onclick="switchTab('generator')" id="generatorTabBtn">
+            ⚙️ Generator
+          </button>
         </div>
 
         <!-- Chat Panel (default) -->
@@ -520,6 +523,80 @@
               <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
                 Record tool executions from Inspector → Save as Scenario → Replay anytime
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generator Panel -->
+        <div class="content-panel" id="generatorPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <h3>⚙️ Mock MCP Server Generator</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">
+                Design tools visually and generate Python or Node.js starter code for your own MCP server.
+              </p>
+            </div>
+
+            <!-- Server Settings -->
+            <div class="inspector-section">
+              <h3>📋 Server Settings</h3>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div>
+                  <label style="font-size: 0.75rem; font-weight: 500;">Server Name</label>
+                  <input type="text" id="genServerName" class="form-input" placeholder="my-mcp-server" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="font-size: 0.75rem; font-weight: 500;">Description</label>
+                  <input type="text" id="genServerDesc" class="form-input" placeholder="A custom MCP server" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="font-size: 0.75rem; font-weight: 500;">Output Language</label>
+                  <select id="genLanguage" class="form-select" style="width: 100%;">
+                    <option value="python">Python (mcp SDK)</option>
+                    <option value="nodejs">Node.js (TypeScript)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool Designer -->
+            <div class="inspector-section">
+              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                <span>🔧 Tool Designer</span>
+                <button class="btn" onclick="addGeneratorTool()" style="font-size: 0.65rem; padding: 2px 8px;">➕ Add Tool</button>
+              </h3>
+              <div id="generatorToolsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+                <div style="color: var(--text-muted); font-style: italic; padding: 12px; text-align: center;">
+                  No tools defined. Click "Add Tool" to start designing.
+                </div>
+              </div>
+            </div>
+
+            <!-- Generate Actions -->
+            <div class="inspector-section">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn primary" onclick="generateMCPCode()" style="flex: 1;">
+                  🚀 Generate Code
+                </button>
+                <button class="btn" onclick="previewMCPCode()" style="flex: 1;">
+                  👁️ Preview
+                </button>
+                <button class="btn" onclick="clearGenerator()">
+                  🗑️ Clear
+                </button>
+              </div>
+            </div>
+
+            <!-- Code Preview -->
+            <div class="inspector-section" id="generatorPreviewSection" style="display: none;">
+              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📄 Generated Code</span>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn" onclick="copyGeneratedCode()" style="font-size: 0.65rem; padding: 2px 6px;">📋 Copy</button>
+                  <button class="btn success" onclick="downloadGeneratedCode()" style="font-size: 0.65rem; padding: 2px 6px;">📥 Download</button>
+                </div>
+              </h3>
+              <pre id="generatorCodePreview" style="background: var(--bg-card); padding: 12px; border-radius: 8px; overflow: auto; max-height: 300px; font-size: 0.7rem;"></pre>
             </div>
           </div>
         </div>

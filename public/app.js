@@ -1743,20 +1743,24 @@
         const inspectorPanel = document.getElementById('inspectorPanel');
         const historyPanel = document.getElementById('historyPanel');
         const scenariosPanel = document.getElementById('scenariosPanel');
+        const generatorPanel = document.getElementById('generatorPanel');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const inspectorTabBtn = document.getElementById('inspectorTabBtn');
         const historyTabBtn = document.getElementById('historyTabBtn');
         const scenariosTabBtn = document.getElementById('scenariosTabBtn');
+        const generatorTabBtn = document.getElementById('generatorTabBtn');
 
         // Remove active from all
         chatPanel.classList.remove('active');
         inspectorPanel.classList.remove('active');
         historyPanel.classList.remove('active');
         scenariosPanel.classList.remove('active');
+        generatorPanel.classList.remove('active');
         chatTabBtn.classList.remove('active');
         inspectorTabBtn.classList.remove('active');
         historyTabBtn.classList.remove('active');
         scenariosTabBtn.classList.remove('active');
+        generatorTabBtn.classList.remove('active');
 
         // Activate selected tab
         if (tabName === 'chat') {
@@ -1775,6 +1779,9 @@
           scenariosTabBtn.classList.add('active');
           refreshScenariosPanel();
           refreshSuitesList();
+        } else if (tabName === 'generator') {
+          generatorPanel.classList.add('active');
+          generatorTabBtn.classList.add('active');
         }
       }
 
@@ -4746,6 +4753,279 @@
           updateTokenDisplay();
           closeTokenUsageModal();
           appendMessage('system', '🔄 Token usage reset');
+        }
+      }
+
+      // ==========================================
+      // MOCK MCP SERVER GENERATOR
+      // ==========================================
+      
+      let generatorTools = [];
+      let generatedCode = '';
+
+      // Add a new tool to the generator
+      function addGeneratorTool() {
+        const toolId = `tool_${Date.now()}`;
+        generatorTools.push({
+          id: toolId,
+          name: '',
+          description: '',
+          params: []
+        });
+        renderGeneratorTools();
+      }
+
+      // Render the tools list
+      function renderGeneratorTools() {
+        const listEl = document.getElementById('generatorToolsList');
+        
+        if (generatorTools.length === 0) {
+          listEl.innerHTML = `
+            <div style="color: var(--text-muted); font-style: italic; padding: 12px; text-align: center;">
+              No tools defined. Click "Add Tool" to start designing.
+            </div>
+          `;
+          return;
+        }
+
+        listEl.innerHTML = generatorTools.map((tool, idx) => `
+          <div style="background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="font-size: 0.8rem;">Tool ${idx + 1}</strong>
+              <button class="btn" onclick="removeGeneratorTool('${tool.id}')" style="font-size: 0.6rem; padding: 2px 6px;">🗑️</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <input type="text" class="form-input" placeholder="Tool name (e.g., get_weather)" 
+                value="${escapeHtml(tool.name)}" 
+                onchange="updateGeneratorTool('${tool.id}', 'name', this.value)"
+                style="font-size: 0.75rem; padding: 4px 8px;">
+              <input type="text" class="form-input" placeholder="Description" 
+                value="${escapeHtml(tool.description)}" 
+                onchange="updateGeneratorTool('${tool.id}', 'description', this.value)"
+                style="font-size: 0.75rem; padding: 4px 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Parameters: ${tool.params.length}</span>
+                <button class="btn" onclick="addToolParam('${tool.id}')" style="font-size: 0.6rem; padding: 2px 6px;">➕ Param</button>
+              </div>
+              ${tool.params.map((param, pIdx) => `
+                <div style="display: flex; gap: 4px; align-items: center; padding-left: 8px;">
+                  <input type="text" class="form-input" placeholder="param_name" 
+                    value="${escapeHtml(param.name)}"
+                    onchange="updateToolParam('${tool.id}', ${pIdx}, 'name', this.value)"
+                    style="flex: 1; font-size: 0.7rem; padding: 2px 6px;">
+                  <select class="form-select" 
+                    onchange="updateToolParam('${tool.id}', ${pIdx}, 'type', this.value)"
+                    style="width: 80px; font-size: 0.7rem; padding: 2px 4px;">
+                    <option value="string" ${param.type === 'string' ? 'selected' : ''}>string</option>
+                    <option value="number" ${param.type === 'number' ? 'selected' : ''}>number</option>
+                    <option value="boolean" ${param.type === 'boolean' ? 'selected' : ''}>boolean</option>
+                    <option value="object" ${param.type === 'object' ? 'selected' : ''}>object</option>
+                  </select>
+                  <label style="font-size: 0.65rem; display: flex; align-items: center; gap: 2px;">
+                    <input type="checkbox" ${param.required ? 'checked' : ''}
+                      onchange="updateToolParam('${tool.id}', ${pIdx}, 'required', this.checked)">
+                    Req
+                  </label>
+                  <button onclick="removeToolParam('${tool.id}', ${pIdx})" style="font-size: 0.6rem; padding: 1px 4px; background: none; border: none; cursor: pointer;">❌</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Update a tool property
+      function updateGeneratorTool(toolId, prop, value) {
+        const tool = generatorTools.find(t => t.id === toolId);
+        if (tool) tool[prop] = value;
+      }
+
+      // Remove a tool
+      function removeGeneratorTool(toolId) {
+        generatorTools = generatorTools.filter(t => t.id !== toolId);
+        renderGeneratorTools();
+      }
+
+      // Add parameter to a tool
+      function addToolParam(toolId) {
+        const tool = generatorTools.find(t => t.id === toolId);
+        if (tool) {
+          tool.params.push({ name: '', type: 'string', required: false });
+          renderGeneratorTools();
+        }
+      }
+
+      // Update a parameter
+      function updateToolParam(toolId, paramIdx, prop, value) {
+        const tool = generatorTools.find(t => t.id === toolId);
+        if (tool && tool.params[paramIdx]) {
+          tool.params[paramIdx][prop] = value;
+        }
+      }
+
+      // Remove a parameter
+      function removeToolParam(toolId, paramIdx) {
+        const tool = generatorTools.find(t => t.id === toolId);
+        if (tool) {
+          tool.params.splice(paramIdx, 1);
+          renderGeneratorTools();
+        }
+      }
+
+      // Generate MCP server code
+      function generateMCPCode() {
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
+        const language = document.getElementById('genLanguage').value;
+
+        if (generatorTools.length === 0) {
+          appendMessage('error', 'Add at least one tool to generate code');
+          return;
+        }
+
+        if (language === 'python') {
+          generatedCode = generatePythonMCP(serverName, serverDesc);
+        } else {
+          generatedCode = generateNodeMCP(serverName, serverDesc);
+        }
+
+        document.getElementById('generatorPreviewSection').style.display = 'block';
+        document.getElementById('generatorCodePreview').textContent = generatedCode;
+        appendMessage('system', `🚀 Generated ${language} MCP server code with ${generatorTools.length} tools`);
+      }
+
+      // Preview without saving
+      function previewMCPCode() {
+        generateMCPCode();
+      }
+
+      // Generate Python MCP server code
+      function generatePythonMCP(serverName, serverDesc) {
+        const toolDefs = generatorTools.map(tool => {
+          const params = tool.params.map(p => 
+            `    ${p.name}: ${p.type === 'number' ? 'float' : p.type === 'boolean' ? 'bool' : 'str'}${!p.required ? ' = None' : ''}`
+          ).join(',\n');
+          
+          return `
+@mcp.tool()
+async def ${tool.name || 'unnamed_tool'}(${params ? '\n' + params + '\n' : ''}):
+    """${tool.description || 'No description'}"""
+    # TODO: Implement your logic here
+    return {"result": "success", "message": "Tool executed"}
+`;
+        }).join('\n');
+
+        return `#!/usr/bin/env python3
+"""
+${serverDesc}
+Generated by MCP Chat Studio
+"""
+
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+
+# Create server instance
+mcp = Server("${serverName}")
+
+${toolDefs}
+
+async def main():
+    async with stdio_server() as (read_stream, write_stream):
+        await mcp.run(read_stream, write_stream)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+`;
+      }
+
+      // Generate Node.js MCP server code
+      function generateNodeMCP(serverName, serverDesc) {
+        const toolDefs = generatorTools.map(tool => {
+          const paramsSchema = tool.params.reduce((acc, p) => {
+            acc[p.name] = { type: p.type, description: `${p.name} parameter` };
+            return acc;
+          }, {});
+          const required = tool.params.filter(p => p.required).map(p => p.name);
+          
+          return `
+  server.tool(
+    "${tool.name || 'unnamed_tool'}",
+    "${tool.description || 'No description'}",
+    ${JSON.stringify(paramsSchema, null, 4)},
+    ${JSON.stringify(required)},
+    async (params) => {
+      // TODO: Implement your logic here
+      return { result: "success", message: "Tool executed" };
+    }
+  );
+`;
+        }).join('\n');
+
+        return `#!/usr/bin/env node
+/**
+ * ${serverDesc}
+ * Generated by MCP Chat Studio
+ */
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+const server = new Server(
+  { name: "${serverName}", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+${toolDefs}
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("${serverName} MCP server running on stdio");
+}
+
+main().catch(console.error);
+`;
+      }
+
+      // Copy generated code
+      function copyGeneratedCode() {
+        if (generatedCode) {
+          navigator.clipboard.writeText(generatedCode);
+          appendMessage('system', '📋 Code copied to clipboard');
+        }
+      }
+
+      // Download generated code
+      function downloadGeneratedCode() {
+        if (!generatedCode) return;
+        
+        const language = document.getElementById('genLanguage').value;
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const ext = language === 'python' ? 'py' : 'ts';
+        const filename = `${serverName}.${ext}`;
+        
+        const blob = new Blob([generatedCode], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        appendMessage('system', `📥 Downloaded ${filename}`);
+      }
+
+      // Clear generator
+      function clearGenerator() {
+        if (confirm('Clear all tools and settings?')) {
+          generatorTools = [];
+          generatedCode = '';
+          document.getElementById('genServerName').value = '';
+          document.getElementById('genServerDesc').value = '';
+          document.getElementById('generatorPreviewSection').style.display = 'none';
+          renderGeneratorTools();
+          appendMessage('system', '🗑️ Generator cleared');
         }
       }
 
