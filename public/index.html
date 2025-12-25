@@ -5686,13 +5686,96 @@ env:
         appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
       }
       
-      // View scenario details
+      // View scenario details - Full modal
       function viewScenarioDetails(id) {
         const scenario = sessionManager.getScenario(id);
         if (!scenario) return;
         
-        const content = JSON.stringify(scenario, null, 2);
-        alert(`Scenario: ${scenario.name}\n\n${scenario.steps.length} steps:\n${scenario.steps.map((s, i) => `${i+1}. ${s.tool} @ ${s.server}`).join('\n')}`);
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'scenarioDetailsModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 800px; max-height: 85vh">
+            <div class="modal-header">
+              <h2 class="modal-title">🧪 ${escapeHtml(scenario.name)}</h2>
+              <button class="modal-close" onclick="closeScenarioDetailsModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
+              <!-- Metadata -->
+              <div style="display: flex; gap: 16px; margin-bottom: 16px; font-size: 0.75rem; color: var(--text-muted)">
+                <span>📅 Created: ${new Date(scenario.created).toLocaleString()}</span>
+                <span>📦 ${scenario.steps?.length || 0} steps</span>
+                ${scenario.metadata?.totalTime ? `<span>⏱️ Total: ${scenario.metadata.totalTime}ms</span>` : ''}
+              </div>
+              
+              <!-- Steps -->
+              <div style="display: flex; flex-direction: column; gap: 12px">
+                ${(scenario.steps || []).map((step, i) => `
+                  <div style="background: var(--bg-card); border-radius: 8px; padding: 12px; border-left: 3px solid ${step.success ? 'var(--success)' : 'var(--error)'}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                      <div style="display: flex; align-items: center; gap: 8px">
+                        <span style="font-weight: 600">${i + 1}.</span>
+                        <span>${step.success ? '✅' : '❌'}</span>
+                        <code style="font-weight: 500">${escapeHtml(step.tool)}</code>
+                        <span style="color: var(--text-muted); font-size: 0.7rem">@ ${escapeHtml(step.server)}</span>
+                      </div>
+                      <span style="color: var(--text-muted); font-size: 0.7rem">${step.timing}ms</span>
+                    </div>
+                    
+                    <!-- Arguments -->
+                    <details style="margin-bottom: 8px">
+                      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted)">📥 Arguments</summary>
+                      <pre style="background: var(--bg-surface); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 4px; overflow-x: auto; max-height: 100px">${escapeHtml(JSON.stringify(step.args || {}, null, 2))}</pre>
+                    </details>
+                    
+                    <!-- Baseline Response -->
+                    <details style="margin-bottom: 8px">
+                      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted)">📤 Baseline Response (hash: ${step.responseHash || 'N/A'})</summary>
+                      <pre style="background: var(--bg-surface); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 4px; overflow-x: auto; max-height: 150px">${escapeHtml(JSON.stringify(step.expectedResponse || {}, null, 2))}</pre>
+                    </details>
+                    
+                    <!-- Schema Info -->
+                    ${step.responseSchema ? `
+                      <details>
+                        <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted)">📋 Inferred Schema</summary>
+                        <pre style="background: var(--bg-surface); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 4px; overflow-x: auto; max-height: 100px">${escapeHtml(JSON.stringify(step.responseSchema, null, 2))}</pre>
+                      </details>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+              
+              <!-- Usage Guide -->
+              <div style="margin-top: 16px; padding: 12px; background: var(--bg-surface); border-radius: 8px; font-size: 0.75rem">
+                <strong>💡 How to use:</strong>
+                <ul style="margin: 8px 0 0 16px; color: var(--text-muted)">
+                  <li><strong>▶️ Replay</strong> - Re-run all steps, compare responses</li>
+                  <li><strong>🔶 Diff</strong> - Click "View Diff" if response differs from baseline</li>
+                  <li><strong>📋 Schema</strong> - Validates response structure (type, required fields)</li>
+                </ul>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeScenarioDetailsModal()">Close</button>
+              <button class="btn" style="background: var(--success); color: white" onclick="closeScenarioDetailsModal(); replayScenario('${scenario.id}')">▶️ Replay</button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+      }
+      
+      // Close scenario details modal
+      function closeScenarioDetailsModal() {
+        const modal = document.getElementById('scenarioDetailsModal');
+        if (modal) modal.remove();
       }
       
       // Export single scenario
