@@ -19,6 +19,15 @@ export default [
         URL: 'readonly',
         URLSearchParams: 'readonly',
         fetch: 'readonly',
+        // Jest globals
+        describe: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        jest: 'readonly',
       },
     },
     rules: {

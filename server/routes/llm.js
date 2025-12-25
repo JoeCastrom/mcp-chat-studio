@@ -111,8 +111,8 @@ router.get('/models', async (req, res) => {
         const data = await response.json();
         const models = data.models?.map(m => m.name) || [];
         return res.json({ models });
-      } catch (e) {
-        return res.json({ models: [], error: 'Could not fetch Ollama models' });
+      } catch (error) {
+        return res.json({ models: [], error: 'Could not fetch Ollama models: ' + error.message });
       }
     }
 

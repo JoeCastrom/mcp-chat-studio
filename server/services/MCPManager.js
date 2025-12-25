@@ -289,7 +289,7 @@ class MCPConnection {
     if (this.client) {
       try {
         await this.client.close();
-      } catch (e) {
+      } catch (error) {
         // Ignore close errors
       }
     }

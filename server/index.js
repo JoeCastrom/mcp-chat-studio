@@ -41,10 +41,10 @@ function getCorsOrigins() {
     `http://localhost:${PORT}`,
     `http://127.0.0.1:${PORT}`
   ];
-  
+
   // Allow additional origins via environment variable
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [];
-  
+
   return [...new Set([...localOrigins, ...envOrigins])];
 }
 
@@ -56,17 +56,18 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    
+
     // Check if origin is in allowed list
     if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
       return callback(null, true);
     }
-    
-    // In development, allow all localhost ports
-    if (origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+
+    // In development, allow all localhost ports if configured or default to safer regex
+    // Stricter regex to prevent subdomains or similar looking domains
+    if (process.env.NODE_ENV !== 'production' && origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
       return callback(null, true);
     }
-    
+
     callback(new Error('CORS not allowed'), false);
   },
   credentials: true,

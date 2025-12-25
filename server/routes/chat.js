@@ -109,7 +109,7 @@ router.post('/continue', async (req, res) => {
     }
 
     // Keep calling until no more tool calls
-    let currentMessages = [...messages];
+    const currentMessages = [...messages];
     let iterations = 0;
     const maxIterations = 10; // Prevent infinite loops
 

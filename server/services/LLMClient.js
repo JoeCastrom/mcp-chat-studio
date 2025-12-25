@@ -107,29 +107,32 @@ export class LLMClient {
     if (this.config.base_url) return this.config.base_url;
 
     switch (this.provider) {
-      case 'ollama':
+      case 'ollama': {
         // Support OLLAMA_HOST env var for Docker compatibility
         const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
         return `${ollamaHost}/v1`;
+      }
       case 'openai':
         return 'https://api.openai.com/v1';
       case 'anthropic':
         return 'https://api.anthropic.com/v1';
       case 'gemini':
         return 'https://generativelanguage.googleapis.com/v1beta';
-      case 'azure':
+      case 'azure': {
         const deployment = this.azureDeployment || this.config.model;
         return `${this.azureEndpoint}/openai/deployments/${deployment}`;
+      }
       case 'groq':
         return 'https://api.groq.com/openai/v1';
       case 'together':
         return 'https://api.together.xyz/v1';
       case 'openrouter':
         return 'https://openrouter.ai/api/v1';
-      default:
+      default: {
         // Default to Ollama with Docker support
         const defaultHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
         return `${defaultHost}/v1`;
+      }
     }
   }
 
@@ -179,9 +182,10 @@ export class LLMClient {
     switch (this.provider) {
       case 'azure':
         return `${baseUrl}/chat/completions?api-version=${this.azureApiVersion}`;
-      case 'gemini':
+      case 'gemini': {
         const model = this.config.model || 'gemini-pro';
         return `${baseUrl}/models/${model}:generateContent?key=${this.getApiKey()}`;
+      }
       case 'anthropic':
         return `${baseUrl}/messages`;
       default:
@@ -501,7 +505,9 @@ export class LLMClient {
                     ],
                   };
                 }
-              } catch {}
+              } catch (error) {
+                // Ignore parsing errors for individual chunks
+              }
             }
           }
           // Handle standard OpenAI SSE format
@@ -513,7 +519,9 @@ export class LLMClient {
             try {
               const parsed = JSON.parse(data);
               yield parsed;
-            } catch {}
+            } catch (error) {
+              // Ignore parsing errors for individual chunks
+            }
           }
         }
       }
