@@ -54,7 +54,7 @@ export class OAuthManager {
     this.redirectUri =
       this.config.redirect_uri ||
       process.env.OAUTH_REDIRECT_URI ||
-      'http://localhost:3080/api/oauth/callback';
+      `http://localhost:${process.env.PORT || 3082}/api/oauth/callback`;
     this.scopes = this.config.scopes || ['openid', 'profile', 'email'];
 
     // Custom endpoints (for generic OAuth2)
