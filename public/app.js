@@ -137,6 +137,100 @@
             console.warn('[Scenarios] Failed to update:', e.message);
           }
         },
+
+        // ==========================================
+        // SYSTEM PROMPTS LIBRARY
+        // ==========================================
+        PROMPTS_KEY: 'mcp_chat_studio_prompts',
+        
+        // Default system prompts
+        defaultPrompts: {
+          'default': {
+            name: 'Default Assistant',
+            prompt: 'You are a helpful AI assistant with access to MCP tools. Use the tools when appropriate to help the user.',
+            icon: '🤖'
+          },
+          'strict-coder': {
+            name: 'Strict Coder',
+            prompt: 'You are a strict coding assistant. Always respond with well-formatted code. Use tools to verify your work. Be concise and technical.',
+            icon: '👨‍💻'
+          },
+          'json-validator': {
+            name: 'JSON Validator',
+            prompt: 'You are a JSON validation expert. Always output valid JSON when asked. Validate inputs strictly. Use tools to test JSON parsing.',
+            icon: '📋'
+          },
+          'creative-writer': {
+            name: 'Creative Writer',
+            prompt: 'You are a creative writing assistant. Be expressive and imaginative. Use tools sparingly, focus on prose quality.',
+            icon: '✍️'
+          },
+          'tool-tester': {
+            name: 'Tool Tester',
+            prompt: 'You are a QA tester for MCP tools. Test tools thoroughly with edge cases. Report results in structured format. Always use tools when available.',
+            icon: '🧪'
+          }
+        },
+
+        // Get all prompts (defaults + custom)
+        getPrompts() {
+          let customPrompts = {};
+          try {
+            customPrompts = JSON.parse(localStorage.getItem(this.PROMPTS_KEY) || '{}');
+          } catch (e) {}
+          return { ...this.defaultPrompts, ...customPrompts };
+        },
+
+        // Save a custom prompt
+        savePrompt(id, name, prompt, icon = '📝') {
+          try {
+            let customPrompts = {};
+            try {
+              customPrompts = JSON.parse(localStorage.getItem(this.PROMPTS_KEY) || '{}');
+            } catch (e) {}
+            customPrompts[id] = { name, prompt, icon, custom: true };
+            localStorage.setItem(this.PROMPTS_KEY, JSON.stringify(customPrompts));
+            return true;
+          } catch (e) {
+            console.warn('[Prompts] Failed to save:', e.message);
+            return false;
+          }
+        },
+
+        // Delete a custom prompt
+        deletePrompt(id) {
+          try {
+            let customPrompts = {};
+            try {
+              customPrompts = JSON.parse(localStorage.getItem(this.PROMPTS_KEY) || '{}');
+            } catch (e) {}
+            delete customPrompts[id];
+            localStorage.setItem(this.PROMPTS_KEY, JSON.stringify(customPrompts));
+          } catch (e) {
+            console.warn('[Prompts] Failed to delete:', e.message);
+          }
+        },
+
+        // Get current active prompt ID
+        getActivePromptId() {
+          const session = this.load();
+          return session?.settings?.activePromptId || 'default';
+        },
+
+        // Set active prompt
+        setActivePromptId(id) {
+          const session = this.load() || {};
+          session.settings = session.settings || {};
+          session.settings.activePromptId = id;
+          this.save(session);
+        },
+
+        // Get active prompt text
+        getActivePrompt() {
+          const prompts = this.getPrompts();
+          const activeId = this.getActivePromptId();
+          return prompts[activeId]?.prompt || prompts['default'].prompt;
+        },
       };
 
       // ==========================================

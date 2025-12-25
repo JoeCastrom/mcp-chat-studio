@@ -25,6 +25,7 @@ import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
 import llmRoutes from './routes/llm.js';
+import rateLimit from 'express-rate-limit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -82,6 +83,35 @@ if (corsMode === 'custom') {
 }
 app.use(cookieParser());
 app.use(express.json());
+
+// Rate limiting - different limits for different endpoints
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute for chat
+  message: { error: 'Too many chat requests, please slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const mcpLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute for MCP calls
+  message: { error: 'Too many MCP requests, please slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 200, // 200 requests per minute general
+  message: { error: 'Too many requests, please slow down' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general rate limiting to all API routes
+app.use('/api', generalLimiter);
+
 app.use(express.static(join(__dirname, '../public')));
 
 // Helper function to substitute environment variables in config
@@ -171,9 +201,9 @@ async function initializeServices(config) {
   return { llmClient, mcpManager, oauthManager };
 }
 
-// Routes
-app.use('/api/chat', chatRoutes);
-app.use('/api/mcp', mcpRoutes);
+// Routes with rate limiting
+app.use('/api/chat', chatLimiter, chatRoutes);
+app.use('/api/mcp', mcpLimiter, mcpRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 
