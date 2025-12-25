@@ -156,6 +156,71 @@
 | `Ctrl+Shift+E` | Export chat          |
 | `Ctrl+/`       | Show shortcuts help  |
 
+### 📊 Token Usage Display
+
+- **Real-time tracking** - Input/output tokens per session
+- **Cost estimation** - Supports 8 LLM providers
+- **Header badge** - Click for detailed breakdown
+- **Reset option** - Start fresh anytime
+
+### 🎭 System Prompt Library
+
+- **5 Presets** - Default, Strict Coder, JSON Validator, Creative Writer, Tool Tester
+- **Custom prompts** - Create and save your own personas
+- **Quick switch** - Dropdown in chat panel
+- **Prompt Manager** - Edit/delete saved prompts
+
+### 📦 Test Suites
+
+- **Group scenarios** - Combine related tests
+- **Batch execution** - Run entire suite at once
+- **Aggregate results** - Pass/fail summary
+- **Last run tracking** - Timestamp and stats
+
+### 🔍 Custom Assertions
+
+- **14 operators** - equals, contains, matches, exists, type, length, gt, lt, gte, lte, etc.
+- **JSONPath support** - Deep value access with `$.path.to.value`
+- **Flexible validation** - Beyond simple equality checks
+
+### 💻 CLI Test Runner
+
+Run scenarios from command line for CI/CD integration:
+
+```bash
+# Run tests
+mcp-cli test scenarios.json
+
+# JUnit output for CI
+mcp-cli test scenarios.json --output junit
+
+# Fail on any diff
+mcp-cli test scenarios.json --fail-on-diff
+
+# Custom server URL
+mcp-cli test scenarios.json --server http://staging:3082
+```
+
+### ⚙️ Mock MCP Server Generator
+
+- **Visual designer** - Create tools with parameters
+- **Code generation** - Python (mcp SDK) or Node.js (TypeScript)
+- **Copy/Download** - Get starter code instantly
+- **Parameter types** - string, number, boolean, object
+
+### 🌿 Session Branching
+
+- **Fork conversations** - Branch at any message
+- **Save snapshots** - Preserve conversation states
+- **Load branches** - Continue from any saved point
+- **Branch manager** - View, load, delete branches
+
+### 🌍 Multi-Environment Profiles
+
+- **Dev/Staging/Prod** - Switch between environments
+- **Auto-save config** - Per-environment settings
+- **Quick switching** - Sidebar dropdown
+
 ---
 
 ## 📦 Installation
