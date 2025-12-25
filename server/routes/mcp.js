@@ -200,6 +200,59 @@ router.post('/add', async (req, res) => {
 });
 
 /**
+ * PUT /api/mcp/update/:serverName
+ * Update an existing MCP server configuration
+ */
+router.put('/update/:serverName', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const { type, command, args, url, env, description, requiresAuth, timeout } = req.body;
+
+    const mcpManager = getMCPManager();
+
+    // Check if server exists
+    if (!mcpManager.configs.has(serverName)) {
+      return res.status(404).json({ error: `Server not found: ${serverName}` });
+    }
+
+    // Build updated config
+    const config = {
+      type: type || (command ? 'stdio' : 'sse'),
+      description: description || `MCP server: ${serverName}`,
+      requiresAuth: requiresAuth || false,
+      timeout: timeout || 60000,
+      startup: false,
+    };
+
+    if (command) {
+      config.command = command;
+      config.args = args || [];
+      if (env) config.env = env;
+    } else {
+      config.url = url;
+    }
+
+    console.log(`[MCP/Update] Updating server "${serverName}" with config:`, JSON.stringify(config, null, 2));
+
+    // Disconnect if connected
+    await mcpManager.disconnectServer(serverName);
+    
+    // Remove and re-add (effectively update)
+    mcpManager.configs.delete(serverName);
+    const serverConfig = mcpManager.addServerConfig(serverName, config);
+
+    res.json({
+      success: true,
+      message: `Updated server: ${serverName}`,
+      server: serverConfig,
+    });
+  } catch (error) {
+    console.error(`[MCP/Update] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * DELETE /api/mcp/remove/:serverName
  * Remove an MCP server configuration
  */

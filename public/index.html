@@ -2050,8 +2050,11 @@
             <button type="button" class="btn" onclick="saveAsCustomTemplate()" title="Save current form as template" style="white-space: nowrap">
               💾 Save
             </button>
+            <button type="button" class="btn" onclick="manageCustomTemplates()" title="Delete custom templates" style="white-space: nowrap">
+              🗑️
+            </button>
           </div>
-          <div class="form-hint">Select a template to auto-fill, or save your own with 💾</div>
+          <div class="form-hint">Select a template to auto-fill, save your own 💾, or delete 🗑️</div>
         </div>
 
         <!-- Import YAML/JSON Button -->
@@ -2938,6 +2941,38 @@ env:
         loadCustomTemplates();
       }
 
+      // Manage (delete) custom templates
+      function manageCustomTemplates() {
+        let customTemplates = {};
+        try {
+          customTemplates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '{}');
+        } catch (e) {}
+        
+        const templateIds = Object.keys(customTemplates);
+        
+        if (templateIds.length === 0) {
+          appendMessage('system', 'No custom templates to delete. Save a template first with 💾');
+          return;
+        }
+        
+        const templateNames = templateIds.map(id => customTemplates[id].displayName || customTemplates[id].name);
+        const choice = prompt(`Delete a custom template:\n\n${templateNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nEnter number to delete (or cancel):`);
+        
+        if (choice) {
+          const idx = parseInt(choice) - 1;
+          if (idx >= 0 && idx < templateIds.length) {
+            const templateId = templateIds[idx];
+            const templateName = templateNames[idx];
+            if (confirm(`Delete template "${templateName}"?`)) {
+              deleteCustomTemplate(templateId);
+              appendMessage('system', `🗑️ Deleted template "${templateName}"`);
+            }
+          } else {
+            appendMessage('error', 'Invalid selection');
+          }
+        }
+      }
+
       // Load custom templates on page init
       loadCustomTemplates();
 
@@ -2987,8 +3022,17 @@ env:
         }
 
         try {
-          const response = await fetch('/api/mcp/add', {
-            method: 'POST',
+          // Check if server already exists to determine add vs update
+          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await statusRes.json();
+          const servers = status.servers || status;
+          const serverExists = name in servers;
+          
+          const endpoint = serverExists ? `/api/mcp/update/${encodeURIComponent(name)}` : '/api/mcp/add';
+          const method = serverExists ? 'PUT' : 'POST';
+          
+          const response = await fetch(endpoint, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(payload),
@@ -2997,14 +3041,14 @@ env:
           const data = await response.json();
 
           if (data.error) {
-            appendMessage('error', `Failed to add server: ${data.error}`);
+            appendMessage('error', `Failed to ${serverExists ? 'update' : 'add'} server: ${data.error}`);
           } else {
-            appendMessage('system', `✅ Added server: ${name}`);
+            appendMessage('system', `✅ ${serverExists ? 'Updated' : 'Added'} server: ${name}`);
             hideAddServerModal();
             loadMCPStatus();
           }
         } catch (error) {
-          appendMessage('error', `Failed to add server: ${error.message}`);
+          appendMessage('error', `Failed to save server: ${error.message}`);
         }
       }
 
