@@ -59,6 +59,13 @@ llm:
 #   model: meta-llama/Llama-3.3-70B-Instruct-Turbo
 #   # Set TOGETHER_API_KEY in .env
 
+# OpenRouter (100+ models via single API key)
+# llm:
+#   provider: openrouter
+#   model: anthropic/claude-3.5-sonnet  # or openai/gpt-4o, google/gemini-pro-1.5
+#   # Set OPENROUTER_API_KEY in .env
+#   # Get your API key at https://openrouter.ai/keys
+
 # ==========================================
 # OAuth Configuration (Optional)
 # ==========================================

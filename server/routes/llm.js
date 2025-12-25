@@ -41,7 +41,7 @@ router.post('/config', async (req, res) => {
     const llmClient = getLLMClient();
 
     // Supported providers
-    const validProviders = ['ollama', 'openai', 'anthropic', 'gemini', 'azure', 'groq', 'together'];
+    const validProviders = ['ollama', 'openai', 'anthropic', 'gemini', 'azure', 'groq', 'together', 'openrouter'];
 
     // Update provider
     if (provider && validProviders.includes(provider)) {
@@ -128,6 +128,12 @@ router.get('/models', async (req, res) => {
       azure: ['gpt-4o', 'gpt-4', 'gpt-35-turbo'],
       groq: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768'],
       together: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'mistralai/Mixtral-8x7B-Instruct-v0.1'],
+      openrouter: [
+        'anthropic/claude-3.5-sonnet',
+        'openai/gpt-4o',
+        'google/gemini-pro-1.5',
+        'meta-llama/llama-3.3-70b-instruct',
+      ],
     };
 
     const models = providerModels[llmClient.provider] || [];

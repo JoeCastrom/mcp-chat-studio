@@ -1,6 +1,6 @@
 /**
  * Multi-Provider LLM Client
- * Supports: Ollama, OpenAI, Anthropic, Google Gemini, Azure OpenAI, Groq, Together AI
+ * Supports: Ollama, OpenAI, Anthropic, Google Gemini, Azure OpenAI, Groq, Together AI, OpenRouter
  */
 
 import axios from 'axios';
@@ -18,7 +18,8 @@ export class LLMClient {
       process.env.GOOGLE_API_KEY ||
       process.env.AZURE_OPENAI_API_KEY ||
       process.env.GROQ_API_KEY ||
-      process.env.TOGETHER_API_KEY;
+      process.env.TOGETHER_API_KEY ||
+      process.env.OPENROUTER_API_KEY;
 
     // Azure-specific
     this.azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -63,6 +64,10 @@ export class LLMClient {
         if (!process.env.TOGETHER_API_KEY && !process.env.LLM_API_KEY)
           errors.push('TOGETHER_API_KEY is missing');
         break;
+      case 'openrouter':
+        if (!process.env.OPENROUTER_API_KEY && !process.env.LLM_API_KEY)
+          errors.push('OPENROUTER_API_KEY is missing');
+        break;
       case 'ollama':
         // Ollama doesn't require API key by default
         break;
@@ -88,6 +93,8 @@ export class LLMClient {
         return process.env.GROQ_API_KEY || process.env.LLM_API_KEY;
       case 'together':
         return process.env.TOGETHER_API_KEY || process.env.LLM_API_KEY;
+      case 'openrouter':
+        return process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY;
       default:
         return this.apiKey;
     }
@@ -117,6 +124,8 @@ export class LLMClient {
         return 'https://api.groq.com/openai/v1';
       case 'together':
         return 'https://api.together.xyz/v1';
+      case 'openrouter':
+        return 'https://openrouter.ai/api/v1';
       default:
         // Default to Ollama with Docker support
         const defaultHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -145,6 +154,11 @@ export class LLMClient {
       case 'groq':
       case 'together':
         headers['Authorization'] = `Bearer ${apiKey}`;
+        break;
+      case 'openrouter':
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['HTTP-Referer'] = 'https://github.com/JoeCastrom/mcp-chat-studio';
+        headers['X-Title'] = 'MCP Chat Studio';
         break;
       case 'ollama':
         if (apiKey) {

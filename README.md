@@ -341,6 +341,22 @@ llm:
 TOGETHER_API_KEY=your-key
 ```
 
+#### OpenRouter (100+ Models)
+
+Access Claude, GPT-4, Gemini, Llama, and 100+ more models through a single API:
+
+```yaml
+llm:
+  provider: openrouter
+  model: anthropic/claude-3.5-sonnet # or openai/gpt-4o, google/gemini-pro-1.5
+```
+
+```bash
+# .env
+OPENROUTER_API_KEY=your-key
+# Get your key at https://openrouter.ai/keys
+```
+
 ### MCP Servers (`config.yaml`)
 
 ```yaml
