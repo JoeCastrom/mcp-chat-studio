@@ -5499,6 +5499,7 @@ env:
           args: step.request,
           expectedResponse: step.response,
           responseHash: hashString(JSON.stringify(step.response)),
+          responseSchema: inferSchema(step.response), // For schema validation
           timing: step.duration,
           success: step.success,
         });
@@ -5639,19 +5640,25 @@ env:
             const isError = data.error || data.result?.isError === true;
             const hashMatch = actualHash === step.responseHash;
             
+            // Schema validation (if schema was saved)
+            let schemaViolations = [];
+            if (step.responseSchema && data.result && !isError) {
+              schemaViolations = validateSchema(data.result, step.responseSchema);
+            }
+            
             if (isError) {
               failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration });
+              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [] });
             } else if (!hashMatch) {
               failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result });
+              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations });
             } else {
               passed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration });
+              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations });
             }
           } catch (err) {
             failed++;
-            results.push({ step: i + 1, tool: step.tool, status: 'error', message: err.message });
+            results.push({ step: i + 1, tool: step.tool, status: 'error', message: err.message, schemaViolations: [] });
           }
         }
         
@@ -5663,12 +5670,15 @@ env:
             <span style="color: var(--error)">${failed} failed</span>
           </div>
           ${results.map(r => `
-            <div style="display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
               ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : '❌'}
               <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
               ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
               ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
               ${r.status === 'diff' ? `<button class="btn" onclick="showDiff(${JSON.stringify(r.expected).replace(/"/g, '&quot;')}, ${JSON.stringify(r.actual).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+              ${r.schemaViolations && r.schemaViolations.length > 0 ? `
+                <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
+              ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
             </div>
           `).join('')}
         `;
@@ -5726,9 +5736,314 @@ env:
         }
       }
       
-      // Show diff between expected and actual (placeholder - will enhance later)
+      // ==========================================
+      // RESPONSE DIFFING - SEMANTIC JSON COMPARISON
+      // ==========================================
+      
+      // Compute semantic diff between two JSON objects
+      function jsonDiff(expected, actual, path = '') {
+        const diffs = [];
+        
+        const expectedType = getType(expected);
+        const actualType = getType(actual);
+        
+        // Type mismatch
+        if (expectedType !== actualType) {
+          diffs.push({
+            type: 'type_change',
+            path: path || '(root)',
+            expected: expectedType,
+            actual: actualType,
+            expectedValue: expected,
+            actualValue: actual,
+          });
+          return diffs;
+        }
+        
+        // Compare objects
+        if (expectedType === 'object') {
+          const allKeys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
+          
+          for (const key of allKeys) {
+            const keyPath = path ? `${path}.${key}` : key;
+            
+            if (!(key in expected)) {
+              diffs.push({
+                type: 'added',
+                path: keyPath,
+                actualValue: actual[key],
+              });
+            } else if (!(key in actual)) {
+              diffs.push({
+                type: 'missing',
+                path: keyPath,
+                expectedValue: expected[key],
+              });
+            } else {
+              diffs.push(...jsonDiff(expected[key], actual[key], keyPath));
+            }
+          }
+        }
+        // Compare arrays
+        else if (expectedType === 'array') {
+          const maxLen = Math.max(expected.length, actual.length);
+          for (let i = 0; i < maxLen; i++) {
+            const keyPath = `${path}[${i}]`;
+            if (i >= expected.length) {
+              diffs.push({
+                type: 'added',
+                path: keyPath,
+                actualValue: actual[i],
+              });
+            } else if (i >= actual.length) {
+              diffs.push({
+                type: 'missing',
+                path: keyPath,
+                expectedValue: expected[i],
+              });
+            } else {
+              diffs.push(...jsonDiff(expected[i], actual[i], keyPath));
+            }
+          }
+        }
+        // Compare primitives
+        else {
+          if (expected !== actual) {
+            diffs.push({
+              type: 'changed',
+              path: path || '(root)',
+              expectedValue: expected,
+              actualValue: actual,
+            });
+          }
+        }
+        
+        return diffs;
+      }
+      
+      // Get type of value
+      function getType(val) {
+        if (val === null) return 'null';
+        if (Array.isArray(val)) return 'array';
+        return typeof val;
+      }
+      
+      // Format value for display
+      function formatValue(val) {
+        if (typeof val === 'string') return `"${val}"`;
+        if (typeof val === 'object') return JSON.stringify(val);
+        return String(val);
+      }
+      
+      // Show diff modal with semantic comparison
       function showDiff(expected, actual) {
-        alert(`EXPECTED:\n${JSON.stringify(expected, null, 2)}\n\nACTUAL:\n${JSON.stringify(actual, null, 2)}`);
+        const diffs = jsonDiff(expected, actual);
+        
+        // Create modal HTML
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'diffModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 800px; max-height: 80vh">
+            <div class="modal-header">
+              <h2 class="modal-title">📊 Response Diff</h2>
+              <button class="modal-close" onclick="closeDiffModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(80vh - 100px)">
+              ${diffs.length === 0 ? `
+                <div style="text-align: center; color: var(--success); padding: 20px">
+                  ✅ No differences found
+                </div>
+              ` : `
+                <div style="font-size: 0.75rem; margin-bottom: 12px; color: var(--text-muted)">
+                  Found <strong>${diffs.length}</strong> difference${diffs.length !== 1 ? 's' : ''}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px">
+                  ${diffs.map(d => {
+                    let icon, color, label;
+                    switch (d.type) {
+                      case 'missing':
+                        icon = '🔴'; color = 'var(--error)'; label = 'MISSING';
+                        break;
+                      case 'added':
+                        icon = '🟢'; color = 'var(--success)'; label = 'ADDED';
+                        break;
+                      case 'changed':
+                        icon = '🟡'; color = 'var(--warning)'; label = 'CHANGED';
+                        break;
+                      case 'type_change':
+                        icon = '🟠'; color = '#ff7700'; label = 'TYPE CHANGE';
+                        break;
+                    }
+                    return `
+                      <div style="background: var(--bg-card); border-left: 3px solid ${color}; padding: 8px 12px; border-radius: 4px">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
+                          <span>${icon}</span>
+                          <code style="font-weight: 500; color: var(--text-primary)">${escapeHtml(d.path)}</code>
+                          <span style="font-size: 0.65rem; padding: 1px 4px; border-radius: 2px; background: ${color}20; color: ${color}">${label}</span>
+                        </div>
+                        <div style="font-size: 0.75rem; display: flex; gap: 16px">
+                          ${d.type === 'missing' || d.type === 'changed' || d.type === 'type_change' ? `
+                            <div>
+                              <span style="color: var(--text-muted)">Expected:</span>
+                              <code style="color: var(--error)">${escapeHtml(d.type === 'type_change' ? d.expected : formatValue(d.expectedValue))}</code>
+                            </div>
+                          ` : ''}
+                          ${d.type === 'added' || d.type === 'changed' || d.type === 'type_change' ? `
+                            <div>
+                              <span style="color: var(--text-muted)">Actual:</span>
+                              <code style="color: var(--success)">${escapeHtml(d.type === 'type_change' ? d.actual : formatValue(d.actualValue))}</code>
+                            </div>
+                          ` : ''}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+              <div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px">
+                <details>
+                  <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.75rem">📋 View Raw JSON</summary>
+                  <div style="display: flex; gap: 16px; margin-top: 8px">
+                    <div style="flex: 1">
+                      <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px">Expected (baseline)</div>
+                      <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.7rem; max-height: 200px">${escapeHtml(JSON.stringify(expected, null, 2))}</pre>
+                    </div>
+                    <div style="flex: 1">
+                      <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px">Actual (current)</div>
+                      <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.7rem; max-height: 200px">${escapeHtml(JSON.stringify(actual, null, 2))}</pre>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeDiffModal()">Close</button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+      }
+      
+      // Close diff modal
+      function closeDiffModal() {
+        const modal = document.getElementById('diffModal');
+        if (modal) modal.remove();
+      }
+
+      // ==========================================
+      // SCHEMA VALIDATION - CONTRACT TESTING
+      // ==========================================
+      
+      // Infer schema from a response object
+      function inferSchema(value, path = '') {
+        const type = getType(value);
+        
+        const schema = { type, path: path || '(root)' };
+        
+        if (type === 'object' && value !== null) {
+          schema.properties = {};
+          schema.required = Object.keys(value);
+          for (const [key, val] of Object.entries(value)) {
+            schema.properties[key] = inferSchema(val, path ? `${path}.${key}` : key);
+          }
+        } else if (type === 'array' && value.length > 0) {
+          // Infer schema from first item
+          schema.items = inferSchema(value[0], `${path}[0]`);
+          schema.minItems = value.length; // Record original length
+        }
+        
+        return schema;
+      }
+      
+      // Validate a value against an inferred schema
+      function validateSchema(value, schema, path = '') {
+        const violations = [];
+        const actualType = getType(value);
+        
+        // Type check
+        if (actualType !== schema.type) {
+          violations.push({
+            type: 'type_mismatch',
+            path: path || '(root)',
+            expected: schema.type,
+            actual: actualType,
+          });
+          return violations; // Can't continue if types don't match
+        }
+        
+        // Object validation
+        if (schema.type === 'object' && schema.properties) {
+          // Check required fields
+          for (const key of (schema.required || [])) {
+            if (!(key in value)) {
+              violations.push({
+                type: 'missing_required',
+                path: path ? `${path}.${key}` : key,
+                message: 'Required field missing',
+              });
+            }
+          }
+          
+          // Check extra fields (warning only)
+          for (const key of Object.keys(value)) {
+            if (!(key in schema.properties)) {
+              violations.push({
+                type: 'extra_field',
+                path: path ? `${path}.${key}` : key,
+                message: 'Unexpected extra field',
+              });
+            }
+          }
+          
+          // Recursively validate properties
+          for (const [key, propSchema] of Object.entries(schema.properties)) {
+            if (key in value) {
+              violations.push(...validateSchema(value[key], propSchema, path ? `${path}.${key}` : key));
+            }
+          }
+        }
+        
+        // Array validation
+        else if (schema.type === 'array' && schema.items && value.length > 0) {
+          // Validate each item against the item schema
+          for (let i = 0; i < value.length; i++) {
+            violations.push(...validateSchema(value[i], schema.items, `${path}[${i}]`));
+          }
+        }
+        
+        return violations;
+      }
+      
+      // Format schema violations for display
+      function formatSchemaViolations(violations) {
+        if (violations.length === 0) {
+          return '<span style="color: var(--success)">✅ Schema valid</span>';
+        }
+        
+        return violations.map(v => {
+          let icon, color;
+          switch (v.type) {
+            case 'type_mismatch':
+              icon = '🟠'; color = '#ff7700';
+              return `<div style="display: flex; gap: 4px; align-items: center"><span>${icon}</span><code>${v.path}</code>: type ${v.expected} → ${v.actual}</div>`;
+            case 'missing_required':
+              icon = '🔴'; color = 'var(--error)';
+              return `<div style="display: flex; gap: 4px; align-items: center"><span>${icon}</span><code>${v.path}</code>: required field missing</div>`;
+            case 'extra_field':
+              icon = '🟡'; color = 'var(--warning)';
+              return `<div style="display: flex; gap: 4px; align-items: center"><span>${icon}</span><code>${v.path}</code>: unexpected extra field</div>`;
+            default:
+              return `<div>${v.message || v.type}</div>`;
+          }
+        }).join('');
       }
 
       // Restore session - render saved messages
