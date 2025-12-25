@@ -1795,6 +1795,9 @@
           <button class="tab-btn" onclick="switchTab('inspector')" id="inspectorTabBtn">
             🔧 Inspector
           </button>
+          <button class="tab-btn" onclick="switchTab('history')" id="historyTabBtn">
+            📜 History
+          </button>
         </div>
 
         <!-- Chat Panel (default) -->
@@ -1957,6 +1960,48 @@
                 <div style="color: var(--text-muted); font-style: italic">
                   Connect to an SSE server to see real-time events...
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Panel -->
+        <div class="content-panel" id="historyPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <h3 style="display: flex; justify-content: space-between; align-items: center">
+                <span>📜 Tool Execution History</span>
+                <div style="display: flex; gap: 4px">
+                  <button
+                    class="btn"
+                    onclick="refreshHistoryPanel()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    🔄 Refresh
+                  </button>
+                  <button
+                    class="btn"
+                    onclick="exportToolHistory()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📥 Export
+                  </button>
+                  <button
+                    class="btn"
+                    onclick="clearToolHistory()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    🗑️ Clear
+                  </button>
+                </div>
+              </h3>
+              <div id="toolHistoryStats" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px">
+                No tool executions recorded
+              </div>
+            </div>
+            <div id="toolHistoryList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 280px)">
+              <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+                Execute tools from the Inspector tab to see history here...
               </div>
             </div>
           </div>
@@ -3547,26 +3592,35 @@ env:
       let selectedInspectorTool = null;
       let lastInspectorResponse = null;
 
-      // Switch between Chat and Inspector tabs
+      // Switch between Chat, Inspector, and History tabs
       function switchTab(tabName) {
         const chatPanel = document.getElementById('chatPanel');
         const inspectorPanel = document.getElementById('inspectorPanel');
+        const historyPanel = document.getElementById('historyPanel');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const inspectorTabBtn = document.getElementById('inspectorTabBtn');
+        const historyTabBtn = document.getElementById('historyTabBtn');
 
+        // Remove active from all
+        chatPanel.classList.remove('active');
+        inspectorPanel.classList.remove('active');
+        historyPanel.classList.remove('active');
+        chatTabBtn.classList.remove('active');
+        inspectorTabBtn.classList.remove('active');
+        historyTabBtn.classList.remove('active');
+
+        // Activate selected tab
         if (tabName === 'chat') {
           chatPanel.classList.add('active');
-          inspectorPanel.classList.remove('active');
           chatTabBtn.classList.add('active');
-          inspectorTabBtn.classList.remove('active');
-        } else {
-          chatPanel.classList.remove('active');
+        } else if (tabName === 'inspector') {
           inspectorPanel.classList.add('active');
-          chatTabBtn.classList.remove('active');
           inspectorTabBtn.classList.add('active');
-
-          // Load servers when switching to Inspector
           loadInspectorServers();
+        } else if (tabName === 'history') {
+          historyPanel.classList.add('active');
+          historyTabBtn.classList.add('active');
+          refreshHistoryPanel();
         }
       }
 
@@ -4849,6 +4903,142 @@ env:
           }
         } catch (error) {
           mcpServersEl.innerHTML = `<div class="empty-state" style="color: var(--error)">Failed to load MCP status</div>`;
+        }
+      }
+
+      // ==========================================
+      // TOOL EXECUTION HISTORY PANEL
+      // ==========================================
+      
+      // Refresh history panel with current data
+      function refreshHistoryPanel() {
+        const history = sessionManager.getToolHistory();
+        const statsEl = document.getElementById('toolHistoryStats');
+        const listEl = document.getElementById('toolHistoryList');
+        
+        if (history.length === 0) {
+          statsEl.textContent = 'No tool executions recorded';
+          listEl.innerHTML = `
+            <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+              Execute tools from the Inspector tab to see history here...
+            </div>
+          `;
+          return;
+        }
+        
+        // Calculate stats
+        const successCount = history.filter(h => h.success).length;
+        const avgDuration = Math.round(history.reduce((sum, h) => sum + (h.duration || 0), 0) / history.length);
+        statsEl.innerHTML = `
+          <strong>${history.length}</strong> executions • 
+          <span style="color: var(--success)">${successCount} ✓</span> / 
+          <span style="color: var(--error)">${history.length - successCount} ✗</span> •
+          Avg: ${avgDuration}ms
+        `;
+        
+        // Render history entries
+        listEl.innerHTML = history.map((entry, idx) => {
+          const time = new Date(entry.timestamp).toLocaleTimeString();
+          const statusIcon = entry.success ? '✅' : '❌';
+          const statusClass = entry.success ? 'success' : 'error';
+          
+          return `
+            <div class="inspector-response" style="margin: 0; cursor: pointer" onclick="toggleHistoryDetail(${idx})">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                  <strong>${statusIcon} ${escapeHtml(entry.tool)}</strong>
+                  <span style="color: var(--text-muted); font-size: 0.7rem"> @ ${escapeHtml(entry.server)}</span>
+                </div>
+                <div style="font-size: 0.7rem; color: var(--text-muted)">
+                  ${time} • ${entry.duration}ms
+                </div>
+              </div>
+              <div id="historyDetail${idx}" style="display: none; margin-top: 8px; font-size: 0.75rem">
+                <div style="margin-bottom: 4px"><strong>Request:</strong></div>
+                <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 150px">${escapeHtml(JSON.stringify(entry.request, null, 2))}</pre>
+                <div style="margin: 8px 0 4px"><strong>Response:</strong></div>
+                <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 200px">${escapeHtml(JSON.stringify(entry.response, null, 2))}</pre>
+                <div style="margin-top: 8px">
+                  <button class="btn" onclick="event.stopPropagation(); copyHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">📋 Copy</button>
+                  <button class="btn" onclick="event.stopPropagation(); replayHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔄 Replay in Inspector</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      // Toggle history entry detail visibility
+      function toggleHistoryDetail(idx) {
+        const detailEl = document.getElementById(`historyDetail${idx}`);
+        if (detailEl) {
+          detailEl.style.display = detailEl.style.display === 'none' ? 'block' : 'none';
+        }
+      }
+      
+      // Copy history entry to clipboard
+      function copyHistoryEntry(idx) {
+        const history = sessionManager.getToolHistory();
+        const entry = history[idx];
+        if (entry) {
+          navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
+          appendMessage('system', '📋 History entry copied to clipboard');
+        }
+      }
+      
+      // Replay history entry in Inspector
+      function replayHistoryEntry(idx) {
+        const history = sessionManager.getToolHistory();
+        const entry = history[idx];
+        if (entry) {
+          // Switch to Inspector and pre-fill
+          switchTab('inspector');
+          
+          // Set server and load tools
+          const serverSelect = document.getElementById('inspectorServerSelect');
+          serverSelect.value = entry.server;
+          serverSelect.dispatchEvent(new Event('change'));
+          
+          // Pre-fill arguments after a short delay to let tools load
+          setTimeout(() => {
+            const argsInput = document.getElementById('toolArgsInput');
+            if (argsInput) {
+              argsInput.value = JSON.stringify(entry.request, null, 2);
+            }
+          }, 500);
+          
+          appendMessage('system', `🔄 Loaded ${entry.tool} request in Inspector - select the tool and execute`);
+        }
+      }
+      
+      // Export tool history as JSON file
+      function exportToolHistory() {
+        const history = sessionManager.getToolHistory();
+        if (history.length === 0) {
+          appendMessage('error', 'No history to export');
+          return;
+        }
+        
+        const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mcp-tool-history-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        appendMessage('system', `📥 Exported ${history.length} history entries`);
+      }
+      
+      // Clear tool history
+      function clearToolHistory() {
+        if (confirm('Clear all tool execution history?')) {
+          const session = sessionManager.load() || {};
+          session.toolHistory = [];
+          sessionManager.save(session);
+          toolExecutionHistory = [];
+          refreshHistoryPanel();
+          appendMessage('system', '🗑️ Tool history cleared');
         }
       }
 
