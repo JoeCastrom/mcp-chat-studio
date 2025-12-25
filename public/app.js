@@ -407,6 +407,55 @@
       let currentAbortController = null;
       let currentLoadingEl = null;
       let selectedTool = null; // Track selected tool for force mode
+      
+      // Cache for large data to avoid huge JSON in onclick attributes
+      const diffDataCache = new Map();
+      let diffDataId = 0;
+      
+      // Store diff data and return an ID
+      function cacheDiffData(expected, actual) {
+        const id = `diff_${++diffDataId}`;
+        diffDataCache.set(id, { expected, actual });
+        // Clean up old entries (keep last 50)
+        if (diffDataCache.size > 50) {
+          const firstKey = diffDataCache.keys().next().value;
+          diffDataCache.delete(firstKey);
+        }
+        return id;
+      }
+      
+      // Get cached diff data
+      function getCachedDiffData(id) {
+        return diffDataCache.get(id);
+      }
+      
+      // Show diff from cached data
+      function showDiffById(id) {
+        const data = getCachedDiffData(id);
+        if (data) {
+          showDiff(data.expected, data.actual);
+        }
+      }
+      
+      // Cache for assertion results
+      const assertionCache = new Map();
+      let assertionCacheId = 0;
+      
+      function cacheAssertionResults(results) {
+        const id = `assert_${++assertionCacheId}`;
+        assertionCache.set(id, results);
+        if (assertionCache.size > 50) {
+          assertionCache.delete(assertionCache.keys().next().value);
+        }
+        return id;
+      }
+      
+      function showAssertionResultsById(id) {
+        const results = assertionCache.get(id);
+        if (results) {
+          showAssertionResults(results);
+        }
+      }
 
       // Elements
       const messagesEl = document.getElementById('messages');
@@ -3755,31 +3804,47 @@
           }
         }
 
-        // Show results
+        // Show results - cache large data to avoid huge onclick attributes
+        const resultHtml = results.map(r => {
+          // Cache diff data for this result
+          let diffId = null;
+          if ((r.status === 'diff' || r.status === 'assertion_fail') && r.expected && r.actual) {
+            diffId = cacheDiffData(r.expected, r.actual);
+          }
+          
+          // Cache assertion results
+          let assertId = null;
+          if (r.assertionResults && r.assertionResults.length > 0) {
+            assertId = cacheAssertionResults(r.assertionResults);
+          }
+          
+          return `
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
+              ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
+              <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
+              ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
+              ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
+              ${diffId ? `<button class="btn" onclick="showDiffById('${diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+              ${r.schemaViolations && r.schemaViolations.length > 0 ? `
+                <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
+              ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
+              ${assertId ? `
+                <span style="font-size: 0.65rem; margin-left: 4px; ${r.assertionResults.every(a => a.passed) ? 'color: var(--success)' : 'color: var(--error)'}">
+                  🔍 ${r.assertionResults.filter(a => a.passed).length}/${r.assertionResults.length} assertions
+                </span>
+                <button class="btn" onclick="showAssertionResultsById('${assertId}')" style="font-size: 0.6rem; padding: 1px 4px">Details</button>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+
         resultsEl.innerHTML = `
           <div style="margin-bottom: 8px">
             <strong>Results:</strong>
             <span style="color: var(--success)">${passed} passed</span> /
             <span style="color: var(--error)">${failed} failed</span>
           </div>
-          ${results.map(r => `
-            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
-              ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
-              <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
-              ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
-              ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
-              ${r.status === 'diff' || r.status === 'assertion_fail' ? `<button class="btn" onclick="showDiff(${JSON.stringify(r.expected).replace(/"/g, '&quot;')}, ${JSON.stringify(r.actual).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
-              ${r.schemaViolations && r.schemaViolations.length > 0 ? `
-                <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
-              ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
-              ${r.assertionResults && r.assertionResults.length > 0 ? `
-                <span style="font-size: 0.65rem; margin-left: 4px; ${r.assertionResults.every(a => a.passed) ? 'color: var(--success)' : 'color: var(--error)'}"">
-                  🔍 ${r.assertionResults.filter(a => a.passed).length}/${r.assertionResults.length} assertions
-                </span>
-                <button class="btn" onclick="showAssertionResults(${JSON.stringify(r.assertionResults).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">Details</button>
-              ` : ''}
-            </div>
-          `).join('')}
+          ${resultHtml}
         `;
 
         appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
