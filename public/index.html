@@ -2285,14 +2285,95 @@ env:
     </div>
 
     <script>
-      // State
-      let messages = [
-        {
-          role: 'assistant',
-          content:
-            '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click "Login" to connect to secured services.',
+      // ==========================================
+      // SESSION MANAGER - Persist state to localStorage
+      // ==========================================
+      const sessionManager = {
+        STORAGE_KEY: 'mcp_chat_studio_session',
+        
+        // Default welcome message
+        getWelcomeMessage() {
+          return {
+            role: 'assistant',
+            content: '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click "Login" to connect to secured services.',
+          };
         },
-      ];
+        
+        // Save session to localStorage
+        save(data) {
+          try {
+            const session = {
+              messages: data.messages || [],
+              toolHistory: data.toolHistory || [],
+              settings: data.settings || {},
+              timestamp: Date.now(),
+            };
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
+          } catch (e) {
+            console.warn('[Session] Failed to save:', e.message);
+          }
+        },
+        
+        // Load session from localStorage
+        load() {
+          try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (stored) {
+              const session = JSON.parse(stored);
+              // Check if session is less than 24 hours old
+              if (Date.now() - session.timestamp < 24 * 60 * 60 * 1000) {
+                return session;
+              }
+            }
+          } catch (e) {
+            console.warn('[Session] Failed to load:', e.message);
+          }
+          return null;
+        },
+        
+        // Clear session
+        clear() {
+          try {
+            localStorage.removeItem(this.STORAGE_KEY);
+          } catch (e) {
+            console.warn('[Session] Failed to clear:', e.message);
+          }
+        },
+        
+        // Save just messages (called frequently)
+        saveMessages(messages) {
+          const session = this.load() || {};
+          session.messages = messages;
+          this.save(session);
+        },
+        
+        // Save tool execution to history
+        logToolExecution(entry) {
+          const session = this.load() || {};
+          session.toolHistory = session.toolHistory || [];
+          session.toolHistory.unshift(entry); // Add to front
+          // Keep last 100 entries
+          if (session.toolHistory.length > 100) {
+            session.toolHistory = session.toolHistory.slice(0, 100);
+          }
+          this.save(session);
+        },
+        
+        // Get tool history
+        getToolHistory() {
+          const session = this.load();
+          return session?.toolHistory || [];
+        },
+      };
+
+      // ==========================================
+      // STATE - Load from session or use defaults
+      // ==========================================
+      const savedSession = sessionManager.load();
+      let messages = savedSession?.messages?.length > 0 
+        ? savedSession.messages 
+        : [sessionManager.getWelcomeMessage()];
+      let toolExecutionHistory = savedSession?.toolHistory || [];
       let isLoading = false;
       let isAuthenticated = false;
       let userInfo = null;
@@ -3699,6 +3780,18 @@ env:
             data.error || data.result,
             duration
           );
+          
+          // Log to tool execution history
+          sessionManager.logToolExecution({
+            timestamp: new Date().toISOString(),
+            server: serverName,
+            tool: selectedInspectorTool.name,
+            request: args,
+            response: data.error || data.result,
+            duration,
+            success: !data.error && data.result?.isError !== true,
+          });
+          toolExecutionHistory = sessionManager.getToolHistory();
 
           lastInspectorResponse = data;
           responseSection.style.display = 'block';
@@ -3718,6 +3811,19 @@ env:
           responseBody.textContent = JSON.stringify(data.error || data.result, null, 2);
         } catch (error) {
           const duration = Math.round(performance.now() - startTime);
+          
+          // Log failed execution to history
+          sessionManager.logToolExecution({
+            timestamp: new Date().toISOString(),
+            server: serverName,
+            tool: selectedInspectorTool.name,
+            request: args,
+            response: { error: error.message },
+            duration,
+            success: false,
+          });
+          toolExecutionHistory = sessionManager.getToolHistory();
+          
           responseSection.style.display = 'block';
           responseStatus.className = 'inspector-status error';
           responseStatus.innerHTML = `❌ Error <span style="color: var(--text-muted);">(${duration}ms)</span>`;
@@ -4497,7 +4603,7 @@ env:
       }
 
       // Append message to UI
-      function appendMessage(role, content) {
+      function appendMessage(role, content, save = true) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
 
@@ -4511,6 +4617,12 @@ env:
         div.innerHTML = formatted;
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        
+        // Save to session (unless restoring)
+        if (save && role !== 'system') {
+          sessionManager.saveMessages(messages);
+        }
+        
         return div;
       }
 
@@ -4536,16 +4648,17 @@ env:
           cancelRequest();
         }
 
-        messages = [
-          {
-            role: 'assistant',
-            content:
-              '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click "Login" to connect to secured services.',
-          },
-        ];
+        // Clear session storage
+        sessionManager.clear();
+        
+        // Reset to welcome message
+        messages = [sessionManager.getWelcomeMessage()];
+        toolExecutionHistory = [];
         messagesEl.innerHTML = '';
-        appendMessage('assistant', messages[0].content);
+        appendMessage('assistant', messages[0].content, false);
         resetLoadingState();
+        
+        console.log('[Session] Cleared');
       }
 
       // Escape HTML
@@ -4739,7 +4852,21 @@ env:
         }
       }
 
+      // Restore session - render saved messages
+      function restoreSession() {
+        if (messages.length > 0) {
+          messagesEl.innerHTML = '';
+          messages.forEach(msg => {
+            if (msg.role !== 'system') {
+              appendMessage(msg.role, msg.content, false); // false = don't save again
+            }
+          });
+          console.log(`[Session] Restored ${messages.length} messages`);
+        }
+      }
+
       // Initialize
+      restoreSession();
       checkAuthStatus();
       loadMCPStatus();
 
