@@ -188,6 +188,13 @@
                 <span class="switch"></span>
                 <span>⚡ Stream</span>
               </label>
+              <!-- System Prompt Selector -->
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <select id="systemPromptSelect" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; min-width: 120px;" onchange="changeSystemPrompt(this.value)" title="System Prompt Persona">
+                  <!-- Options populated by JS -->
+                </select>
+                <button class="btn" onclick="showPromptManager()" title="Manage Prompts" style="padding: 4px 6px; font-size: 0.7rem;">✏️</button>
+              </div>
               <div id="selectedToolBadge"></div>
             </div>
           </div>

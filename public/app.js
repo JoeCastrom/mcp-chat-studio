@@ -3799,6 +3799,134 @@
         }).join('');
       }
 
+      // ==========================================
+      // SYSTEM PROMPT UI
+      // ==========================================
+      
+      // Populate system prompt dropdown
+      function populateSystemPrompts() {
+        const select = document.getElementById('systemPromptSelect');
+        if (!select) return;
+        
+        const prompts = sessionManager.getPrompts();
+        const activeId = sessionManager.getActivePromptId();
+        
+        select.innerHTML = Object.entries(prompts).map(([id, p]) => 
+          `<option value="${id}" ${id === activeId ? 'selected' : ''}>${p.icon} ${escapeHtml(p.name)}${p.custom ? ' ★' : ''}</option>`
+        ).join('');
+      }
+      
+      // Change active system prompt
+      function changeSystemPrompt(id) {
+        sessionManager.setActivePromptId(id);
+        const prompts = sessionManager.getPrompts();
+        const prompt = prompts[id];
+        if (prompt) {
+          appendMessage('system', `🎭 Switched to "${prompt.name}" persona`);
+        }
+      }
+      
+      // Show prompt manager modal
+      function showPromptManager() {
+        const prompts = sessionManager.getPrompts();
+        const activeId = sessionManager.getActivePromptId();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'promptManagerModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 600px">
+            <div class="modal-header">
+              <h2 class="modal-title">🎭 System Prompts</h2>
+              <button class="modal-close" onclick="closePromptManager()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); max-height: 400px; overflow-y: auto;">
+              ${Object.entries(prompts).map(([id, p]) => `
+                <div style="padding: 12px; margin-bottom: 8px; background: var(--bg-card); border-radius: 8px; border-left: 3px solid ${id === activeId ? 'var(--success)' : 'var(--border)'}">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <strong>${p.icon} ${escapeHtml(p.name)}${p.custom ? ' <span style="color: var(--primary)">★ Custom</span>' : ''}</strong>
+                    <div style="display: flex; gap: 4px;">
+                      ${p.custom ? `<button class="btn" onclick="deleteSystemPrompt('${id}')" style="padding: 2px 6px; font-size: 0.7rem; color: var(--error)">🗑️</button>` : ''}
+                      <button class="btn" onclick="selectAndClosePrompt('${id}')" style="padding: 2px 8px; font-size: 0.7rem; ${id === activeId ? 'background: var(--success); color: white;' : ''}">${id === activeId ? '✓ Active' : 'Use'}</button>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); white-space: pre-wrap;">${escapeHtml(p.prompt.substring(0, 150))}${p.prompt.length > 150 ? '...' : ''}</div>
+                </div>
+              `).join('')}
+              
+              <!-- Add Custom Prompt -->
+              <div style="margin-top: 16px; padding: 12px; background: var(--bg-surface); border-radius: 8px;">
+                <strong>➕ Create Custom Prompt</strong>
+                <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                  <input type="text" id="newPromptName" class="form-input" placeholder="Prompt name (e.g., SQL Expert)" style="font-size: 0.8rem;">
+                  <textarea id="newPromptText" class="form-input" placeholder="System prompt text..." rows="3" style="font-size: 0.8rem;"></textarea>
+                  <button class="btn success" onclick="saveNewPrompt()" style="align-self: flex-start;">💾 Save Prompt</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closePromptManager()">Close</button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+      }
+      
+      // Close prompt manager
+      function closePromptManager() {
+        const modal = document.getElementById('promptManagerModal');
+        if (modal) modal.remove();
+      }
+      
+      // Select prompt and close manager
+      function selectAndClosePrompt(id) {
+        changeSystemPrompt(id);
+        populateSystemPrompts();
+        closePromptManager();
+      }
+      
+      // Save new custom prompt
+      function saveNewPrompt() {
+        const name = document.getElementById('newPromptName').value.trim();
+        const prompt = document.getElementById('newPromptText').value.trim();
+        
+        if (!name || !prompt) {
+          appendMessage('error', 'Please enter both name and prompt text');
+          return;
+        }
+        
+        const id = `custom_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
+        if (sessionManager.savePrompt(id, name, prompt)) {
+          appendMessage('system', `💾 Saved custom prompt "${name}"`);
+          populateSystemPrompts();
+          closePromptManager();
+          showPromptManager(); // Reopen to show new prompt
+        }
+      }
+      
+      // Delete custom prompt
+      function deleteSystemPrompt(id) {
+        const prompts = sessionManager.getPrompts();
+        const prompt = prompts[id];
+        if (prompt && confirm(`Delete "${prompt.name}"?`)) {
+          sessionManager.deletePrompt(id);
+          if (sessionManager.getActivePromptId() === id) {
+            sessionManager.setActivePromptId('default');
+          }
+          populateSystemPrompts();
+          closePromptManager();
+          showPromptManager();
+          appendMessage('system', `🗑️ Deleted prompt "${prompt.name}"`);
+        }
+      }
+
       // Restore session - render saved messages
       function restoreSession() {
         if (messages.length > 0) {
@@ -3816,6 +3944,8 @@
       restoreSession();
       checkAuthStatus();
       loadMCPStatus();
+      populateSystemPrompts();
 
       // Refresh MCP status periodically
       setInterval(loadMCPStatus, 30000);
+
