@@ -1,14 +1,73 @@
-# MCP Chat Studio
+# 🚀 MCP Chat Studio
 
-**A powerful MCP (Model Context Protocol) testing and development tool with a modern glassmorphism UI.**
+**The Ultimate Testing Platform for MCP Servers**
+
+Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI.  
+**Record scenarios** • **Compare LLM responses** • **Generate mock servers** • **Zero config with Ollama**
 
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
-![Node.js](https://img.shields.io/badge/Node.js-22+-green?style=flat-square)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 [![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
 
-> **📌 Note:** MCP Chat Studio is a **local MCP test bench**. It is designed for development and is not intended to be internet-exposed by default.
+![Main Interface](docs/images/main-page-with-server-added.png)
+
+> **📌 Local MCP Test Bench** - Designed for development. Not intended for internet exposure.
+
+---
+
+## ⚡ Get Started in 60 Seconds
+
+```bash
+# 1. Clone and install
+git clone https://github.com/JoeCastrom/mcp-chat-studio.git && cd mcp-chat-studio && npm install
+
+# 2. Start (works with Ollama out of the box - no API keys needed!)
+npm run dev
+
+# 3. Open http://localhost:3082 and start testing! 🎉
+```
+
+**That's it!** You now have a complete MCP testing platform running locally.
+
+---
+
+## 🆚 Why Not Just Use Claude Desktop or ChatGPT?
+
+| Feature                          | MCP Chat Studio |  Claude Desktop  |     ChatGPT      |
+| -------------------------------- | :-------------: | :--------------: | :--------------: |
+| Test ALL tools automatically     |       ✅        |        ❌        |        ❌        |
+| Record & Replay scenarios        |       ✅        |        ❌        |        ❌        |
+| Response diffing                 |       ✅        |        ❌        |        ❌        |
+| Custom assertions (14 operators) |       ✅        |        ❌        |        ❌        |
+| Low-level MCP debugging          |       ✅        |        ❌        |        ❌        |
+| Mock server generator            |       ✅        |        ❌        |        ❌        |
+| 8 LLM providers                  |       ✅        | ❌ (Claude only) | ❌ (OpenAI only) |
+| Local/no API keys needed         |   ✅ (Ollama)   |        ❌        |        ❌        |
+| Multi-environment profiles       |       ✅        |        ❌        |        ❌        |
+| Session branching                |       ✅        |        ❌        |        ❌        |
+
+---
+
+## 🎨 NEW: Visual MCP Server Generator
+
+Create production-ready MCP servers without writing boilerplate code!
+
+- 🎨 **Visual tool designer** with parameters and types
+- 🐍 **Python (mcp SDK)** and 📦 **Node.js (TypeScript)** code generation
+- ⚡ Copy to clipboard or download instantly
+- 🔧 Perfect for prototyping and teaching MCP
+
+---
+
+## 🎯 Perfect For
+
+- **🔧 MCP Server Developers** - Test your tools without manual clicking
+- **🤖 AI App Builders** - Compare GPT-4 vs Claude vs Llama on the same tasks
+- **🏢 Enterprise Teams** - Share test scenarios and environments
+- **🐛 Debugging** - See raw MCP protocol messages when things break
+- **📚 Learning MCP** - Visual tool designer teaches protocol structure
 
 ---
 
@@ -19,28 +78,18 @@
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
+- **🔍 Custom Assertions** - 14 operators with JSONPath support
 - **🔍 Low-Level Debugging** - Inspector tab for raw MCP protocol inspection
 - **🐳 Production Ready** - Docker support, CI/CD, security-hardened
 - **💡 Zero Config Start** - Works with Ollama out of the box, no API keys needed
 - **🎨 Beautiful UI** - Modern glassmorphism design with dark/light themes
-
-**Perfect for:**
-
-- MCP server developers testing their tools
-- Comparing different LLM providers with the same tools
-- Debugging MCP protocol issues
-- Building MCP-powered applications
 
 ---
 
 ## 📸 Screenshots
 
 <details>
-<summary>Click to view screenshots</summary>
-
-### Main Chat Interface
-
-![Main Interface](docs/images/main-page-with-server-added.png)
+<summary>Click to view more screenshots</summary>
 
 ### Light Mode
 
