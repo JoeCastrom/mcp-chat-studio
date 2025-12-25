@@ -15,8 +15,10 @@
 ## ✨ Why MCP Chat Studio?
 
 - **🎯 Built for MCP Development** - Test and debug MCP servers without writing code
-- **🔧 7 LLM Providers** - Switch between Ollama, OpenAI, Claude, Gemini, Azure, Groq, and Together AI
-- **🧪 One-Click Testing** - Smoke test all MCP tools with a single click
+- **🔧 8 LLM Providers** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter
+- **🧪 Test Scenarios** - Record, replay, and validate tool executions
+- **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
+- **📋 Schema Validation** - Contract testing with auto-inferred schemas
 - **🔍 Low-Level Debugging** - Inspector tab for raw MCP protocol inspection
 - **🐳 Production Ready** - Docker support, CI/CD, security-hardened
 - **💡 Zero Config Start** - Works with Ollama out of the box, no API keys needed
@@ -106,6 +108,28 @@
 - **Export** - Download your config as YAML
 - **Import** - Load config from YAML/JSON file
 - **Team sharing** - Share configs across machines
+
+### 🧪 Test Scenarios (Record/Replay)
+
+- **Recording** - Click "🔴 Start Recording" to capture tool executions
+- **Step capture** - Records tool name, args, response, timing, schema
+- **Save scenarios** - Name and save as JSON to localStorage
+- **Replay** - Run all steps with ✅/❌/🔶 pass/fail status
+- **Export** - Download scenarios as JSON for Git/CI integration
+
+### 📊 Response Diffing
+
+- **Semantic comparison** - Not raw text diff, but JSON-aware
+- **Color-coded** - 🔴 missing, 🟢 added, 🟡 changed, 🟠 type change
+- **Side-by-side view** - Modal shows baseline vs current
+- **Breaking change detection** - Flags structural changes
+
+### 📋 Schema Validation
+
+- **Auto-inference** - Generates schema from first "good" response
+- **Contract testing** - Validates responses against saved schema
+- **Inline results** - Shows "📋 Schema OK" or "📋 N issues"
+- **Violation details** - Missing fields, type mismatches, extra fields
 
 ### 🔒 Flexible Authentication
 
