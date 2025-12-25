@@ -2028,6 +2028,25 @@
           </button>
         </div>
 
+        <!-- Server Templates -->
+        <div style="margin-bottom: var(--spacing-md)">
+          <label class="form-label">📦 Quick Templates</label>
+          <select class="form-select" id="serverTemplate" onchange="applyServerTemplate()">
+            <option value="">-- Select a template --</option>
+            <optgroup label="Official MCP Servers">
+              <option value="github">🐙 GitHub (requires token)</option>
+              <option value="filesystem">📁 Filesystem (local access)</option>
+              <option value="brave-search">🔍 Brave Search (requires API key)</option>
+              <option value="sqlite">🗄️ SQLite (local database)</option>
+              <option value="puppeteer">🎭 Puppeteer (browser automation)</option>
+            </optgroup>
+            <optgroup label="SSE Examples">
+              <option value="sse-example">🌐 SSE Server (example URL)</option>
+            </optgroup>
+          </select>
+          <div class="form-hint">Select a template to auto-fill configuration</div>
+        </div>
+
         <!-- Import YAML/JSON Button -->
         <div style="margin-bottom: var(--spacing-md); display: flex; gap: var(--spacing-sm)">
           <button type="button" class="btn" onclick="showImportConfigModal()" style="flex: 1">
@@ -2735,6 +2754,90 @@ env:
         const type = document.getElementById('serverType').value;
         document.getElementById('stdioFields').style.display = type === 'stdio' ? 'block' : 'none';
         document.getElementById('sseFields').style.display = type === 'sse' ? 'block' : 'none';
+      }
+
+      // Server Templates definitions
+      const serverTemplates = {
+        'github': {
+          name: 'github',
+          type: 'stdio',
+          command: 'npx',
+          args: '-y @modelcontextprotocol/server-github',
+          description: 'GitHub API - repos, issues, PRs, search',
+          envHint: 'Requires GITHUB_TOKEN environment variable'
+        },
+        'filesystem': {
+          name: 'filesystem',
+          type: 'stdio',
+          command: 'npx',
+          args: '-y @modelcontextprotocol/server-filesystem /path/to/allowed/dir',
+          description: 'Local filesystem access (read/write)',
+          envHint: 'Update the path to your allowed directory'
+        },
+        'brave-search': {
+          name: 'brave-search',
+          type: 'stdio',
+          command: 'npx',
+          args: '-y @modelcontextprotocol/server-brave-search',
+          description: 'Brave Search API - web search',
+          envHint: 'Requires BRAVE_API_KEY environment variable'
+        },
+        'sqlite': {
+          name: 'sqlite',
+          type: 'stdio',
+          command: 'npx',
+          args: '-y @modelcontextprotocol/server-sqlite /path/to/database.db',
+          description: 'SQLite database queries',
+          envHint: 'Update the path to your database file'
+        },
+        'puppeteer': {
+          name: 'puppeteer',
+          type: 'stdio',
+          command: 'npx',
+          args: '-y @modelcontextprotocol/server-puppeteer',
+          description: 'Browser automation with Puppeteer',
+          envHint: 'Uses headless Chrome/Chromium'
+        },
+        'sse-example': {
+          name: 'sse-server',
+          type: 'sse',
+          url: 'http://localhost:3001/sse',
+          description: 'Example SSE MCP server',
+          envHint: 'Update URL to your SSE server endpoint'
+        }
+      };
+
+      // Apply server template to form
+      function applyServerTemplate() {
+        const templateId = document.getElementById('serverTemplate').value;
+        if (!templateId) return;
+        
+        const template = serverTemplates[templateId];
+        if (!template) return;
+        
+        // Fill form fields
+        document.getElementById('serverName').value = template.name;
+        document.getElementById('serverDescription').value = template.description;
+        
+        // Set type and trigger field visibility
+        document.getElementById('serverType').value = template.type;
+        toggleServerTypeFields();
+        
+        if (template.type === 'stdio') {
+          document.getElementById('serverCommand').value = template.command;
+          document.getElementById('serverArgs').value = template.args;
+        } else if (template.type === 'sse') {
+          document.getElementById('serverUrl').value = template.url;
+        }
+        
+        // Update preview
+        updateConfigPreview();
+        
+        // Show hint
+        appendMessage('system', `📦 Applied "${templateId}" template. ${template.envHint}`);
+        
+        // Reset dropdown
+        document.getElementById('serverTemplate').value = '';
       }
 
       // Submit Add Server Form
