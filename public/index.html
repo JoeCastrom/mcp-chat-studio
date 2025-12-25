@@ -2031,20 +2031,27 @@
         <!-- Server Templates -->
         <div style="margin-bottom: var(--spacing-md)">
           <label class="form-label">📦 Quick Templates</label>
-          <select class="form-select" id="serverTemplate" onchange="applyServerTemplate()">
-            <option value="">-- Select a template --</option>
-            <optgroup label="Official MCP Servers">
-              <option value="github">🐙 GitHub (requires token)</option>
-              <option value="filesystem">📁 Filesystem (local access)</option>
-              <option value="brave-search">🔍 Brave Search (requires API key)</option>
-              <option value="sqlite">🗄️ SQLite (local database)</option>
-              <option value="puppeteer">🎭 Puppeteer (browser automation)</option>
-            </optgroup>
-            <optgroup label="SSE Examples">
-              <option value="sse-example">🌐 SSE Server (example URL)</option>
-            </optgroup>
-          </select>
-          <div class="form-hint">Select a template to auto-fill configuration</div>
+          <div style="display: flex; gap: var(--spacing-sm)">
+            <select class="form-select" id="serverTemplate" onchange="applyServerTemplate()" style="flex: 1">
+              <option value="">-- Select a template --</option>
+              <optgroup label="Official MCP Servers">
+                <option value="github">🐙 GitHub (requires token)</option>
+                <option value="filesystem">📁 Filesystem (local access)</option>
+                <option value="brave-search">🔍 Brave Search (requires API key)</option>
+                <option value="sqlite">🗄️ SQLite (local database)</option>
+                <option value="puppeteer">🎭 Puppeteer (browser automation)</option>
+              </optgroup>
+              <optgroup label="SSE Examples">
+                <option value="sse-example">🌐 SSE Server (example URL)</option>
+              </optgroup>
+              <optgroup id="customTemplatesGroup" label="📌 My Templates" style="display: none">
+              </optgroup>
+            </select>
+            <button type="button" class="btn" onclick="saveAsCustomTemplate()" title="Save current form as template" style="white-space: nowrap">
+              💾 Save
+            </button>
+          </div>
+          <div class="form-hint">Select a template to auto-fill, or save your own with 💾</div>
         </div>
 
         <!-- Import YAML/JSON Button -->
@@ -2770,9 +2777,9 @@ env:
           name: 'filesystem',
           type: 'stdio',
           command: 'npx',
-          args: '-y @modelcontextprotocol/server-filesystem /path/to/allowed/dir',
+          args: '-y @modelcontextprotocol/server-filesystem C:/Users/YourName/Documents',
           description: 'Local filesystem access (read/write)',
-          envHint: 'Update the path to your allowed directory'
+          envHint: '⚠️ EDIT ARGS FIRST! Change the path to your actual directory before connecting'
         },
         'brave-search': {
           name: 'brave-search',
@@ -2786,9 +2793,9 @@ env:
           name: 'sqlite',
           type: 'stdio',
           command: 'npx',
-          args: '-y @modelcontextprotocol/server-sqlite /path/to/database.db',
+          args: '-y @modelcontextprotocol/server-sqlite C:/path/to/your/database.db',
           description: 'SQLite database queries',
-          envHint: 'Update the path to your database file'
+          envHint: '⚠️ EDIT ARGS FIRST! Change the path to your actual .db file before connecting'
         },
         'puppeteer': {
           name: 'puppeteer',
@@ -2839,6 +2846,100 @@ env:
         // Reset dropdown
         document.getElementById('serverTemplate').value = '';
       }
+
+      // Custom templates storage key
+      const CUSTOM_TEMPLATES_KEY = 'mcp_chat_custom_templates';
+
+      // Save current form as custom template
+      function saveAsCustomTemplate() {
+        const name = document.getElementById('serverName').value.trim();
+        const type = document.getElementById('serverType').value;
+        const description = document.getElementById('serverDescription').value.trim();
+        
+        if (!name) {
+          appendMessage('error', 'Enter a server name first to save as template');
+          return;
+        }
+        
+        const templateName = prompt('Template name:', name);
+        if (!templateName) return;
+        
+        const template = {
+          name,
+          type,
+          description: description || `Custom: ${name}`,
+          envHint: 'Your saved template'
+        };
+        
+        if (type === 'stdio') {
+          template.command = document.getElementById('serverCommand').value.trim();
+          template.args = document.getElementById('serverArgs').value.trim();
+        } else if (type === 'sse') {
+          template.url = document.getElementById('serverUrl').value.trim();
+        }
+        
+        // Load existing custom templates
+        let customTemplates = {};
+        try {
+          customTemplates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '{}');
+        } catch (e) {}
+        
+        // Save template
+        const templateId = `custom_${templateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        customTemplates[templateId] = { ...template, displayName: templateName };
+        localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
+        
+        // Update dropdown
+        loadCustomTemplates();
+        
+        appendMessage('system', `💾 Saved "${templateName}" to your custom templates`);
+      }
+
+      // Load custom templates into dropdown
+      function loadCustomTemplates() {
+        const group = document.getElementById('customTemplatesGroup');
+        if (!group) return;
+        
+        let customTemplates = {};
+        try {
+          customTemplates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '{}');
+        } catch (e) {}
+        
+        const templateIds = Object.keys(customTemplates);
+        
+        if (templateIds.length === 0) {
+          group.style.display = 'none';
+          group.innerHTML = '';
+          return;
+        }
+        
+        group.style.display = '';
+        group.innerHTML = templateIds.map(id => {
+          const t = customTemplates[id];
+          return `<option value="${id}">📌 ${escapeHtml(t.displayName || t.name)}</option>`;
+        }).join('');
+        
+        // Also add to serverTemplates object for applyServerTemplate to work
+        templateIds.forEach(id => {
+          serverTemplates[id] = customTemplates[id];
+        });
+      }
+
+      // Delete a custom template
+      function deleteCustomTemplate(templateId) {
+        let customTemplates = {};
+        try {
+          customTemplates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '{}');
+        } catch (e) {}
+        
+        delete customTemplates[templateId];
+        delete serverTemplates[templateId];
+        localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
+        loadCustomTemplates();
+      }
+
+      // Load custom templates on page init
+      loadCustomTemplates();
 
       // Submit Add Server Form
       async function submitAddServer(event) {
