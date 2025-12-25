@@ -1747,8 +1747,224 @@
               select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${info.toolCount} tools)</option>`;
             }
           }
+          
+          // Also populate Resources and Prompts server selects
+          const resourceSelect = document.getElementById('resourceServerSelect');
+          const promptSelect = document.getElementById('promptServerSelect');
+          if (resourceSelect) resourceSelect.innerHTML = select.innerHTML;
+          if (promptSelect) promptSelect.innerHTML = select.innerHTML;
         } catch (error) {
           console.error('Failed to load servers:', error);
+        }
+      }
+
+      // Switch between Inspector sub-tabs (Tools, Resources, Prompts)
+      function switchInspectorTab(tabName) {
+        const toolsPanel = document.getElementById('inspectorToolsPanel');
+        const resourcesPanel = document.getElementById('inspectorResourcesPanel');
+        const promptsPanel = document.getElementById('inspectorPromptsPanel');
+        const toolsTab = document.getElementById('inspectorToolsTab');
+        const resourcesTab = document.getElementById('inspectorResourcesTab');
+        const promptsTab = document.getElementById('inspectorPromptsTab');
+
+        // Hide all panels
+        if (toolsPanel) toolsPanel.style.display = 'none';
+        if (resourcesPanel) resourcesPanel.style.display = 'none';
+        if (promptsPanel) promptsPanel.style.display = 'none';
+
+        // Remove active from all tabs
+        if (toolsTab) toolsTab.classList.remove('active');
+        if (resourcesTab) resourcesTab.classList.remove('active');
+        if (promptsTab) promptsTab.classList.remove('active');
+
+        // Show selected panel
+        if (tabName === 'tools') {
+          if (toolsPanel) toolsPanel.style.display = 'block';
+          if (toolsTab) toolsTab.classList.add('active');
+        } else if (tabName === 'resources') {
+          if (resourcesPanel) resourcesPanel.style.display = 'block';
+          if (resourcesTab) resourcesTab.classList.add('active');
+        } else if (tabName === 'prompts') {
+          if (promptsPanel) promptsPanel.style.display = 'block';
+          if (promptsTab) promptsTab.classList.add('active');
+        }
+      }
+
+      // ==========================================
+      // MCP RESOURCES
+      // ==========================================
+      let currentResourceContent = null;
+
+      async function loadServerResources() {
+        const serverName = document.getElementById('resourceServerSelect').value;
+        const listEl = document.getElementById('resourcesList');
+
+        if (!serverName) {
+          listEl.innerHTML = '<div style="color: var(--text-muted); font-style: italic; padding: 12px;">Select a server to view available resources...</div>';
+          document.getElementById('resourceContentSection').style.display = 'none';
+          return;
+        }
+
+        listEl.innerHTML = '<div style="color: var(--text-muted); padding: 12px;">Loading resources...</div>';
+
+        try {
+          const response = await fetch(`/api/mcp/resources/${encodeURIComponent(serverName)}`, { credentials: 'include' });
+          const data = await response.json();
+
+          if (data.error) {
+            listEl.innerHTML = `<div style="color: var(--error); padding: 12px;">❌ ${escapeHtml(data.error)}</div>`;
+            return;
+          }
+
+          const resources = data.resources || [];
+          if (resources.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); padding: 12px;">No resources available from this server.</div>';
+            return;
+          }
+
+          listEl.innerHTML = resources.map(r => `
+            <div class="resource-item" style="padding: 8px 12px; margin-bottom: 4px; background: var(--bg-card); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="readResource('${escapeHtml(serverName)}', '${escapeHtml(r.uri)}')">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">${r.mimeType?.includes('image') ? '🖼️' : r.mimeType?.includes('json') ? '📋' : '📄'}</span>
+                <div>
+                  <div style="font-weight: 500;">${escapeHtml(r.name || r.uri)}</div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(r.uri)}</div>
+                  ${r.description ? `<div style="font-size: 0.7rem; color: var(--text-secondary);">${escapeHtml(r.description)}</div>` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } catch (error) {
+          listEl.innerHTML = `<div style="color: var(--error); padding: 12px;">❌ Failed to load resources: ${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      async function readResource(serverName, uri) {
+        const contentSection = document.getElementById('resourceContentSection');
+        const contentEl = document.getElementById('resourceContent').querySelector('pre');
+
+        contentSection.style.display = 'block';
+        contentEl.textContent = 'Loading...';
+
+        try {
+          const response = await fetch(`/api/mcp/resources/${encodeURIComponent(serverName)}/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ uri }),
+          });
+          const data = await response.json();
+
+          if (data.error) {
+            contentEl.textContent = `Error: ${data.error}`;
+            currentResourceContent = null;
+            return;
+          }
+
+          const content = data.contents?.[0]?.text || data.contents?.[0]?.blob || JSON.stringify(data, null, 2);
+          contentEl.textContent = content;
+          currentResourceContent = content;
+        } catch (error) {
+          contentEl.textContent = `Error: ${error.message}`;
+          currentResourceContent = null;
+        }
+      }
+
+      function copyResourceContent() {
+        if (currentResourceContent) {
+          navigator.clipboard.writeText(currentResourceContent);
+          appendMessage('system', '📋 Resource content copied to clipboard');
+        }
+      }
+
+      // ==========================================
+      // MCP PROMPTS
+      // ==========================================
+      let currentPromptContent = null;
+
+      async function loadServerPrompts() {
+        const serverName = document.getElementById('promptServerSelect').value;
+        const listEl = document.getElementById('promptsList');
+
+        if (!serverName) {
+          listEl.innerHTML = '<div style="color: var(--text-muted); font-style: italic; padding: 12px;">Select a server to view available prompts...</div>';
+          document.getElementById('promptPreviewSection').style.display = 'none';
+          return;
+        }
+
+        listEl.innerHTML = '<div style="color: var(--text-muted); padding: 12px;">Loading prompts...</div>';
+
+        try {
+          const response = await fetch(`/api/mcp/prompts/${encodeURIComponent(serverName)}`, { credentials: 'include' });
+          const data = await response.json();
+
+          if (data.error) {
+            listEl.innerHTML = `<div style="color: var(--error); padding: 12px;">❌ ${escapeHtml(data.error)}</div>`;
+            return;
+          }
+
+          const prompts = data.prompts || [];
+          if (prompts.length === 0) {
+            listEl.innerHTML = '<div style="color: var(--text-muted); padding: 12px;">No prompts available from this server.</div>';
+            return;
+          }
+
+          listEl.innerHTML = prompts.map(p => `
+            <div class="prompt-item" style="padding: 8px 12px; margin-bottom: 4px; background: var(--bg-card); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="getPrompt('${escapeHtml(serverName)}', '${escapeHtml(p.name)}')">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.2rem;">💬</span>
+                <div>
+                  <div style="font-weight: 500;">${escapeHtml(p.name)}</div>
+                  ${p.description ? `<div style="font-size: 0.7rem; color: var(--text-secondary);">${escapeHtml(p.description)}</div>` : ''}
+                  ${p.arguments?.length ? `<div style="font-size: 0.65rem; color: var(--text-muted);">Args: ${p.arguments.map(a => a.name).join(', ')}</div>` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } catch (error) {
+          listEl.innerHTML = `<div style="color: var(--error); padding: 12px;">❌ Failed to load prompts: ${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      async function getPrompt(serverName, promptName) {
+        const previewSection = document.getElementById('promptPreviewSection');
+        const previewEl = document.getElementById('promptPreview').querySelector('pre');
+
+        previewSection.style.display = 'block';
+        previewEl.textContent = 'Loading...';
+
+        try {
+          const response = await fetch(`/api/mcp/prompts/${encodeURIComponent(serverName)}/get`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name: promptName, arguments: {} }),
+          });
+          const data = await response.json();
+
+          if (data.error) {
+            previewEl.textContent = `Error: ${data.error}`;
+            currentPromptContent = null;
+            return;
+          }
+
+          const messages = data.messages || [];
+          const content = messages.map(m => `[${m.role}]\n${m.content?.text || m.content}`).join('\n\n');
+          previewEl.textContent = content || JSON.stringify(data, null, 2);
+          currentPromptContent = content;
+        } catch (error) {
+          previewEl.textContent = `Error: ${error.message}`;
+          currentPromptContent = null;
+        }
+      }
+
+      function usePromptInChat() {
+        if (currentPromptContent) {
+          const userInput = document.getElementById('userInput');
+          userInput.value = currentPromptContent;
+          userInput.focus();
+          switchTab('chat');
+          appendMessage('system', '💬 Prompt loaded into input. Edit as needed and send!');
         }
       }
 

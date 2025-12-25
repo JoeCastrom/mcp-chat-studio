@@ -399,4 +399,50 @@ router.post('/prompts/get', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/mcp/resources/:serverName/read
+ * Read a specific resource from a server (URL-based server name)
+ */
+router.post('/resources/:serverName/read', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const { uri } = req.body;
+    const sessionId = getSessionId(req);
+
+    if (!uri) {
+      return res.status(400).json({ error: 'uri is required' });
+    }
+
+    const mcpManager = getMCPManager();
+    const contents = await mcpManager.readResource(serverName, uri, sessionId);
+    res.json({ contents });
+  } catch (error) {
+    console.error(`[MCP/ReadResource] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mcp/prompts/:serverName/get
+ * Get a specific prompt from a server (URL-based server name)
+ */
+router.post('/prompts/:serverName/get', async (req, res) => {
+  try {
+    const { serverName } = req.params;
+    const { name, arguments: promptArgs = {} } = req.body;
+    const sessionId = getSessionId(req);
+
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    const mcpManager = getMCPManager();
+    const messages = await mcpManager.getPrompt(serverName, name, promptArgs, sessionId);
+    res.json({ messages });
+  } catch (error) {
+    console.error(`[MCP/GetPrompt] Error:`, error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
