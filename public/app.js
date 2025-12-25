@@ -5443,40 +5443,105 @@ main().catch(console.error);
       }
 
       // Switch environment
-      function switchEnvironment(envName) {
+      async function switchEnvironment(envName) {
         const oldEnv = getCurrentEnv();
         
-        // Save current configuration to old environment
-        saveCurrentConfigToEnv(oldEnv);
+        if (oldEnv === envName) return; // No change
+        
+        // Save current configuration to old environment (fetch from API)
+        await saveCurrentConfigToEnv(oldEnv);
         
         // Set new environment
         localStorage.setItem(CURRENT_ENV_KEY, envName);
         
-        // Load config from new environment (if exists)
+        // Load config from new environment
         const profiles = getEnvProfiles();
-        if (profiles[envName]) {
-          // We would load server configs here
-          appendMessage('system', `🔄 Switched to ${envName} environment`);
+        const profile = profiles[envName];
+        
+        if (profile && profile.servers && profile.servers.length > 0) {
+          appendMessage('system', `🔄 Loading ${envName} environment (${profile.servers.length} servers)...`);
+          
+          // Disconnect current servers first
+          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
+          const currentStatus = await statusRes.json();
+          
+          for (const serverName of Object.keys(currentStatus.servers || {})) {
+            try {
+              await fetch('/api/mcp/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: serverName })
+              });
+            } catch (e) {
+              console.warn(`Failed to disconnect ${serverName}`);
+            }
+          }
+          
+          // Reconnect servers from profile
+          let connected = 0;
+          for (const server of profile.servers) {
+            try {
+              const res = await fetch('/api/mcp/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: server.name })
+              });
+              if (res.ok) connected++;
+            } catch (e) {
+              console.warn(`Failed to connect ${server.name}`);
+            }
+          }
+          
+          appendMessage('system', `✅ ${envName}: ${connected}/${profile.servers.length} servers connected`);
         } else {
-          appendMessage('system', `🆕 Switched to ${envName} environment (no saved config)`);
+          appendMessage('system', `🆕 ${envName} environment (no saved config - configure servers and switch away to save)`);
         }
         
+        // Update the dropdown
+        document.getElementById('envProfile').value = envName;
+        
+        // Refresh UI
         loadMCPStatus();
       }
 
-      // Save current configuration to environment
-      function saveCurrentConfigToEnv(envName) {
-        // Capture current server configuration
-        const configSection = document.getElementById('serversConfig');
-        const serverCards = configSection ? configSection.querySelectorAll('.server-card') : [];
+      // Save current configuration to environment (from live API)
+      async function saveCurrentConfigToEnv(envName) {
+        try {
+          const res = await fetch('/api/mcp/status', { credentials: 'include' });
+          const data = await res.json();
+          
+          const servers = [];
+          for (const [name, info] of Object.entries(data.servers || {})) {
+            servers.push({
+              name,
+              status: info.status,
+              // Could save more config here like command, args, env if we expose it
+            });
+          }
+          
+          if (servers.length > 0) {
+            saveEnvProfile(envName, { servers });
+          }
+        } catch (e) {
+          console.warn('[Env] Failed to save config:', e.message);
+        }
+      }
+
+      // Show environment info
+      function showEnvInfo() {
+        const profiles = getEnvProfiles();
+        const currentEnv = getCurrentEnv();
         
-        const servers = [];
-        serverCards.forEach(card => {
-          const name = card.querySelector('.server-name')?.textContent;
-          if (name) servers.push(name);
-        });
+        let info = `**Current:** ${currentEnv}\n\n`;
+        for (const [env, profile] of Object.entries(profiles)) {
+          const serverCount = profile.servers?.length || 0;
+          const savedAt = profile.savedAt ? new Date(profile.savedAt).toLocaleString() : 'Never';
+          info += `**${env}:** ${serverCount} servers (saved: ${savedAt})\n`;
+        }
         
-        saveEnvProfile(envName, { servers });
+        appendMessage('system', `🌍 Environment Profiles:\n${info}`);
       }
 
       // Initialize environment selector
