@@ -22,11 +22,15 @@
     "name": "Youssef Ghazi",
     "url": "https://github.com/JoeCastrom"
   },
+  "bin": {
+    "mcp-cli": "./cli/index.js"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:cli": "node cli/index.js",
     "lint": "eslint server/**/*.js",
     "format": "prettier --write \"**/*.{js,json,md}\""
   },
