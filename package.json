@@ -25,6 +25,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "lint": "eslint server/**/*.js",
     "format": "prettier --write \"**/*.{js,json,md}\""
   },
@@ -41,6 +43,7 @@
   },
   "devDependencies": {
     "eslint": "^9.39.2",
+    "jest": "^30.2.0",
     "prettier": "^3.7.4"
   }
 }
