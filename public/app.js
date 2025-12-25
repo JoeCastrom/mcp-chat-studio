@@ -3718,15 +3718,36 @@
               schemaViolations = validateSchema(data.result, step.responseSchema);
             }
 
+            // Custom assertions evaluation
+            let assertionResults = [];
+            let assertionsFailed = 0;
+            if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+              for (const assertion of step.assertions) {
+                const result = evaluateSingleAssertion(data.result, assertion);
+                assertionResults.push({
+                  path: assertion.path,
+                  operator: assertion.operator,
+                  expected: assertion.value,
+                  actual: result.actualValue,
+                  passed: result.passed,
+                  message: result.message
+                });
+                if (!result.passed) assertionsFailed++;
+              }
+            }
+
             if (isError) {
               failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [] });
+              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [], assertionResults: [] });
+            } else if (assertionsFailed > 0) {
+              failed++;
+              results.push({ step: i + 1, tool: step.tool, status: 'assertion_fail', message: `${assertionsFailed} assertion(s) failed`, duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
             } else if (!hashMatch) {
               failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations });
+              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
             } else {
               passed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations });
+              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations, assertionResults });
             }
           } catch (err) {
             failed++;
@@ -3743,14 +3764,20 @@
           </div>
           ${results.map(r => `
             <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
-              ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : '❌'}
+              ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
               <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
               ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
               ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
-              ${r.status === 'diff' ? `<button class="btn" onclick="showDiff(${JSON.stringify(r.expected).replace(/"/g, '&quot;')}, ${JSON.stringify(r.actual).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+              ${r.status === 'diff' || r.status === 'assertion_fail' ? `<button class="btn" onclick="showDiff(${JSON.stringify(r.expected).replace(/"/g, '&quot;')}, ${JSON.stringify(r.actual).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
               ${r.schemaViolations && r.schemaViolations.length > 0 ? `
                 <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
               ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
+              ${r.assertionResults && r.assertionResults.length > 0 ? `
+                <span style="font-size: 0.65rem; margin-left: 4px; ${r.assertionResults.every(a => a.passed) ? 'color: var(--success)' : 'color: var(--error)'}"">
+                  🔍 ${r.assertionResults.filter(a => a.passed).length}/${r.assertionResults.length} assertions
+                </span>
+                <button class="btn" onclick="showAssertionResults(${JSON.stringify(r.assertionResults).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">Details</button>
+              ` : ''}
             </div>
           `).join('')}
         `;
@@ -3820,6 +3847,24 @@
                         <pre style="background: var(--bg-surface); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 4px; overflow-x: auto; max-height: 100px">${escapeHtml(JSON.stringify(step.responseSchema, null, 2))}</pre>
                       </details>
                     ` : ''}
+
+                    <!-- Assertions -->
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border)">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+                        <span style="font-size: 0.75rem; font-weight: 500; color: var(--primary)">🔍 Assertions</span>
+                        <button class="btn" onclick="addAssertionToStep('${scenario.id}', ${i})" style="font-size: 0.6rem; padding: 2px 6px">➕ Add</button>
+                      </div>
+                      ${(step.assertions || []).length === 0 ? `
+                        <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic">No assertions defined</div>
+                      ` : (step.assertions || []).map((assertion, ai) => `
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.7rem; padding: 4px; background: var(--bg-surface); border-radius: 4px; margin-bottom: 2px">
+                          <code style="color: var(--primary)">${escapeHtml(assertion.path)}</code>
+                          <span style="color: var(--text-muted)">${escapeHtml(assertion.operator)}</span>
+                          <code>${escapeHtml(String(assertion.value))}</code>
+                          <button onclick="removeAssertionFromStep('${scenario.id}', ${i}, ${ai})" style="font-size: 0.6rem; padding: 1px 4px; background: none; border: none; cursor: pointer; color: var(--error)">✕</button>
+                        </div>
+                      `).join('')}
+                    </div>
                   </div>
                 `).join('')}
               </div>
@@ -3848,6 +3893,181 @@
       function closeScenarioDetailsModal() {
         const modal = document.getElementById('scenarioDetailsModal');
         if (modal) modal.remove();
+      }
+
+      // Add assertion to a step
+      function addAssertionToStep(scenarioId, stepIndex) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'addAssertionModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 450px">
+            <div class="modal-header">
+              <h2 class="modal-title">🔍 Add Assertion</h2>
+              <button class="modal-close" onclick="closeAddAssertionModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 500;">JSONPath (e.g., $.content[0].text)</label>
+                <input type="text" id="assertionPath" class="form-input" placeholder="$.fieldName" style="width: 100%;">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 500;">Operator</label>
+                <select id="assertionOperator" class="form-select" style="width: 100%;">
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not Equals</option>
+                  <option value="contains">Contains</option>
+                  <option value="matches">Matches Regex</option>
+                  <option value="exists">Exists</option>
+                  <option value="not_exists">Does Not Exist</option>
+                  <option value="type">Is Type</option>
+                  <option value="length">Length Equals</option>
+                  <option value="length_gt">Length Greater Than</option>
+                  <option value="length_gte">Length At Least</option>
+                  <option value="gt">Greater Than</option>
+                  <option value="gte">At Least</option>
+                  <option value="lt">Less Than</option>
+                  <option value="lte">At Most</option>
+                </select>
+              </div>
+              <div id="assertionValueContainer">
+                <label style="font-size: 0.75rem; font-weight: 500;">Expected Value</label>
+                <input type="text" id="assertionValue" class="form-input" placeholder="expected value" style="width: 100%;">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeAddAssertionModal()">Cancel</button>
+              <button class="btn primary" onclick="saveAssertion('${scenarioId}', ${stepIndex})">Add Assertion</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Hide value field for exists/not_exists operators
+        document.getElementById('assertionOperator').addEventListener('change', (e) => {
+          const valueContainer = document.getElementById('assertionValueContainer');
+          valueContainer.style.display = ['exists', 'not_exists'].includes(e.target.value) ? 'none' : 'block';
+        });
+      }
+
+      // Close add assertion modal
+      function closeAddAssertionModal() {
+        const modal = document.getElementById('addAssertionModal');
+        if (modal) modal.remove();
+      }
+
+      // Save assertion to scenario step
+      function saveAssertion(scenarioId, stepIndex) {
+        const path = document.getElementById('assertionPath').value.trim();
+        const operator = document.getElementById('assertionOperator').value;
+        let value = document.getElementById('assertionValue').value;
+        
+        if (!path) {
+          alert('Please enter a JSONPath');
+          return;
+        }
+        
+        // Parse value as number if numeric
+        if (!isNaN(value) && value !== '') {
+          value = Number(value);
+        }
+        
+        const scenario = sessionManager.getScenario(scenarioId);
+        if (!scenario || !scenario.steps[stepIndex]) return;
+        
+        // Initialize assertions array if not exists
+        if (!scenario.steps[stepIndex].assertions) {
+          scenario.steps[stepIndex].assertions = [];
+        }
+        
+        // Add assertion
+        scenario.steps[stepIndex].assertions.push({ path, operator, value });
+        
+        // Save updated scenario
+        sessionManager.updateScenario(scenarioId, { steps: scenario.steps });
+        
+        closeAddAssertionModal();
+        closeScenarioDetailsModal();
+        viewScenarioDetails(scenarioId); // Refresh modal
+        
+        appendMessage('system', `🔍 Added assertion: ${path} ${operator}`);
+      }
+
+      // Remove assertion from step
+      function removeAssertionFromStep(scenarioId, stepIndex, assertionIndex) {
+        const scenario = sessionManager.getScenario(scenarioId);
+        if (!scenario || !scenario.steps[stepIndex]?.assertions) return;
+        
+        scenario.steps[stepIndex].assertions.splice(assertionIndex, 1);
+        sessionManager.updateScenario(scenarioId, { steps: scenario.steps });
+        
+        closeScenarioDetailsModal();
+        viewScenarioDetails(scenarioId); // Refresh modal
+        
+        appendMessage('system', '🗑️ Assertion removed');
+      }
+
+      // Show assertion results modal
+      function showAssertionResults(assertionResults) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'assertionResultsModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 600px">
+            <div class="modal-header">
+              <h2 class="modal-title">🔍 Assertion Results</h2>
+              <button class="modal-close" onclick="document.getElementById('assertionResultsModal').remove()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); max-height: 400px; overflow-y: auto;">
+              <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse;">
+                <thead>
+                  <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+                    <th style="padding: 6px; width: 30px;"></th>
+                    <th style="padding: 6px;">Path</th>
+                    <th style="padding: 6px;">Operator</th>
+                    <th style="padding: 6px;">Expected</th>
+                    <th style="padding: 6px;">Actual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${assertionResults.map(a => `
+                    <tr style="border-bottom: 1px solid var(--border); ${a.passed ? '' : 'background: rgba(255,0,0,0.1);'}">
+                      <td style="padding: 6px;">${a.passed ? '✅' : '❌'}</td>
+                      <td style="padding: 6px;"><code>${escapeHtml(a.path)}</code></td>
+                      <td style="padding: 6px;">${escapeHtml(a.operator)}</td>
+                      <td style="padding: 6px;"><code>${escapeHtml(String(a.expected ?? ''))}</code></td>
+                      <td style="padding: 6px;"><code>${escapeHtml(String(a.actual ?? 'undefined'))}</code></td>
+                    </tr>
+                    ${!a.passed ? `
+                      <tr style="background: rgba(255,0,0,0.05);">
+                        <td></td>
+                        <td colspan="4" style="padding: 4px 6px; font-size: 0.7rem; color: var(--error);">
+                          ⚠️ ${escapeHtml(a.message || 'Assertion failed')}
+                        </td>
+                      </tr>
+                    ` : ''}
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="document.getElementById('assertionResultsModal').remove()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
       }
 
       // Export single scenario
