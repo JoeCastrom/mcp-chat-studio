@@ -1798,6 +1798,9 @@
           <button class="tab-btn" onclick="switchTab('history')" id="historyTabBtn">
             📜 History
           </button>
+          <button class="tab-btn" onclick="switchTab('scenarios')" id="scenariosTabBtn">
+            🧪 Scenarios
+          </button>
         </div>
 
         <!-- Chat Panel (default) -->
@@ -2002,6 +2005,66 @@
             <div id="toolHistoryList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 280px)">
               <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
                 Execute tools from the Inspector tab to see history here...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenarios Panel -->
+        <div class="content-panel" id="scenariosPanel">
+          <div class="inspector-panel">
+            <!-- Recording Status -->
+            <div class="inspector-section" id="recordingSection">
+              <h3 style="display: flex; justify-content: space-between; align-items: center">
+                <span>🎬 Recording</span>
+                <div style="display: flex; gap: 4px">
+                  <button
+                    id="recordBtn"
+                    class="btn"
+                    onclick="toggleRecording()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    🔴 Start Recording
+                  </button>
+                </div>
+              </h3>
+              <div id="recordingStatus" style="font-size: 0.75rem; color: var(--text-muted)">
+                Not recording. Click "Start Recording" then execute tools in Inspector.
+              </div>
+              <div id="recordingSteps" style="display: none; margin-top: 8px; font-size: 0.75rem">
+                <div style="font-weight: 500; margin-bottom: 4px">Recorded Steps:</div>
+                <div id="recordingStepsList"></div>
+              </div>
+            </div>
+            
+            <!-- Saved Scenarios -->
+            <div class="inspector-section">
+              <h3 style="display: flex; justify-content: space-between; align-items: center">
+                <span>🧪 Saved Scenarios</span>
+                <div style="display: flex; gap: 4px">
+                  <button
+                    class="btn"
+                    onclick="refreshScenariosPanel()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    🔄 Refresh
+                  </button>
+                  <button
+                    class="btn"
+                    onclick="exportAllScenarios()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📥 Export All
+                  </button>
+                </div>
+              </h3>
+              <div id="scenariosStats" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px">
+                No scenarios saved
+              </div>
+            </div>
+            <div id="scenariosList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 350px)">
+              <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+                Record tool executions from Inspector → Save as Scenario → Replay anytime
               </div>
             </div>
           </div>
@@ -2437,6 +2500,66 @@ env:
         getToolHistory() {
           const session = this.load();
           return session?.toolHistory || [];
+        },
+        
+        // ==========================================
+        // TEST SCENARIOS
+        // ==========================================
+        SCENARIOS_KEY: 'mcp_chat_studio_scenarios',
+        
+        // Save a scenario
+        saveScenario(scenario) {
+          try {
+            const scenarios = this.getScenarios();
+            scenario.id = `scenario_${Date.now()}`;
+            scenario.created = new Date().toISOString();
+            scenarios.unshift(scenario);
+            localStorage.setItem(this.SCENARIOS_KEY, JSON.stringify(scenarios));
+            return scenario.id;
+          } catch (e) {
+            console.warn('[Scenarios] Failed to save:', e.message);
+            return null;
+          }
+        },
+        
+        // Get all scenarios
+        getScenarios() {
+          try {
+            const stored = localStorage.getItem(this.SCENARIOS_KEY);
+            return stored ? JSON.parse(stored) : [];
+          } catch (e) {
+            console.warn('[Scenarios] Failed to load:', e.message);
+            return [];
+          }
+        },
+        
+        // Get a single scenario by ID
+        getScenario(id) {
+          return this.getScenarios().find(s => s.id === id);
+        },
+        
+        // Delete a scenario
+        deleteScenario(id) {
+          try {
+            const scenarios = this.getScenarios().filter(s => s.id !== id);
+            localStorage.setItem(this.SCENARIOS_KEY, JSON.stringify(scenarios));
+          } catch (e) {
+            console.warn('[Scenarios] Failed to delete:', e.message);
+          }
+        },
+        
+        // Update scenario (e.g., after replay with results)
+        updateScenario(id, updates) {
+          try {
+            const scenarios = this.getScenarios();
+            const idx = scenarios.findIndex(s => s.id === id);
+            if (idx !== -1) {
+              scenarios[idx] = { ...scenarios[idx], ...updates };
+              localStorage.setItem(this.SCENARIOS_KEY, JSON.stringify(scenarios));
+            }
+          } catch (e) {
+            console.warn('[Scenarios] Failed to update:', e.message);
+          }
         },
       };
 
@@ -3845,17 +3968,21 @@ env:
         const chatPanel = document.getElementById('chatPanel');
         const inspectorPanel = document.getElementById('inspectorPanel');
         const historyPanel = document.getElementById('historyPanel');
+        const scenariosPanel = document.getElementById('scenariosPanel');
         const chatTabBtn = document.getElementById('chatTabBtn');
         const inspectorTabBtn = document.getElementById('inspectorTabBtn');
         const historyTabBtn = document.getElementById('historyTabBtn');
+        const scenariosTabBtn = document.getElementById('scenariosTabBtn');
 
         // Remove active from all
         chatPanel.classList.remove('active');
         inspectorPanel.classList.remove('active');
         historyPanel.classList.remove('active');
+        scenariosPanel.classList.remove('active');
         chatTabBtn.classList.remove('active');
         inspectorTabBtn.classList.remove('active');
         historyTabBtn.classList.remove('active');
+        scenariosTabBtn.classList.remove('active');
 
         // Activate selected tab
         if (tabName === 'chat') {
@@ -3869,6 +3996,10 @@ env:
           historyPanel.classList.add('active');
           historyTabBtn.classList.add('active');
           refreshHistoryPanel();
+        } else if (tabName === 'scenarios') {
+          scenariosPanel.classList.add('active');
+          scenariosTabBtn.classList.add('active');
+          refreshScenariosPanel();
         }
       }
 
@@ -4094,6 +4225,16 @@ env:
             success: !data.error && data.result?.isError !== true,
           });
           toolExecutionHistory = sessionManager.getToolHistory();
+          
+          // Record step for scenarios (if recording is active)
+          recordStep({
+            server: serverName,
+            tool: selectedInspectorTool.name,
+            request: args,
+            response: data.error || data.result,
+            duration,
+            success: !data.error && data.result?.isError !== true,
+          });
 
           lastInspectorResponse = data;
           responseSection.style.display = 'block';
@@ -4125,6 +4266,16 @@ env:
             success: false,
           });
           toolExecutionHistory = sessionManager.getToolHistory();
+          
+          // Record step for scenarios (if recording is active)
+          recordStep({
+            server: serverName,
+            tool: selectedInspectorTool.name,
+            request: args,
+            response: { error: error.message },
+            duration,
+            success: false,
+          });
           
           responseSection.style.display = 'block';
           responseStatus.className = 'inspector-status error';
@@ -5288,6 +5439,296 @@ env:
           refreshHistoryPanel();
           appendMessage('system', '🗑️ Tool history cleared');
         }
+      }
+
+      // ==========================================
+      // TEST SCENARIOS - RECORDING & REPLAY
+      // ==========================================
+      
+      // Recording state
+      let isRecording = false;
+      let recordedSteps = [];
+      
+      // Toggle recording on/off
+      function toggleRecording() {
+        isRecording = !isRecording;
+        const btn = document.getElementById('recordBtn');
+        const status = document.getElementById('recordingStatus');
+        const stepsDiv = document.getElementById('recordingSteps');
+        const stepsList = document.getElementById('recordingStepsList');
+        
+        if (isRecording) {
+          recordedSteps = [];
+          btn.innerHTML = '⏹️ Stop Recording';
+          btn.style.background = 'var(--danger)';
+          btn.style.color = 'white';
+          status.innerHTML = '<span style="color: var(--danger)">🔴 Recording...</span> Execute tools in Inspector tab. They will be captured.';
+          stepsDiv.style.display = 'block';
+          stepsList.innerHTML = '<div style="color: var(--text-muted); font-style: italic">No steps yet...</div>';
+          appendMessage('system', '🎬 Recording started. Execute tools in Inspector tab.');
+        } else {
+          btn.innerHTML = '🔴 Start Recording';
+          btn.style.background = '';
+          btn.style.color = '';
+          
+          if (recordedSteps.length > 0) {
+            status.innerHTML = `Recording stopped. <strong>${recordedSteps.length}</strong> steps captured.`;
+            // Show save button
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn';
+            saveBtn.style.cssText = 'font-size: 0.65rem; padding: 2px 6px; background: var(--success); color: white; margin-left: 8px';
+            saveBtn.innerHTML = '💾 Save Scenario';
+            saveBtn.onclick = saveRecordedScenario;
+            status.appendChild(saveBtn);
+            appendMessage('system', `🎬 Recording stopped. ${recordedSteps.length} steps captured. Click "Save Scenario" to save.`);
+          } else {
+            status.textContent = 'Recording stopped. No steps captured.';
+            stepsDiv.style.display = 'none';
+            appendMessage('system', '🎬 Recording stopped. No steps captured.');
+          }
+        }
+      }
+      
+      // Record a step (called from Inspector tool execution)
+      function recordStep(step) {
+        if (!isRecording) return;
+        
+        recordedSteps.push({
+          server: step.server,
+          tool: step.tool,
+          args: step.request,
+          expectedResponse: step.response,
+          responseHash: hashString(JSON.stringify(step.response)),
+          timing: step.duration,
+          success: step.success,
+        });
+        
+        // Update UI
+        const stepsList = document.getElementById('recordingStepsList');
+        stepsList.innerHTML = recordedSteps.map((s, i) => `
+          <div style="display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 4px">
+            <span>${s.success ? '✅' : '❌'}</span>
+            <strong>${i + 1}.</strong>
+            ${escapeHtml(s.tool)}
+            <span style="color: var(--text-muted); font-size: 0.7rem">@ ${escapeHtml(s.server)} (${s.timing}ms)</span>
+          </div>
+        `).join('');
+      }
+      
+      // Simple hash function for response comparison
+      function hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return hash.toString(16);
+      }
+      
+      // Save recorded scenario
+      function saveRecordedScenario() {
+        if (recordedSteps.length === 0) {
+          appendMessage('error', 'No steps to save');
+          return;
+        }
+        
+        const name = prompt('Scenario name:', `Test ${new Date().toLocaleTimeString()}`);
+        if (!name) return;
+        
+        const scenario = {
+          name,
+          steps: recordedSteps,
+          metadata: {
+            stepsCount: recordedSteps.length,
+            totalTime: recordedSteps.reduce((sum, s) => sum + s.timing, 0),
+          }
+        };
+        
+        sessionManager.saveScenario(scenario);
+        recordedSteps = [];
+        document.getElementById('recordingSteps').style.display = 'none';
+        document.getElementById('recordingStatus').textContent = 'Scenario saved! Start a new recording.';
+        refreshScenariosPanel();
+        appendMessage('system', `💾 Scenario "${name}" saved with ${scenario.steps.length} steps.`);
+      }
+      
+      // Refresh scenarios panel
+      function refreshScenariosPanel() {
+        const scenarios = sessionManager.getScenarios();
+        const statsEl = document.getElementById('scenariosStats');
+        const listEl = document.getElementById('scenariosList');
+        
+        if (scenarios.length === 0) {
+          statsEl.textContent = 'No scenarios saved';
+          listEl.innerHTML = `
+            <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+              Record tool executions from Inspector → Save as Scenario → Replay anytime
+            </div>
+          `;
+          return;
+        }
+        
+        statsEl.innerHTML = `<strong>${scenarios.length}</strong> scenario${scenarios.length !== 1 ? 's' : ''} saved`;
+        
+        listEl.innerHTML = scenarios.map(s => `
+          <div class="inspector-response" style="margin: 0">
+            <div style="display: flex; justify-content: space-between; align-items: center">
+              <div>
+                <strong>🧪 ${escapeHtml(s.name)}</strong>
+                <span style="color: var(--text-muted); font-size: 0.7rem"> • ${s.steps?.length || 0} steps</span>
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted)">
+                ${new Date(s.created).toLocaleDateString()}
+              </div>
+            </div>
+            <div style="margin-top: 8px; display: flex; gap: 4px">
+              <button class="btn" onclick="replayScenario('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px; background: var(--success); color: white">
+                ▶️ Replay
+              </button>
+              <button class="btn" onclick="viewScenarioDetails('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+                👁️ View
+              </button>
+              <button class="btn" onclick="exportScenario('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+                📥 Export
+              </button>
+              <button class="btn" onclick="deleteScenario('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+                🗑️
+              </button>
+            </div>
+            <div id="scenarioResults_${s.id}" style="display: none; margin-top: 8px; font-size: 0.75rem"></div>
+          </div>
+        `).join('');
+      }
+      
+      // Replay scenario
+      async function replayScenario(id) {
+        const scenario = sessionManager.getScenario(id);
+        if (!scenario) {
+          appendMessage('error', 'Scenario not found');
+          return;
+        }
+        
+        const resultsEl = document.getElementById(`scenarioResults_${id}`);
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = '<div style="color: var(--text-muted)">🔄 Replaying...</div>';
+        
+        let passed = 0;
+        let failed = 0;
+        const results = [];
+        
+        for (let i = 0; i < scenario.steps.length; i++) {
+          const step = scenario.steps[i];
+          
+          try {
+            const startTime = performance.now();
+            const response = await fetch('/api/mcp/call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                serverName: step.server,
+                toolName: step.tool,
+                args: step.args,
+              }),
+            });
+            
+            const data = await response.json();
+            const duration = Math.round(performance.now() - startTime);
+            const actualHash = hashString(JSON.stringify(data.result || data.error));
+            const isError = data.error || data.result?.isError === true;
+            const hashMatch = actualHash === step.responseHash;
+            
+            if (isError) {
+              failed++;
+              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration });
+            } else if (!hashMatch) {
+              failed++;
+              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result });
+            } else {
+              passed++;
+              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration });
+            }
+          } catch (err) {
+            failed++;
+            results.push({ step: i + 1, tool: step.tool, status: 'error', message: err.message });
+          }
+        }
+        
+        // Show results
+        resultsEl.innerHTML = `
+          <div style="margin-bottom: 8px">
+            <strong>Results:</strong> 
+            <span style="color: var(--success)">${passed} passed</span> / 
+            <span style="color: var(--error)">${failed} failed</span>
+          </div>
+          ${results.map(r => `
+            <div style="display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
+              ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : '❌'}
+              <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
+              ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
+              ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
+              ${r.status === 'diff' ? `<button class="btn" onclick="showDiff(${JSON.stringify(r.expected).replace(/"/g, '&quot;')}, ${JSON.stringify(r.actual).replace(/"/g, '&quot;')})" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+            </div>
+          `).join('')}
+        `;
+        
+        appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
+      }
+      
+      // View scenario details
+      function viewScenarioDetails(id) {
+        const scenario = sessionManager.getScenario(id);
+        if (!scenario) return;
+        
+        const content = JSON.stringify(scenario, null, 2);
+        alert(`Scenario: ${scenario.name}\n\n${scenario.steps.length} steps:\n${scenario.steps.map((s, i) => `${i+1}. ${s.tool} @ ${s.server}`).join('\n')}`);
+      }
+      
+      // Export single scenario
+      function exportScenario(id) {
+        const scenario = sessionManager.getScenario(id);
+        if (!scenario) return;
+        
+        const blob = new Blob([JSON.stringify(scenario, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `scenario-${scenario.name.replace(/[^a-z0-9]/gi, '_')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      
+      // Export all scenarios
+      function exportAllScenarios() {
+        const scenarios = sessionManager.getScenarios();
+        if (scenarios.length === 0) {
+          appendMessage('error', 'No scenarios to export');
+          return;
+        }
+        
+        const blob = new Blob([JSON.stringify(scenarios, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mcp-scenarios-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        appendMessage('system', `📥 Exported ${scenarios.length} scenarios`);
+      }
+      
+      // Delete scenario
+      function deleteScenario(id) {
+        if (confirm('Delete this scenario?')) {
+          sessionManager.deleteScenario(id);
+          refreshScenariosPanel();
+          appendMessage('system', '🗑️ Scenario deleted');
+        }
+      }
+      
+      // Show diff between expected and actual (placeholder - will enhance later)
+      function showDiff(expected, actual) {
+        alert(`EXPECTED:\n${JSON.stringify(expected, null, 2)}\n\nACTUAL:\n${JSON.stringify(actual, null, 2)}`);
       }
 
       // Restore session - render saved messages
