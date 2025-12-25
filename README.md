@@ -553,6 +553,74 @@ Check **⚠️ Include risky tools** to test them.
 
 ---
 
+## 🧪 Test Scenarios (Advanced Testing)
+
+Test Scenarios let you **record, replay, and validate** tool executions for regression testing.
+
+### Workflow
+
+```
+1. RECORD → Execute tools normally, they're saved as baseline
+2. REPLAY → Re-run all steps, compare responses
+3. ANALYZE → See diffs and schema violations
+```
+
+### Recording a Scenario
+
+1. Go to **🧪 Scenarios** tab
+2. Click **🔴 Start Recording**
+3. Switch to **🔧 Inspector** tab
+4. Execute your tools (each becomes a step)
+5. Return to **🧪 Scenarios** tab
+6. Click **⏹️ Stop Recording**
+7. Name and **💾 Save** your scenario
+
+Each step captures:
+
+- Tool name & server
+- Arguments used
+- Response (as baseline)
+- Response hash (for quick comparison)
+- Inferred schema (for contract testing)
+- Execution timing
+
+### Replaying a Scenario
+
+1. Find your scenario in **Saved Scenarios**
+2. Click **▶️ Replay**
+3. Watch results appear:
+   - ✅ **Pass** - Response matches baseline
+   - 🔶 **Diff** - Response differs (click "View Diff")
+   - ❌ **Fail** - Execution error
+   - 📋 **Schema** - Validation result
+
+### Response Diffing
+
+When a step shows 🔶, click **View Diff** to see:
+
+| Color          | Meaning                            |
+| -------------- | ---------------------------------- |
+| 🔴 **MISSING** | Field was in baseline, now gone    |
+| 🟢 **ADDED**   | New field appeared                 |
+| 🟡 **CHANGED** | Same key, different value          |
+| 🟠 **TYPE**    | Type changed (e.g., string→number) |
+
+### Schema Validation
+
+Each step's response schema is **auto-inferred** during recording. On replay:
+
+- **Type checks** - Expected `string`, got `number`
+- **Required fields** - Field was present, now missing
+- **Extra fields** - Unexpected new fields (warning)
+
+Results show as **📋 Schema OK** or **📋 N issues**.
+
+### Exporting Scenarios
+
+- **Single**: Click **📦 Export** on a scenario
+- **All**: Click **📦 Export All**
+- Format: JSON (version-controllable in Git)
+
 ## 💬 Using the Chat
 
 ### Basic Chat
