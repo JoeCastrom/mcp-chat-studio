@@ -35,6 +35,18 @@
           <span id="modelName">llama3.1:8b</span>
         </div>
 
+        <!-- Token Usage Badge -->
+        <div
+          id="tokenBadge"
+          class="model-badge"
+          onclick="showTokenUsage()"
+          title="Token usage this session (click for details)"
+          style="font-size: 0.7rem; padding: 4px 8px;"
+        >
+          <span>📊</span>
+          <span id="tokenCount">0 tokens</span>
+        </div>
+
         <!-- Theme Toggle -->
         <button
           class="btn theme-toggle"

@@ -231,6 +231,63 @@
           const activeId = this.getActivePromptId();
           return prompts[activeId]?.prompt || prompts['default'].prompt;
         },
+
+        // ==========================================
+        // TOKEN USAGE TRACKING
+        // ==========================================
+        TOKENS_KEY: 'mcp_chat_studio_tokens',
+
+        // Approximate token count (rough estimate: 4 chars per token)
+        estimateTokens(text) {
+          if (!text) return 0;
+          return Math.ceil(String(text).length / 4);
+        },
+
+        // Get current session token usage
+        getTokenUsage() {
+          try {
+            const stored = localStorage.getItem(this.TOKENS_KEY);
+            return stored ? JSON.parse(stored) : { input: 0, output: 0, total: 0, cost: 0 };
+          } catch (e) {
+            return { input: 0, output: 0, total: 0, cost: 0 };
+          }
+        },
+
+        // Add tokens to usage
+        addTokens(inputTokens, outputTokens, provider = 'ollama') {
+          try {
+            const usage = this.getTokenUsage();
+            usage.input += inputTokens;
+            usage.output += outputTokens;
+            usage.total = usage.input + usage.output;
+            
+            // Estimate cost based on provider (per 1M tokens)
+            const pricing = {
+              'ollama': { input: 0, output: 0 }, // Free
+              'openai': { input: 3, output: 15 }, // GPT-4o pricing
+              'anthropic': { input: 3, output: 15 }, // Claude pricing
+              'google': { input: 0.075, output: 0.30 }, // Gemini pricing
+              'azure': { input: 3, output: 15 },
+              'groq': { input: 0.05, output: 0.10 },
+              'together': { input: 0.20, output: 0.60 },
+              'openrouter': { input: 1, output: 3 },
+            };
+            const rates = pricing[provider] || pricing['ollama'];
+            usage.cost += (inputTokens * rates.input + outputTokens * rates.output) / 1000000;
+            usage.provider = provider;
+            
+            localStorage.setItem(this.TOKENS_KEY, JSON.stringify(usage));
+            return usage;
+          } catch (e) {
+            console.warn('[Tokens] Failed to track:', e.message);
+            return { input: 0, output: 0, total: 0, cost: 0 };
+          }
+        },
+
+        // Reset session tokens
+        resetTokens() {
+          localStorage.removeItem(this.TOKENS_KEY);
+        },
       };
 
       // ==========================================
@@ -2549,6 +2606,12 @@
             liveMessageEl.innerHTML = finalFormatted;
 
             messages.push({ role: 'assistant', content: fullContent || 'No response generated.' });
+            
+            // Track tokens for streaming
+            const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+            const outputTokens = sessionManager.estimateTokens(fullContent);
+            sessionManager.addTokens(inputTokens, outputTokens);
+            updateTokenDisplay();
           } catch (error) {
             if (error.name !== 'AbortError') {
               appendMessage('error', `Error: ${error.message}`);
@@ -2641,12 +2704,24 @@
                 continueData.choices?.[0]?.message?.content || 'No response generated.';
               messages.push({ role: 'assistant', content: finalContent });
               appendMessage('assistant', finalContent);
+              
+              // Track tokens
+              const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+              const outputTokens = sessionManager.estimateTokens(finalContent);
+              sessionManager.addTokens(inputTokens, outputTokens);
+              updateTokenDisplay();
             } else {
               // No tool calls, direct response
               const responseContent =
                 data.choices?.[0]?.message?.content || 'No response generated.';
               messages.push({ role: 'assistant', content: responseContent });
               appendMessage('assistant', responseContent);
+              
+              // Track tokens
+              const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+              const outputTokens = sessionManager.estimateTokens(responseContent);
+              sessionManager.addTokens(inputTokens, outputTokens);
+              updateTokenDisplay();
             }
           } catch (error) {
             if (error.name !== 'AbortError') {
@@ -3940,11 +4015,107 @@
         }
       }
 
+      // ==========================================
+      // TOKEN USAGE DISPLAY
+      // ==========================================
+      
+      // Update token display badge
+      function updateTokenDisplay() {
+        const usage = sessionManager.getTokenUsage();
+        const badge = document.getElementById('tokenCount');
+        if (badge) {
+          const total = usage.total || 0;
+          if (total >= 1000000) {
+            badge.textContent = `${(total / 1000000).toFixed(1)}M`;
+          } else if (total >= 1000) {
+            badge.textContent = `${(total / 1000).toFixed(1)}K`;
+          } else {
+            badge.textContent = `${total}`;
+          }
+        }
+      }
+      
+      // Show token usage details modal
+      function showTokenUsage() {
+        const usage = sessionManager.getTokenUsage();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'tokenUsageModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 400px">
+            <div class="modal-header">
+              <h2 class="modal-title">📊 Token Usage</h2>
+              <button class="modal-close" onclick="closeTokenUsageModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md);">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div style="background: var(--bg-card); padding: 12px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 600; color: var(--primary)">${(usage.input || 0).toLocaleString()}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">📥 Input Tokens</div>
+                </div>
+                <div style="background: var(--bg-card); padding: 12px; border-radius: 8px; text-align: center;">
+                  <div style="font-size: 1.5rem; font-weight: 600; color: var(--success)">${(usage.output || 0).toLocaleString()}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted)">📤 Output Tokens</div>
+                </div>
+              </div>
+              
+              <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Total Tokens:</span>
+                  <strong>${(usage.total || 0).toLocaleString()}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Estimated Cost:</span>
+                  <strong style="color: ${usage.cost > 0 ? 'var(--warning)' : 'var(--success)'}">
+                    ${usage.cost > 0 ? '$' + usage.cost.toFixed(4) : 'Free (Ollama)'}
+                  </strong>
+                </div>
+              </div>
+              
+              <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">
+                Token counts are estimates (~4 characters per token).<br>
+                Cost based on ${usage.provider || 'ollama'} pricing.
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="resetTokenUsage()">🔄 Reset</button>
+              <button class="btn" onclick="closeTokenUsageModal()">Close</button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+      }
+      
+      // Close token usage modal
+      function closeTokenUsageModal() {
+        const modal = document.getElementById('tokenUsageModal');
+        if (modal) modal.remove();
+      }
+      
+      // Reset token usage
+      function resetTokenUsage() {
+        if (confirm('Reset token usage for this session?')) {
+          sessionManager.resetTokens();
+          updateTokenDisplay();
+          closeTokenUsageModal();
+          appendMessage('system', '🔄 Token usage reset');
+        }
+      }
+
       // Initialize
       restoreSession();
       checkAuthStatus();
       loadMCPStatus();
       populateSystemPrompts();
+      updateTokenDisplay();
 
       // Refresh MCP status periodically
       setInterval(loadMCPStatus, 30000);
