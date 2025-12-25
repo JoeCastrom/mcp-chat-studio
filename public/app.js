@@ -288,6 +288,53 @@
         resetTokens() {
           localStorage.removeItem(this.TOKENS_KEY);
         },
+
+        // ==========================================
+        // TEST SUITES
+        // ==========================================
+        SUITES_KEY: 'mcp_chat_studio_suites',
+
+        // Get all test suites
+        getSuites() {
+          try {
+            return JSON.parse(localStorage.getItem(this.SUITES_KEY) || '[]');
+          } catch (e) {
+            return [];
+          }
+        },
+
+        // Save a test suite
+        saveSuite(suite) {
+          try {
+            const suites = this.getSuites();
+            const existingIdx = suites.findIndex(s => s.id === suite.id);
+            if (existingIdx >= 0) {
+              suites[existingIdx] = suite;
+            } else {
+              suites.push(suite);
+            }
+            localStorage.setItem(this.SUITES_KEY, JSON.stringify(suites));
+            return true;
+          } catch (e) {
+            console.warn('[Suites] Failed to save:', e.message);
+            return false;
+          }
+        },
+
+        // Delete a test suite
+        deleteSuite(id) {
+          try {
+            const suites = this.getSuites().filter(s => s.id !== id);
+            localStorage.setItem(this.SUITES_KEY, JSON.stringify(suites));
+          } catch (e) {
+            console.warn('[Suites] Failed to delete:', e.message);
+          }
+        },
+
+        // Get a specific suite
+        getSuite(id) {
+          return this.getSuites().find(s => s.id === id);
+        },
       };
 
       // ==========================================
@@ -1727,6 +1774,7 @@
           scenariosPanel.classList.add('active');
           scenariosTabBtn.classList.add('active');
           refreshScenariosPanel();
+          refreshSuitesList();
         }
       }
 
@@ -3778,6 +3826,223 @@
           refreshScenariosPanel();
           appendMessage('system', '🗑️ Scenario deleted');
         }
+      }
+
+      // ==========================================
+      // TEST SUITES FUNCTIONS
+      // ==========================================
+
+      // Refresh suites list
+      function refreshSuitesList() {
+        const suites = sessionManager.getSuites();
+        const suitesEl = document.getElementById('suitesList');
+        
+        if (!suitesEl) return;
+        
+        if (suites.length === 0) {
+          suitesEl.innerHTML = '<div style="color: var(--text-muted);">No test suites created yet.</div>';
+          return;
+        }
+        
+        suitesEl.innerHTML = suites.map(suite => `
+          <div style="background: var(--bg-card); padding: 8px; border-radius: 6px; margin-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong>${escapeHtml(suite.name)}</strong>
+                <span style="color: var(--text-muted); font-size: 0.65rem;">(${suite.scenarioIds?.length || 0} scenarios)</span>
+              </div>
+              <div style="display: flex; gap: 4px;">
+                <button class="btn success" onclick="runSuite('${suite.id}')" style="font-size: 0.6rem; padding: 2px 6px;">▶️ Run</button>
+                <button class="btn" onclick="editSuite('${suite.id}')" style="font-size: 0.6rem; padding: 2px 6px;">✏️</button>
+                <button class="btn" onclick="deleteSuite('${suite.id}')" style="font-size: 0.6rem; padding: 2px 6px;">🗑️</button>
+              </div>
+            </div>
+            ${suite.lastRun ? `
+              <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+                Last run: ${new Date(suite.lastRun.timestamp).toLocaleString()} - 
+                <span style="color: var(--success)">${suite.lastRun.passed} passed</span> / 
+                <span style="color: var(--error)">${suite.lastRun.failed} failed</span>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
+      }
+
+      // Show create suite modal
+      function showCreateSuiteModal(editId = null) {
+        const scenarios = sessionManager.getScenarios();
+        const existingSuite = editId ? sessionManager.getSuite(editId) : null;
+        
+        if (scenarios.length === 0) {
+          appendMessage('error', 'Create some scenarios first before making a test suite.');
+          return;
+        }
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'suiteModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+              <h2 class="modal-title">${editId ? '✏️ Edit' : '➕ Create'} Test Suite</h2>
+              <button class="modal-close" onclick="closeSuiteModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md);">
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-weight: 500; margin-bottom: 4px;">Suite Name</label>
+                <input type="text" id="suiteName" class="form-input" placeholder="e.g., API Integration Tests" 
+                  value="${escapeHtml(existingSuite?.name || '')}" style="width: 100%;">
+              </div>
+              <div style="margin-bottom: 12px;">
+                <label style="display: block; font-weight: 500; margin-bottom: 4px;">Select Scenarios</label>
+                <div style="max-height: 200px; overflow-y: auto; background: var(--bg-card); border-radius: 6px; padding: 8px;">
+                  ${scenarios.map(s => `
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: pointer;">
+                      <input type="checkbox" class="suite-scenario-checkbox" value="${s.id}" 
+                        ${existingSuite?.scenarioIds?.includes(s.id) ? 'checked' : ''}>
+                      <span>${escapeHtml(s.name)}</span>
+                      <span style="color: var(--text-muted); font-size: 0.7rem;">(${s.steps?.length || 0} steps)</span>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeSuiteModal()">Cancel</button>
+              <button class="btn primary" onclick="saveSuite('${editId || ''}')">💾 Save Suite</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      // Close suite modal
+      function closeSuiteModal() {
+        const modal = document.getElementById('suiteModal');
+        if (modal) modal.remove();
+      }
+
+      // Save suite
+      function saveSuite(editId) {
+        const name = document.getElementById('suiteName').value.trim();
+        const checkboxes = document.querySelectorAll('.suite-scenario-checkbox:checked');
+        const scenarioIds = Array.from(checkboxes).map(cb => cb.value);
+        
+        if (!name) {
+          alert('Please enter a suite name');
+          return;
+        }
+        
+        if (scenarioIds.length === 0) {
+          alert('Please select at least one scenario');
+          return;
+        }
+        
+        const suite = {
+          id: editId || `suite_${Date.now()}`,
+          name,
+          scenarioIds,
+          createdAt: editId ? sessionManager.getSuite(editId)?.createdAt : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        if (editId) {
+          const existing = sessionManager.getSuite(editId);
+          if (existing?.lastRun) suite.lastRun = existing.lastRun;
+        }
+        
+        sessionManager.saveSuite(suite);
+        closeSuiteModal();
+        refreshSuitesList();
+        appendMessage('system', `📦 Suite "${name}" saved with ${scenarioIds.length} scenarios`);
+      }
+
+      // Edit suite
+      function editSuite(id) {
+        showCreateSuiteModal(id);
+      }
+
+      // Delete suite
+      function deleteSuite(id) {
+        if (confirm('Delete this test suite?')) {
+          sessionManager.deleteSuite(id);
+          refreshSuitesList();
+          appendMessage('system', '🗑️ Suite deleted');
+        }
+      }
+
+      // Run entire suite
+      async function runSuite(id) {
+        const suite = sessionManager.getSuite(id);
+        if (!suite) return;
+        
+        appendMessage('system', `🚀 Running suite "${suite.name}" with ${suite.scenarioIds.length} scenarios...`);
+        
+        let totalPassed = 0;
+        let totalFailed = 0;
+        
+        for (const scenarioId of suite.scenarioIds) {
+          const scenario = sessionManager.getScenario(scenarioId);
+          if (!scenario) {
+            appendMessage('error', `Scenario not found: ${scenarioId}`);
+            totalFailed++;
+            continue;
+          }
+          
+          // Run each scenario
+          let passed = 0, failed = 0;
+          for (const step of scenario.steps) {
+            try {
+              const response = await fetch('/api/mcp/call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  serverName: step.server,
+                  toolName: step.tool,
+                  args: step.args || {},
+                }),
+              });
+              const data = await response.json();
+              
+              if (data.error) {
+                failed++;
+              } else if (step.expectedResponse) {
+                const actual = JSON.stringify(data.result);
+                const expected = JSON.stringify(step.expectedResponse);
+                if (actual !== expected) {
+                  failed++;
+                } else {
+                  passed++;
+                }
+              } else {
+                passed++;
+              }
+            } catch (err) {
+              failed++;
+            }
+          }
+          
+          totalPassed += passed;
+          totalFailed += failed;
+        }
+        
+        // Update suite with results
+        suite.lastRun = {
+          timestamp: new Date().toISOString(),
+          passed: totalPassed,
+          failed: totalFailed,
+        };
+        sessionManager.saveSuite(suite);
+        refreshSuitesList();
+        
+        appendMessage('system', `📦 Suite "${suite.name}" completed: ${totalPassed} passed, ${totalFailed} failed`);
       }
 
       // ==========================================
