@@ -335,6 +335,62 @@
         getSuite(id) {
           return this.getSuites().find(s => s.id === id);
         },
+
+        // ==========================================
+        // SESSION BRANCHING
+        // ==========================================
+        BRANCHES_KEY: 'mcp_chat_studio_branches',
+
+        // Get all branches
+        getBranches() {
+          try {
+            return JSON.parse(localStorage.getItem(this.BRANCHES_KEY) || '[]');
+          } catch (e) {
+            return [];
+          }
+        },
+
+        // Create a branch from current messages at specific index
+        createBranch(name, messages, forkAtIndex) {
+          try {
+            const branches = this.getBranches();
+            const branch = {
+              id: `branch_${Date.now()}`,
+              name,
+              messages: messages.slice(0, forkAtIndex + 1),
+              forkPoint: forkAtIndex,
+              createdAt: new Date().toISOString(),
+              parentId: null
+            };
+            branches.push(branch);
+            localStorage.setItem(this.BRANCHES_KEY, JSON.stringify(branches));
+            return branch;
+          } catch (e) {
+            console.warn('[Branches] Failed to create:', e.message);
+            return null;
+          }
+        },
+
+        // Load a branch (replace current messages)
+        loadBranch(branchId) {
+          const branch = this.getBranches().find(b => b.id === branchId);
+          return branch?.messages || null;
+        },
+
+        // Delete a branch
+        deleteBranch(id) {
+          try {
+            const branches = this.getBranches().filter(b => b.id !== id);
+            localStorage.setItem(this.BRANCHES_KEY, JSON.stringify(branches));
+          } catch (e) {
+            console.warn('[Branches] Failed to delete:', e.message);
+          }
+        },
+
+        // Get branch by ID
+        getBranch(id) {
+          return this.getBranches().find(b => b.id === id);
+        },
       };
 
       // ==========================================
@@ -5029,12 +5085,195 @@ main().catch(console.error);
         }
       }
 
+      // ==========================================
+      // CHAT SESSION BRANCHING
+      // ==========================================
+
+      // Fork conversation at a specific message index
+      function forkAtMessage(messageIndex) {
+        const name = prompt('Enter a name for this branch:', `Branch at message ${messageIndex + 1}`);
+        if (!name) return;
+        
+        const branch = sessionManager.createBranch(name, messages, messageIndex);
+        if (branch) {
+          appendMessage('system', `🌿 Created branch "${name}" with ${messageIndex + 1} messages`);
+        }
+      }
+
+      // Show branches modal
+      function showBranchesModal() {
+        const branches = sessionManager.getBranches();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'branchesModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+              <h2 class="modal-title">🌿 Conversation Branches</h2>
+              <button class="modal-close" onclick="closeBranchesModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); max-height: 400px; overflow-y: auto;">
+              ${branches.length === 0 ? `
+                <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                  No branches yet. Hover over a message and click 🌿 to fork.
+                </div>
+              ` : branches.map(b => `
+                <div style="background: var(--bg-card); padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong>${escapeHtml(b.name)}</strong>
+                      <div style="font-size: 0.7rem; color: var(--text-muted);">
+                        ${b.messages?.length || 0} messages • ${new Date(b.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                      <button class="btn success" onclick="loadBranchAndClose('${b.id}')" style="font-size: 0.65rem; padding: 3px 8px;">Load</button>
+                      <button class="btn" onclick="deleteBranchAndRefresh('${b.id}')" style="font-size: 0.65rem; padding: 3px 8px;">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="saveCurrentAsBranch()">💾 Save Current as Branch</button>
+              <button class="btn" onclick="closeBranchesModal()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      // Close branches modal
+      function closeBranchesModal() {
+        const modal = document.getElementById('branchesModal');
+        if (modal) modal.remove();
+      }
+
+      // Load a branch and close modal
+      function loadBranchAndClose(branchId) {
+        const branchMessages = sessionManager.loadBranch(branchId);
+        if (branchMessages) {
+          messages = branchMessages;
+          sessionManager.saveMessages(messages);
+          renderMessages();
+          closeBranchesModal();
+          appendMessage('system', '🌿 Branch loaded - continue your conversation from this point');
+        }
+      }
+
+      // Delete branch and refresh modal
+      function deleteBranchAndRefresh(branchId) {
+        if (confirm('Delete this branch?')) {
+          sessionManager.deleteBranch(branchId);
+          closeBranchesModal();
+          showBranchesModal();
+          appendMessage('system', '🗑️ Branch deleted');
+        }
+      }
+
+      // Save current conversation as a branch
+      function saveCurrentAsBranch() {
+        const name = prompt('Enter a name for this branch:', `Snapshot ${new Date().toLocaleString()}`);
+        if (!name) return;
+        
+        const branch = sessionManager.createBranch(name, messages, messages.length - 1);
+        if (branch) {
+          closeBranchesModal();
+          showBranchesModal();
+          appendMessage('system', `💾 Saved current conversation as "${name}"`);
+        }
+      }
+
+      // ==========================================
+      // MULTI-ENVIRONMENT PROFILES
+      // ==========================================
+
+      const ENV_PROFILES_KEY = 'mcp_chat_studio_env_profiles';
+      const CURRENT_ENV_KEY = 'mcp_chat_studio_current_env';
+
+      // Get environment profiles
+      function getEnvProfiles() {
+        try {
+          return JSON.parse(localStorage.getItem(ENV_PROFILES_KEY) || '{}');
+        } catch (e) {
+          return {};
+        }
+      }
+
+      // Save environment profile
+      function saveEnvProfile(envName, config) {
+        const profiles = getEnvProfiles();
+        profiles[envName] = {
+          ...config,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(ENV_PROFILES_KEY, JSON.stringify(profiles));
+      }
+
+      // Get current environment
+      function getCurrentEnv() {
+        return localStorage.getItem(CURRENT_ENV_KEY) || 'development';
+      }
+
+      // Switch environment
+      function switchEnvironment(envName) {
+        const oldEnv = getCurrentEnv();
+        
+        // Save current configuration to old environment
+        saveCurrentConfigToEnv(oldEnv);
+        
+        // Set new environment
+        localStorage.setItem(CURRENT_ENV_KEY, envName);
+        
+        // Load config from new environment (if exists)
+        const profiles = getEnvProfiles();
+        if (profiles[envName]) {
+          // We would load server configs here
+          appendMessage('system', `🔄 Switched to ${envName} environment`);
+        } else {
+          appendMessage('system', `🆕 Switched to ${envName} environment (no saved config)`);
+        }
+        
+        loadMCPStatus();
+      }
+
+      // Save current configuration to environment
+      function saveCurrentConfigToEnv(envName) {
+        // Capture current server configuration
+        const configSection = document.getElementById('serversConfig');
+        const serverCards = configSection ? configSection.querySelectorAll('.server-card') : [];
+        
+        const servers = [];
+        serverCards.forEach(card => {
+          const name = card.querySelector('.server-name')?.textContent;
+          if (name) servers.push(name);
+        });
+        
+        saveEnvProfile(envName, { servers });
+      }
+
+      // Initialize environment selector
+      function initEnvProfile() {
+        const select = document.getElementById('envProfile');
+        if (select) {
+          select.value = getCurrentEnv();
+        }
+      }
+
       // Initialize
       restoreSession();
       checkAuthStatus();
       loadMCPStatus();
       populateSystemPrompts();
       updateTokenDisplay();
+      initEnvProfile();
 
       // Refresh MCP status periodically
       setInterval(loadMCPStatus, 30000);

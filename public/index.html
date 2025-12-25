@@ -47,6 +47,16 @@
           <span id="tokenCount">0 tokens</span>
         </div>
 
+        <!-- Branches Button -->
+        <button
+          class="btn"
+          onclick="showBranchesModal()"
+          title="Manage conversation branches"
+          style="font-size: 0.7rem; padding: 4px 8px;"
+        >
+          🌿 Branches
+        </button>
+
         <!-- Theme Toggle -->
         <button
           class="btn theme-toggle"
@@ -109,6 +119,16 @@
           style="display: none"
           onchange="handleConfigFileImport(event)"
         />
+
+        <!-- Environment Profile -->
+        <div style="padding: 8px 12px; border-bottom: 1px solid var(--border);">
+          <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Environment</label>
+          <select id="envProfile" class="form-select" onchange="switchEnvironment(this.value)" style="width: 100%; font-size: 0.75rem; padding: 4px 8px;">
+            <option value="development">🛠️ Development</option>
+            <option value="staging">🧪 Staging</option>
+            <option value="production">🚀 Production</option>
+          </select>
+        </div>
 
         <!-- Tool Search -->
         <div class="tool-search">
