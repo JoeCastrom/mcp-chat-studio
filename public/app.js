@@ -5617,6 +5617,159 @@ main().catch(console.error);
         }
       }
 
+      // ==========================================
+      // CHAT SESSION BRANCHING
+      // ==========================================
+      
+      const BRANCHES_KEY = 'mcp_chat_studio_branches';
+
+      // Get all branches
+      function getBranches() {
+        try {
+          return JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
+        } catch (e) {
+          return [];
+        }
+      }
+
+      // Save branches
+      function saveBranches(branches) {
+        localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
+      }
+
+      // Create a branch from current conversation
+      function createBranch(name, messageList, forkAtIndex) {
+        const branches = getBranches();
+        const branch = {
+          id: `branch_${Date.now()}`,
+          name,
+          messages: messageList.slice(0, forkAtIndex + 1),
+          forkIndex: forkAtIndex,
+          createdAt: new Date().toISOString()
+        };
+        branches.push(branch);
+        saveBranches(branches);
+        return branch;
+      }
+
+      // Load a branch
+      function loadBranch(branchId) {
+        const branches = getBranches();
+        const branch = branches.find(b => b.id === branchId);
+        if (branch) {
+          messages = [...branch.messages];
+          renderMessages();
+          sessionManager.save(messages, toolExecutionHistory);
+          return branch;
+        }
+        return null;
+      }
+
+      // Delete a branch
+      function deleteBranch(id) {
+        const branches = getBranches();
+        const filtered = branches.filter(b => b.id !== id);
+        saveBranches(filtered);
+      }
+
+      // Fork conversation at a specific message index
+      function forkAtMessage(messageIndex) {
+        const name = prompt('Enter a name for this branch:', `Branch at message ${messageIndex + 1}`);
+        if (!name) return;
+        
+        const branch = createBranch(name, messages, messageIndex);
+        if (branch) {
+          appendMessage('system', `🌿 Created branch "${name}" with ${messageIndex + 1} messages`);
+        }
+      }
+
+      // Show branches modal
+      function showBranchesModal() {
+        const branches = getBranches();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'branchesModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+              <h2 class="modal-title">🌿 Conversation Branches</h2>
+              <button class="modal-close" onclick="closeBranchesModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); max-height: 400px; overflow-y: auto;">
+              ${branches.length === 0 ? `
+                <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                  No branches yet. Hover over a message and click 🌿 to fork.
+                </div>
+              ` : branches.map(b => `
+                <div style="background: var(--bg-card); padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong>${escapeHtml(b.name)}</strong>
+                      <div style="font-size: 0.7rem; color: var(--text-muted);">
+                        ${b.messages?.length || 0} messages • ${new Date(b.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                      <button class="btn" onclick="loadBranchAndClose('${b.id}')" style="font-size: 0.7rem; padding: 4px 8px;">Load</button>
+                      <button class="btn" onclick="deleteBranchAndRefresh('${b.id}')" style="font-size: 0.7rem; padding: 4px 8px; color: var(--error);">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="saveCurrentAsBranch()">💾 Save Current</button>
+              <button class="btn" onclick="closeBranchesModal()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      // Close branches modal
+      function closeBranchesModal() {
+        const modal = document.getElementById('branchesModal');
+        if (modal) modal.remove();
+      }
+
+      // Load branch and close modal
+      function loadBranchAndClose(branchId) {
+        closeBranchesModal();
+        const branch = loadBranch(branchId);
+        if (branch) {
+          appendMessage('system', `🌿 Loaded branch "${branch.name}"`);
+        }
+      }
+
+      // Delete branch and refresh modal
+      function deleteBranchAndRefresh(id) {
+        if (confirm('Delete this branch?')) {
+          deleteBranch(id);
+          closeBranchesModal();
+          showBranchesModal();
+        }
+      }
+
+      // Save current conversation as a branch
+      function saveCurrentAsBranch() {
+        const name = prompt('Enter a name for this branch:', `Snapshot ${new Date().toLocaleString()}`);
+        if (!name) return;
+        
+        const branch = createBranch(name, messages, messages.length - 1);
+        if (branch) {
+          closeBranchesModal();
+          showBranchesModal();
+          appendMessage('system', `💾 Saved current conversation as "${name}"`);
+        }
+      }
+
       // Initialize
       restoreSession();
       checkAuthStatus();

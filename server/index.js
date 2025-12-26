@@ -183,13 +183,7 @@ async function initializeServices(config) {
     console.error('LLM Config Errors:', validation.errors);
     console.warn('Chat functionality will be limited without proper LLM credentials.');
   } else {
-    // Test authentication
-    try {
-      await llmClient.authenticate();
-      console.log('LLM client authenticated successfully');
-    } catch (error) {
-      console.error('LLM authentication failed:', error.message);
-    }
+    console.log('LLM client initialized successfully');
   }
 
   // Initialize MCP Manager
