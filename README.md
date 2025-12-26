@@ -11,7 +11,7 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 [![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
 
-![Main Interface](docs/images/main-page-with-server-added.png)
+![Demo](docs/gif/showcase.gif)
 
 > **📌 Local MCP Test Bench** - Designed for development. Not intended for internet exposure.
 
