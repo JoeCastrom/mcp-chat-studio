@@ -85,13 +85,13 @@ router.delete('/:id', (req, res) => {
  */
 router.post('/:id/execute', async (req, res) => {
   try {
-    const { input } = req.body;
+    const { input, llmConfig } = req.body;
     const engine = getWorkflowEngine();
-    const llmConfig = loadLLMConfig();
     
-    // Merge any overriding config from request? Not for now for security
+    // Use provided config or fallback to file-based load
+    const configToUse = llmConfig || loadLLMConfig();
     
-    const result = await engine.executeWorkflow(req.params.id, input, llmConfig);
+    const result = await engine.executeWorkflow(req.params.id, input, configToUse);
     res.json(result);
   } catch (error) {
     console.error('Workflow execution failed:', error);

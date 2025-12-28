@@ -574,6 +574,8 @@
                 <button class="btn" onclick="addNode('tool')">➕ Tool Node</button>
                 <button class="btn" onclick="addNode('llm')">➕ LLM Node</button>
                 <button class="btn" onclick="addNode('javascript')">➕ JS Node</button>
+                <div style="width: 1px; height: 20px; background: var(--border); margin: 0 8px;"></div>
+                <button class="btn success" onclick="showAIBuilder()" title="Build with AI">✨ AI Builder</button>
                 <div style="flex: 1;"></div>
                 <button class="btn primary" onclick="runWorkflow()">▶️ Run</button>
                 <button class="btn" onclick="saveWorkflow()">💾 Save</button>
@@ -672,6 +674,34 @@
         </div>
       </div>
     </main>
+
+    <!-- AI Workflow Builder Modal -->
+    <div class="modal-overlay" id="aiBuilderModal">
+      <div class="modal" style="max-width: 600px">
+        <div class="modal-header">
+          <h2 class="modal-title">✨ AI Workflow Builder</h2>
+          <button class="modal-close" onclick="hideAIBuilder()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Describe your workflow</label>
+          <textarea id="aiBuilderPrompt" class="form-input" rows="4" placeholder="Example: Get the latest issue from the 'mcp-chat-studio' repo, then use an LLM to summarize it, and finally save the summary to a file."></textarea>
+          <div class="form-hint">I'll use your connected tools to build this for you.</div>
+        </div>
+
+        <div id="aiBuilderStatus" style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted); min-height: 20px;"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="hideAIBuilder()">Cancel</button>
+          <button type="button" class="btn primary" onclick="generateWorkflow()">🚀 Generate</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Add Server Modal -->
     <div class="modal-overlay" id="addServerModal">

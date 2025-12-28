@@ -157,12 +157,30 @@ function renderWorkflow() {
   renderEdges();
 }
 
+// Async helper to populate server select
+async function populateServerSelect(nodeId, selectedServer = null) {
+  try {
+    const res = await fetch('/api/mcp/status');
+    const status = await res.json();
+    const servers = status.servers || status;
+    const serverNames = Object.keys(servers).filter(name => servers[name].connected);
+    
+    const select = document.getElementById(`server_select_${nodeId}`);
+    if (select) {
+      select.innerHTML = '<option value="">Select Server</option>' + 
+        serverNames.map(s => `<option value="${s}" ${s === selectedServer ? 'selected' : ''}>${s}</option>`).join('');
+    }
+  } catch (e) {
+    console.error('Failed to load servers', e);
+  }
+}
+
 function createNodeElement(node) {
   const el = document.createElement('div');
   el.className = 'workflow-node';
   el.dataset.id = node.id;
   el.style.position = 'absolute';
-  el.style.width = '200px';
+  el.style.width = '240px'; // Slightly wider for better UX
   el.style.background = 'var(--bg-card)';
   el.style.border = '1px solid var(--border)';
   el.style.borderRadius = '8px';
@@ -171,45 +189,73 @@ function createNodeElement(node) {
   
   // Header
   let headerColor = '#666';
-  if (node.type === 'trigger') headerColor = 'var(--success)';
-  if (node.type === 'tool') headerColor = 'var(--primary)';
-  if (node.type === 'llm') headerColor = 'var(--warning)';
-  if (node.type === 'javascript') headerColor = '#9c27b0';
+  let icon = '📦';
+  if (node.type === 'trigger') { headerColor = 'var(--success)'; icon = '▶️'; }
+  if (node.type === 'tool') { headerColor = 'var(--primary)'; icon = '🛠️'; }
+  if (node.type === 'llm') { headerColor = 'var(--warning)'; icon = '🤖'; }
+  if (node.type === 'javascript') { headerColor = '#9c27b0'; icon = '📜'; }
 
   let contentHtml = '';
   
   if (node.type === 'trigger') {
-    contentHtml = `<div style="padding: 8px; font-size: 0.8rem; color: var(--text-muted);">Starts execution with input data.</div>`;
+    contentHtml = `<div style="padding: 12px; font-size: 0.8rem; color: var(--text-muted);">
+      Starts execution. <br>Access input via <code style="background:var(--bg-surface); padding:2px;">{{input}}</code>
+    </div>`;
   } else if (node.type === 'tool') {
     contentHtml = `
-      <div style="padding: 8px; font-size: 0.75rem;">
-        <select class="form-select" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)" style="width:100%; margin-bottom: 4px;">
-          <option value="">Select Server</option>
-          ${getAvailableServers().map(s => `<option value="${s}" ${node.data.server === s ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-        <select class="form-select node-tool-select" id="tool_select_${node.id}" onchange="updateNodeData('${node.id}', 'tool', this.value)" style="width:100%;">
-          <option value="">Select Tool</option>
-        </select>
+      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div>
+          <label style="font-size: 0.7rem; color: var(--text-muted);">Server</label>
+          <select class="form-select" id="server_select_${node.id}" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)" style="width:100%;">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.7rem; color: var(--text-muted);">Tool</label>
+          <select class="form-select node-tool-select" id="tool_select_${node.id}" onchange="updateNodeData('${node.id}', 'tool', this.value)" style="width:100%;">
+            <option value="">Select Server First</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.7rem; color: var(--text-muted);">Arguments (JSON)</label>
+          <textarea class="form-input" placeholder='{"arg": "{{prev.output}}"}' 
+            onchange="updateNodeData('${node.id}', 'args', this.value)"
+            style="width: 100%; height: 60px; font-family: monospace; font-size: 0.75rem;">${node.data.args || ''}</textarea>
+        </div>
       </div>
     `;
+    // Populate servers immediately
+    setTimeout(() => populateServerSelect(node.id, node.data.server), 0);
     // Populate tools if server selected
     if (node.data.server) {
       setTimeout(() => populateToolSelect(node.id, node.data.server, node.data.tool), 0);
     }
   } else if (node.type === 'llm') {
     contentHtml = `
-      <div style="padding: 8px;">
-        <textarea class="form-input" placeholder="Prompt... (use {{prevNode.output}})" 
+      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; gap: 4px;">
+           <select class="form-select" style="flex: 1; font-size: 0.7rem;" onchange="loadPromptTemplate('${node.id}', this.value)">
+             <option value="">Load System Prompt...</option>
+             ${getPromptOptions()}
+           </select>
+        </div>
+        <textarea class="form-input" id="prompt_text_${node.id}" placeholder="System Prompt / Instructions..." 
+          onchange="updateNodeData('${node.id}', 'systemPrompt', this.value)"
+          style="width: 100%; height: 50px; font-size: 0.75rem; margin-bottom: 4px;">${node.data.systemPrompt || ''}</textarea>
+        <textarea class="form-input" placeholder="User Message... (use {{tool_id.output}})" 
           onchange="updateNodeData('${node.id}', 'prompt', this.value)"
-          style="width: 100%; height: 60px; font-size: 0.75rem;">${node.data.prompt || ''}</textarea>
+          style="width: 100%; height: 80px; font-size: 0.75rem;">${node.data.prompt || ''}</textarea>
       </div>
     `;
   } else if (node.type === 'javascript') {
     contentHtml = `
-      <div style="padding: 8px;">
-        <textarea class="form-input" placeholder="return input.value + 1;" 
+      <div style="padding: 12px;">
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
+          Available: <code>input</code>, <code>context.steps</code>
+        </div>
+        <textarea class="form-input" placeholder="// return input.value + 1;" 
           onchange="updateNodeData('${node.id}', 'code', this.value)"
-          style="width: 100%; height: 60px; font-family: monospace; font-size: 0.75rem;">${node.data.code || ''}</textarea>
+          style="width: 100%; height: 100px; font-family: monospace; font-size: 0.75rem;">${node.data.code || ''}</textarea>
       </div>
     `;
   }
@@ -221,14 +267,50 @@ function createNodeElement(node) {
   el.innerHTML = `
     ${portIn}
     ${portOut}
-    <div class="workflow-node-header" style="padding: 8px; background: ${headerColor}; color: white; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between;">
-      <span style="font-weight: 500; font-size: 0.8rem;">${node.type.toUpperCase()}</span>
-      <button onclick="deleteNode('${node.id}')" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
+    <div class="workflow-node-header" style="padding: 8px 12px; background: ${headerColor}; color: white; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">${icon} ${node.type.toUpperCase()}</span>
+      <div style="font-size: 0.7rem; opacity: 0.8;">${node.id.split('_')[1] || ''}</div>
+      <button onclick="deleteNode('${node.id}')" style="background:rgba(0,0,0,0.2); border:none; color:white; cursor:pointer; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 8px;">✕</button>
     </div>
     ${contentHtml}
   `;
 
   return el;
+}
+
+// Helper to get prompt options from localStorage
+function getPromptOptions() {
+  try {
+    const prompts = JSON.parse(localStorage.getItem('mcp_chat_studio_prompts') || '{}');
+    const defaults = {
+        'default': { name: 'Default Assistant' },
+        'strict-coder': { name: 'Strict Coder' },
+        'json-validator': { name: 'JSON Validator' }
+    };
+    const all = { ...defaults, ...prompts };
+    return Object.entries(all).map(([k, v]) => `<option value="${k}">${escapeHtml(v.name)}</option>`).join('');
+  } catch (e) { return ''; }
+}
+
+function loadPromptTemplate(nodeId, promptId) {
+  if (!promptId) return;
+  // We need to fetch the actual text. In app.js it's in sessionManager.
+  // We'll quick-fetch from localStorage again or defaults.
+  // Simplified logic:
+  let promptText = "";
+  if (promptId === 'default') promptText = 'You are a helpful AI assistant.';
+  else if (promptId === 'strict-coder') promptText = 'You are a strict coding assistant.';
+  else {
+      try {
+        const prompts = JSON.parse(localStorage.getItem('mcp_chat_studio_prompts') || '{}');
+        if (prompts[promptId]) promptText = prompts[promptId].prompt;
+      } catch(e) {}
+  }
+  
+  if (promptText) {
+      document.getElementById(`prompt_text_${nodeId}`).value = promptText;
+      updateNodeData(nodeId, 'systemPrompt', promptText);
+  }
 }
 
 function renderNodePosition(node) {
@@ -252,11 +334,11 @@ function renderEdges() {
     // Calculate port positions
     // Out port is right-middle of fromNode
     // In port is left-middle of toNode
-    // Assuming node width 200px (hardcoded in createNodeElement)
-    const startX = fromNode.position.x + 200; 
-    const startY = fromNode.position.y + 40; // Approx middle of header + content
+    // Assuming node width 240px (updated in createNodeElement)
+    const startX = fromNode.position.x + 240; 
+    const startY = fromNode.position.y + 45; // Approx middle of header + content
     const endX = toNode.position.x;
-    const endY = toNode.position.y + 40;
+    const endY = toNode.position.y + 45;
     
     drawCurve(svg, startX, startY, endX, endY);
   });
@@ -267,11 +349,11 @@ function renderEdges() {
     let startX, startY;
     
     if (workflowState.connectStartPort === 'out') {
-      startX = startNode.position.x + 200;
-      startY = startNode.position.y + 40;
+      startX = startNode.position.x + 240;
+      startY = startNode.position.y + 45;
     } else {
       startX = startNode.position.x;
-      startY = startNode.position.y + 40;
+      startY = startNode.position.y + 45;
     }
     
     // Draw directly to mouse pos
@@ -425,11 +507,23 @@ async function runWorkflow() {
   logsPanel.style.display = 'flex';
   logContent.innerHTML = '<div style="color: var(--text-muted);">Executing...</div>';
   
+  // Fetch current LLM config from API to ensure we use what's in the header/settings
+  let llmConfig = {};
+  try {
+    const configRes = await fetch('/api/llm/config');
+    llmConfig = await configRes.json();
+  } catch (e) {
+    console.warn("Using default LLM config");
+  }
+
   try {
     const res = await fetch(`/api/workflows/${workflowState.currentId}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: { timestamp: Date.now() } }) // Default input
+      body: JSON.stringify({
+        input: { timestamp: Date.now() },
+        llmConfig: llmConfig 
+      })
     });
     
     const result = await res.json();
@@ -468,17 +562,6 @@ async function runWorkflow() {
 // ==========================================
 // HELPERS
 // ==========================================
-
-function getAvailableServers() {
-  // Hacky: scrape from sidebar or fetch status
-  // Better: fetch from API
-  // For now, let's look at the inspector dropdown if populated
-  const select = document.getElementById('inspectorServerSelect');
-  if (select) {
-    return Array.from(select.options).map(o => o.value).filter(v => v);
-  }
-  return [];
-}
 
 async function populateToolSelect(nodeId, serverName, selectedTool = null) {
   if (!serverName) return;
@@ -527,4 +610,108 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// ==========================================
+// AI BUILDER
+// ==========================================
+
+function showAIBuilder() {
+  document.getElementById('aiBuilderModal').classList.add('active');
+  document.getElementById('aiBuilderPrompt').focus();
+}
+
+function hideAIBuilder() {
+  document.getElementById('aiBuilderModal').classList.remove('active');
+  document.getElementById('aiBuilderStatus').textContent = '';
+}
+
+async function generateWorkflow() {
+  const prompt = document.getElementById('aiBuilderPrompt').value.trim();
+  if (!prompt) return;
+  
+  const statusEl = document.getElementById('aiBuilderStatus');
+  statusEl.textContent = '🤔 Analyzing your request and available tools...';
+  
+  try {
+    // 1. Fetch available tools to give context to the LLM
+    const toolsRes = await fetch('/api/mcp/tools');
+    const toolsData = await toolsRes.json();
+    const availableTools = toolsData.tools.map(t => `${t.fullName} (${t.description || ''})`).join('\n');
+    
+    // 2. Construct System Prompt
+    const systemPrompt = `You are an expert Workflow Architect. Your goal is to generate a JSON workflow structure based on the user's request.    
+    The workflow schema is:
+    {
+      "nodes": [
+        { "id": "trigger_start", "type": "trigger", "position": { "x": 50, "y": 50 }, "data": {} },
+        { "id": "tool_1", "type": "tool", "position": { "x": 350, "y": 50 }, "data": { "server": "server_name", "tool": "tool_name", "args": "{...}" } },
+        { "id": "llm_1", "type": "llm", "position": { "x": 650, "y": 50 }, "data": { "systemPrompt": "...", "prompt": "Analyze: {{tool_1.output}}" } }
+      ],
+      "edges": [
+        { "from": "trigger_start", "to": "tool_1" },
+        { "from": "tool_1", "to": "llm_1" }
+      ]
+    }
+    
+    Node Types:
+    - trigger: Always the start.
+    - tool: Calls an MCP tool. data.server and data.tool MUST match available tools exactly.
+    - llm: Calls an AI model. Use {{prev_node_id.output}} for variable substitution.
+    - javascript: Runs custom code.
+    
+    Available Tools (use these exact names):
+    ${availableTools}
+    
+    Output ONLY raw valid JSON. No markdown formatting. No explanation.`;
+    
+    statusEl.textContent = '🤖 Generating workflow design...';
+    
+    // 3. Call LLM (using the chat endpoint but non-streaming if possible, or handle stream)
+    // We'll use the existing chat endpoint but treating it as a single request
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        stream: false // We want the full JSON at once
+      })
+    });
+    
+    const data = await response.json();
+    let content = data.choices[0].message.content;
+    
+    // Clean up markdown code blocks if present
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    try {
+      const workflow = JSON.parse(content);
+      
+      // Load into canvas
+      workflowState.currentId = null; // New unsaved workflow
+      workflowState.nodes = workflow.nodes || [];
+      workflowState.edges = workflow.edges || [];
+      
+      // Simple auto-layout if positions are missing (fallback)
+      if (workflowState.nodes.length > 0 && !workflowState.nodes[0].position) {
+         workflowState.nodes.forEach((n, i) => {
+             n.position = { x: 50 + (i * 300), y: 50 };
+         });
+      }
+      
+      renderWorkflow();
+      hideAIBuilder();
+      alert('✨ Workflow generated! Please review the tool arguments.');
+      
+    } catch (parseError) {
+      console.error(parseError);
+      statusEl.textContent = '❌ Failed to parse generated JSON. The LLM might have returned invalid format.';
+    }
+    
+  } catch (error) {
+    statusEl.textContent = `❌ Error: ${error.message}`;
+  }
 }
