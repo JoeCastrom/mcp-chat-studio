@@ -26,7 +26,46 @@ import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
 import llmRoutes from './routes/llm.js';
 import workflowRoutes from './routes/workflows.js';
+import scaffoldRoutes from './routes/scaffold.js';
+import performanceRoutes from './routes/performance.js';
+import inspectorRoutes from './routes/inspector.js';
+import contractsRoutes from './routes/contracts.js';
+import toolexplorerRoutes from './routes/toolexplorer.js';
 import rateLimit from 'express-rate-limit';
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
+
+// Swagger configuration
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'MCP Chat Studio API',
+      version: '1.3.0',
+      description: 'API for MCP Chat Studio - Multi-provider LLM support with MCP tool integration, debugging, testing, and analytics',
+      contact: {
+        name: 'MCP Chat Studio',
+        url: 'https://github.com/JoeCastrom/mcp-chat-studio'
+      }
+    },
+    servers: [
+      { url: 'http://localhost:3082', description: 'Local development server' }
+    ],
+    tags: [
+      { name: 'Chat', description: 'Chat and LLM operations' },
+      { name: 'MCP', description: 'MCP server and tool management' },
+      { name: 'Workflows', description: 'Workflow builder operations' },
+      { name: 'Inspector', description: 'Advanced inspector features (timeline, bulk testing, diff)' },
+      { name: 'Contracts', description: 'Consumer-driven contract testing' },
+      { name: 'ToolExplorer', description: 'Tool usage statistics and metrics' },
+      { name: 'LLM', description: 'LLM configuration' },
+      { name: 'OAuth', description: 'OAuth authentication' }
+    ]
+  },
+  apis: ['./server/routes/*.js', './server/index.js']
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -115,6 +154,18 @@ app.use('/api', generalLimiter);
 
 app.use(express.static(join(__dirname, '../public')));
 
+// Swagger API documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'MCP Chat Studio API Docs'
+}));
+
+// JSON spec endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // Helper function to substitute environment variables in config
 function substituteEnvVars(obj) {
   if (typeof obj === 'string') {
@@ -200,9 +251,39 @@ async function initializeServices(config) {
 app.use('/api/chat', chatLimiter, chatRoutes);
 app.use('/api/mcp', mcpLimiter, mcpRoutes);
 app.use('/api/workflows', generalLimiter, workflowRoutes);
+app.use('/api/scaffold', generalLimiter, scaffoldRoutes);
+app.use('/api/performance', generalLimiter, performanceRoutes);
+app.use('/api/inspector', generalLimiter, inspectorRoutes);
+app.use('/api/contracts', generalLimiter, contractsRoutes);
+app.use('/api/toolexplorer', generalLimiter, toolexplorerRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: Health check endpoint
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 oauth:
+ *                   type: object
+ *                 mcp:
+ *                   type: object
+ */
 // Health check
 app.get('/api/health', (req, res) => {
   const mcpManager = getMCPManager();
@@ -272,12 +353,13 @@ async function start() {
 
     app.listen(PORT, () => {
       console.log(`\n========================================`);
-      console.log(`  Minimal Chat Server`);
-      console.log(`  with MCP + OAuth Support`);
+      console.log(`  MCP Chat Studio Server`);
+      console.log(`  with MCP + LLM + OAuth Support`);
       console.log(`========================================`);
-      console.log(`  Server:  http://localhost:${PORT}`);
-      console.log(`  API:     http://localhost:${PORT}/api`);
-      console.log(`  Health:  http://localhost:${PORT}/api/health`);
+      console.log(`  Server:   http://localhost:${PORT}`);
+      console.log(`  API:      http://localhost:${PORT}/api`);
+      console.log(`  API Docs: http://localhost:${PORT}/api-docs`);
+      console.log(`  Health:   http://localhost:${PORT}/api/health`);
       console.log(`========================================\n`);
     });
   } catch (error) {

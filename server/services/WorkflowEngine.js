@@ -1,12 +1,48 @@
 import { getMCPManager } from './MCPManager.js';
 import { createLLMClient } from './LLMClient.js';
+import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { VM } from 'vm2';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WORKFLOWS_FILE = path.join(__dirname, '../../workflows.json');
+
+// Zod schema for workflow validation
+const NodeDataSchema = z.object({
+  server: z.string().optional(),
+  tool: z.string().optional(),
+  args: z.union([z.string(), z.record(z.any())]).optional(),
+  systemPrompt: z.string().optional(),
+  prompt: z.string().optional(),
+  code: z.string().optional(),
+  condition: z.string().optional(),
+  expected: z.string().optional(),
+}).passthrough();
+
+const NodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(['trigger', 'tool', 'llm', 'javascript', 'assert']),
+  position: z.object({
+    x: z.number(),
+    y: z.number()
+  }),
+  data: NodeDataSchema.optional().default({})
+});
+
+const EdgeSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1)
+});
+
+const WorkflowSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  nodes: z.array(NodeSchema),
+  edges: z.array(EdgeSchema)
+});
 
 // Ensure workflows file exists
 if (!fs.existsSync(WORKFLOWS_FILE)) {
@@ -36,6 +72,13 @@ export class WorkflowEngine {
   }
 
   saveWorkflow(workflow) {
+    // Validate workflow structure
+    const validationResult = WorkflowSchema.safeParse(workflow);
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      throw new Error(`Invalid workflow structure: ${errors}`);
+    }
+    
     const workflows = this.getAllWorkflows();
     const index = workflows.findIndex(w => w.id === workflow.id);
     
@@ -97,8 +140,16 @@ export class WorkflowEngine {
 
     // Initialize custom LLM client if needed for this execution
     let llmClient = null;
-    if (llmConfig.provider) {
+    if (llmConfig && llmConfig.provider) {
       llmClient = createLLMClient(llmConfig);
+    } else {
+      // Create default LLM client with Ollama if no config provided
+      llmClient = createLLMClient({
+        provider: 'ollama',
+        model: 'llama3.1:8b',
+        base_url: 'http://localhost:11434'
+      });
+      console.log('[Workflow] No LLM config provided, using default Ollama llama3.1:8b');
     }
 
     while (queue.length > 0) {
@@ -187,14 +238,77 @@ export class WorkflowEngine {
         return response.content;
 
       case 'javascript':
-        // Safe-ish eval? Maybe not "safe", but "functional" for a dev tool
-        // We'll use a Function constructor with restricted scope
+        // Execute JavaScript in sandboxed VM2 environment
         try {
-          const func = new Function('input', 'context', `return (async () => { ${data.code} })()`);
-          return await func(context.steps, context);
+          const vm = new VM({
+            timeout: 5000, // 5 second timeout
+            sandbox: {
+              input: context.steps,
+              context: context,
+              console: {
+                log: (...args) => console.log('[Workflow JS]', ...args),
+                error: (...args) => console.error('[Workflow JS]', ...args)
+              }
+            }
+          });
+
+          // Wrap code to return result
+          const wrappedCode = `
+            (function() {
+              ${data.code}
+            })()
+          `;
+
+          const result = vm.run(wrappedCode);
+          return result;
         } catch (e) {
           throw new Error(`Script execution failed: ${e.message}`);
         }
+
+      case 'assert':
+        // Get the previous node's output
+        const prevNodeIds = Object.keys(context.steps);
+        const prevOutput = prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
+        const outputStr = typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
+        const expected = data.expected || '';
+        const condition = data.condition || 'contains';
+        
+        let passed = false;
+        let message = '';
+        
+        switch (condition) {
+          case 'contains':
+            passed = outputStr.toLowerCase().includes(expected.toLowerCase());
+            message = passed ? `Output contains "${expected}"` : `Output does not contain "${expected}"`;
+            break;
+          case 'equals':
+            passed = outputStr === expected;
+            message = passed ? `Output equals expected value` : `Output "${outputStr.substring(0, 50)}..." does not equal "${expected}"`;
+            break;
+          case 'not_contains':
+            passed = !outputStr.toLowerCase().includes(expected.toLowerCase());
+            message = passed ? `Output does not contain "${expected}"` : `Output contains "${expected}" (unexpected)`;
+            break;
+          case 'truthy':
+            passed = !!prevOutput && prevOutput !== 'false' && prevOutput !== 'null' && prevOutput !== 'undefined';
+            message = passed ? 'Output is truthy' : 'Output is falsy';
+            break;
+          case 'length_gt':
+            const length = typeof prevOutput === 'string' ? prevOutput.length : (Array.isArray(prevOutput) ? prevOutput.length : 0);
+            const threshold = parseInt(expected) || 0;
+            passed = length > threshold;
+            message = passed ? `Length ${length} > ${threshold}` : `Length ${length} <= ${threshold}`;
+            break;
+        }
+        
+        return {
+          assertion: true,
+          passed,
+          condition,
+          expected,
+          message,
+          actualOutput: outputStr.substring(0, 200)
+        };
 
       default:
         return null;

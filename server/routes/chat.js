@@ -19,8 +19,53 @@ function getSessionId(req) {
 }
 
 /**
- * POST /api/chat
- * Send a chat message and get a response
+ * @swagger
+ * /api/chat:
+ *   post:
+ *     summary: Send a chat message
+ *     description: Send messages to the LLM with optional MCP tool support
+ *     tags: [Chat]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - messages
+ *             properties:
+ *               messages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role:
+ *                       type: string
+ *                       enum: [system, user, assistant, tool]
+ *                     content:
+ *                       type: string
+ *               useTools:
+ *                 type: boolean
+ *                 default: true
+ *               stream:
+ *                 type: boolean
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: Chat response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 choices:
+ *                   type: array
+ *                 toolResults:
+ *                   type: array
+ *       400:
+ *         description: Invalid request
+ *       500:
+ *         description: Server error
  */
 router.post('/', async (req, res) => {
   try {

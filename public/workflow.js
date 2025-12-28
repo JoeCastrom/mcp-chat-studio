@@ -15,11 +15,106 @@ const workflowState = {
   tempMousePos: { x: 0, y: 0 }
 };
 
+// Custom toast notification that matches app styling
+function showToast(message, type = 'success') {
+  // Remove any existing toasts
+  const existingToasts = document.querySelectorAll('.workflow-toast');
+  existingToasts.forEach(t => t.remove());
+  
+  const toast = document.createElement('div');
+  toast.className = 'workflow-toast';
+  
+  // Styling based on type
+  const colors = {
+    success: { bg: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.95))', icon: '✅', border: 'rgba(34, 197, 94, 0.5)' },
+    error: { bg: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))', icon: '❌', border: 'rgba(239, 68, 68, 0.5)' },
+    info: { bg: 'linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.95))', icon: '💡', border: 'rgba(124, 58, 237, 0.5)' },
+    warning: { bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.95))', icon: '⚠️', border: 'rgba(245, 158, 11, 0.5)' }
+  };
+  
+  const config = colors[type] || colors.info;
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    background: ${config.bg};
+    color: white;
+    border-radius: 12px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px ${config.border};
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastSlideIn 0.3s ease-out;
+    backdrop-filter: blur(10px);
+  `;
+  
+  // Add animation keyframes if not exists
+  if (!document.getElementById('toast-animations')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animations';
+    style.textContent = `
+      @keyframes toastSlideIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+      }
+      @keyframes toastSlideOut {
+        from { opacity: 1; transform: translateX(-50%) translateY(0); }
+        to { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  toast.innerHTML = `<span style="font-size: 16px;">${config.icon}</span> ${message}`;
+  document.body.appendChild(toast);
+  
+  // Auto-remove after 3 seconds with fade out
+  setTimeout(() => {
+    toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   setupCanvasInteractions();
   loadWorkflowsList();
+  updateAIBuilderModelBadge(); // Sync model badge with current LLM config
 });
+
+// Update AI Builder model badge
+async function updateAIBuilderModelBadge() {
+  const badge = document.getElementById('aiModelBadge');
+  if (!badge) return;
+  
+  try {
+    const res = await fetch('/api/llm/config');
+    const config = await res.json();
+    
+    const providerEmojis = {
+      ollama: '🦙',
+      openai: '🤖',
+      anthropic: '🎭',
+      gemini: '💎',
+      azure: '☁️',
+      groq: '⚡',
+      together: '🤝',
+      openrouter: '🌐',
+    };
+    
+    const emoji = providerEmojis[config.provider] || '🤖';
+    badge.textContent = `${emoji} ${config.model}`;
+  } catch (e) {
+    badge.textContent = '🤖 Unknown';
+  }
+}
 
 // ==========================================
 // CANVAS INTERACTIONS
@@ -63,6 +158,10 @@ function startDragNode(e, nodeId) {
   const canvas = document.getElementById('workflowCanvas');
   const rect = canvas.getBoundingClientRect();
   
+  // Disable transitions during drag for smooth movement
+  const nodeEl = document.querySelector(`.workflow-node[data-id="${nodeId}"]`);
+  if (nodeEl) nodeEl.classList.add('dragging');
+  
   workflowState.dragOffset = {
     x: e.clientX - rect.left - node.position.x,
     y: e.clientY - rect.top - node.position.y
@@ -85,6 +184,10 @@ function dragNode(e) {
 }
 
 function stopDragNode() {
+  // Re-enable transitions after drag
+  const nodeEl = document.querySelector(`.workflow-node[data-id="${workflowState.dragNodeId}"]`);
+  if (nodeEl) nodeEl.classList.remove('dragging');
+  
   workflowState.isDragging = false;
   workflowState.dragNodeId = null;
 }
@@ -179,83 +282,106 @@ function createNodeElement(node) {
   const el = document.createElement('div');
   el.className = 'workflow-node';
   el.dataset.id = node.id;
-  el.style.position = 'absolute';
-  el.style.width = '240px'; // Slightly wider for better UX
-  el.style.background = 'var(--bg-card)';
-  el.style.border = '1px solid var(--border)';
-  el.style.borderRadius = '8px';
-  el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-  el.style.zIndex = '10';
+  el.dataset.type = node.type; // For CSS styling by type
   
-  // Header
-  let headerColor = '#666';
-  let icon = '📦';
-  if (node.type === 'trigger') { headerColor = 'var(--success)'; icon = '▶️'; }
-  if (node.type === 'tool') { headerColor = 'var(--primary)'; icon = '🛠️'; }
-  if (node.type === 'llm') { headerColor = 'var(--warning)'; icon = '🤖'; }
-  if (node.type === 'javascript') { headerColor = '#9c27b0'; icon = '📜'; }
+  // Icons per type
+  const icons = {
+    trigger: '▶️',
+    tool: '🛠️',
+    llm: '🤖',
+    javascript: '📜',
+    assert: '✓'
+  };
+  const icon = icons[node.type] || '📦';
 
   let contentHtml = '';
   
   if (node.type === 'trigger') {
-    contentHtml = `<div style="padding: 12px; font-size: 0.8rem; color: var(--text-muted);">
-      Starts execution. <br>Access input via <code style="background:var(--bg-surface); padding:2px;">{{input}}</code>
+    contentHtml = `<div class="workflow-node-content">
+      <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+        <div style="margin-bottom: 6px;">Starts execution.</div>
+        <div style="background: rgba(0,0,0,0.15); padding: 6px 8px; border-radius: 4px; font-size: 0.7rem;">
+          <strong>Tip:</strong> Access input via <code style="background:rgba(99,102,241,0.2); padding:1px 4px; border-radius:3px; color: var(--accent-primary);">{{input}}</code>
+        </div>
+      </div>
     </div>`;
   } else if (node.type === 'tool') {
     contentHtml = `
-      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="workflow-node-content" style="display: flex; flex-direction: column; gap: 8px;">
         <div>
-          <label style="font-size: 0.7rem; color: var(--text-muted);">Server</label>
-          <select class="form-select" id="server_select_${node.id}" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)" style="width:100%;">
+          <label>Server</label>
+          <select class="form-select" id="server_select_${node.id}" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)">
             <option value="">Loading...</option>
           </select>
         </div>
         <div>
-          <label style="font-size: 0.7rem; color: var(--text-muted);">Tool</label>
-          <select class="form-select node-tool-select" id="tool_select_${node.id}" onchange="updateNodeData('${node.id}', 'tool', this.value)" style="width:100%;">
+          <label>Tool</label>
+          <select class="form-select node-tool-select" id="tool_select_${node.id}" onchange="updateNodeData('${node.id}', 'tool', this.value)">
             <option value="">Select Server First</option>
           </select>
         </div>
         <div>
-          <label style="font-size: 0.7rem; color: var(--text-muted);">Arguments (JSON)</label>
+          <label>Arguments (JSON)</label>
           <textarea class="form-input" placeholder='{"arg": "{{prev.output}}"}' 
             onchange="updateNodeData('${node.id}', 'args', this.value)"
-            style="width: 100%; height: 60px; font-family: monospace; font-size: 0.75rem;">${node.data.args || ''}</textarea>
+            style="height: 60px;">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : (node.data.args || '')}</textarea>
         </div>
       </div>
     `;
-    // Populate servers immediately
     setTimeout(() => populateServerSelect(node.id, node.data.server), 0);
-    // Populate tools if server selected
     if (node.data.server) {
       setTimeout(() => populateToolSelect(node.id, node.data.server, node.data.tool), 0);
     }
   } else if (node.type === 'llm') {
     contentHtml = `
-      <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-        <div style="display: flex; gap: 4px;">
-           <select class="form-select" style="flex: 1; font-size: 0.7rem;" onchange="loadPromptTemplate('${node.id}', this.value)">
+      <div class="workflow-node-content" style="display: flex; flex-direction: column; gap: 8px;">
+        <div>
+           <select class="form-select" style="font-size: 0.7rem;" onchange="loadPromptTemplate('${node.id}', this.value)">
              <option value="">Load System Prompt...</option>
              ${getPromptOptions()}
            </select>
         </div>
-        <textarea class="form-input" id="prompt_text_${node.id}" placeholder="System Prompt / Instructions..." 
+        <textarea class="form-input" id="prompt_text_${node.id}" placeholder="System Prompt / Instructions..."
           onchange="updateNodeData('${node.id}', 'systemPrompt', this.value)"
-          style="width: 100%; height: 50px; font-size: 0.75rem; margin-bottom: 4px;">${node.data.systemPrompt || ''}</textarea>
+          style="height: 50px;">${node.data.systemPrompt || ''}</textarea>
         <textarea class="form-input" placeholder="User Message... (use {{tool_id.output}})" 
           onchange="updateNodeData('${node.id}', 'prompt', this.value)"
-          style="width: 100%; height: 80px; font-size: 0.75rem;">${node.data.prompt || ''}</textarea>
+          style="height: 80px;">${node.data.prompt || ''}</textarea>
       </div>
     `;
   } else if (node.type === 'javascript') {
     contentHtml = `
-      <div style="padding: 12px;">
-        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
+      <div class="workflow-node-content">
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px;">
           Available: <code>input</code>, <code>context.steps</code>
         </div>
-        <textarea class="form-input" placeholder="// return input.value + 1;" 
+        <textarea class="form-input" placeholder="// return input.value + 1;"
           onchange="updateNodeData('${node.id}', 'code', this.value)"
-          style="width: 100%; height: 100px; font-family: monospace; font-size: 0.75rem;">${node.data.code || ''}</textarea>
+          style="height: 100px;">${node.data.code || ''}</textarea>
+      </div>
+    `;
+  } else if (node.type === 'assert') {
+    contentHtml = `
+      <div class="workflow-node-content" style="display: flex; flex-direction: column; gap: 8px;">
+        <div>
+          <label style="font-size: 0.7rem;">Condition</label>
+          <select class="form-select" onchange="updateNodeData('${node.id}', 'condition', this.value)" style="font-size: 0.75rem;">
+            <option value="contains" ${node.data.condition === 'contains' ? 'selected' : ''}>Output contains</option>
+            <option value="equals" ${node.data.condition === 'equals' ? 'selected' : ''}>Output equals</option>
+            <option value="not_contains" ${node.data.condition === 'not_contains' ? 'selected' : ''}>Output does NOT contain</option>
+            <option value="truthy" ${node.data.condition === 'truthy' ? 'selected' : ''}>Output is truthy</option>
+            <option value="length_gt" ${node.data.condition === 'length_gt' ? 'selected' : ''}>Output length ></option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.7rem;">Expected Value</label>
+          <input class="form-input" type="text" placeholder="success" 
+            value="${node.data.expected || ''}"
+            onchange="updateNodeData('${node.id}', 'expected', this.value)">
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); padding: 6px; background: rgba(0,0,0,0.1); border-radius: 4px;">
+          Tests: <code>{{prev.output}}</code>
+        </div>
       </div>
     `;
   }
@@ -267,10 +393,12 @@ function createNodeElement(node) {
   el.innerHTML = `
     ${portIn}
     ${portOut}
-    <div class="workflow-node-header" style="padding: 8px 12px; background: ${headerColor}; color: white; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">${icon} ${node.type.toUpperCase()}</span>
-      <div style="font-size: 0.7rem; opacity: 0.8;">${node.id.split('_')[1] || ''}</div>
-      <button onclick="deleteNode('${node.id}')" style="background:rgba(0,0,0,0.2); border:none; color:white; cursor:pointer; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 8px;">✕</button>
+    <div class="workflow-node-header">
+      <span style="display: flex; align-items: center; gap: 6px;">${icon} ${node.type.toUpperCase()}</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.65rem; opacity: 0.7;">${node.id.split('_')[1] || ''}</span>
+        <button class="workflow-node-delete" onclick="deleteNode('${node.id}')" title="Delete node">✕</button>
+      </div>
     </div>
     ${contentHtml}
   `;
@@ -369,17 +497,26 @@ function renderEdges() {
 function drawCurve(svg, x1, y1, x2, y2, isTemp = false) {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   
-  // Bezier curve logic
-  const dx = Math.abs(x2 - x1) * 0.5;
-  const cp1x = x1 + dx;
-  const cp2x = x2 - dx;
+  // Clean S-curve bezier - straighter for close nodes
+  const dx = x2 - x1;
+  const dy = y2 - y1;
   
-  const d = `M ${x1} ${y1} C ${cp1x} ${y1}, ${cp2x} ${y2}, ${x2} ${y2}`;
+  // For horizontal connections, use minimal curve
+  // For diagonal, add slight curve for visual clarity
+  const curvature = Math.min(Math.abs(dx) * 0.3, 80);
+  
+  const cp1x = x1 + curvature;
+  const cp1y = y1;
+  const cp2x = x2 - curvature;
+  const cp2y = y2;
+  
+  const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
   
   path.setAttribute('d', d);
-  path.setAttribute('stroke', isTemp ? 'var(--text-muted)' : 'var(--text-primary)');
-  path.setAttribute('stroke-width', '2');
+  path.setAttribute('stroke', isTemp ? 'var(--text-muted)' : 'var(--accent-primary)');
+  path.setAttribute('stroke-width', isTemp ? '2' : '2');
   path.setAttribute('fill', 'none');
+  path.setAttribute('stroke-linecap', 'round');
   if (isTemp) path.setAttribute('stroke-dasharray', '5,5');
   
   svg.appendChild(path);
@@ -443,13 +580,38 @@ async function loadWorkflowsList() {
     }
     
     listEl.innerHTML = workflows.map(w => `
-      <div onclick="loadWorkflow('${w.id}')" style="padding: 6px; cursor: pointer; border-radius: 4px; hover:bg-white/5: border-bottom: 1px solid var(--border);">
-        <div style="font-weight: 500; font-size: 0.8rem;">${escapeHtml(w.name || 'Untitled')}</div>
-        <div style="font-size: 0.7rem; color: var(--text-muted);">${w.nodes.length} nodes</div>
+      <div class="workflow-list-item" style="padding: 8px; cursor: pointer; border-radius: 6px; margin-bottom: 4px; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
+        <div onclick="loadWorkflow('${w.id}')" style="flex: 1;">
+          <div style="font-weight: 500; font-size: 0.8rem;">${escapeHtml(w.name || 'Untitled')}</div>
+          <div style="font-size: 0.65rem; color: var(--text-muted);">${w.nodes.length} nodes</div>
+        </div>
+        <button onclick="event.stopPropagation(); deleteWorkflow('${w.id}')" 
+          style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 0.8rem;"
+          title="Delete workflow">🗑️</button>
       </div>
     `).join('');
   } catch (error) {
     console.error('Failed to load workflows:', error);
+  }
+}
+
+async function deleteWorkflow(id) {
+  if (!confirm('Delete this workflow?')) return;
+  
+  try {
+    const res = await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
+    const result = await res.json();
+    
+    if (result.success) {
+      // Clear current if we deleted the active one
+      if (workflowState.currentId === id) {
+        createNewWorkflow();
+      }
+      loadWorkflowsList();
+    }
+  } catch (error) {
+    console.error('Failed to delete workflow:', error);
+    showToast('Failed to delete: ' + error.message, 'error');
   }
 }
 
@@ -489,10 +651,10 @@ async function saveWorkflow() {
     if (result.success) {
       workflowState.currentId = result.id;
       loadWorkflowsList();
-      alert('Workflow saved!'); // Simple feedback
+      showToast('Workflow saved!', 'success');
     }
   } catch (error) {
-    alert('Failed to save: ' + error.message);
+    showToast('Failed to save: ' + error.message, 'error');
   }
 }
 
@@ -506,6 +668,12 @@ async function runWorkflow() {
   const logContent = document.getElementById('workflowLogContent');
   logsPanel.style.display = 'flex';
   logContent.innerHTML = '<div style="color: var(--text-muted);">Executing...</div>';
+  
+  // Set all nodes to pending status
+  clearNodeStatuses();
+  workflowState.nodes.forEach(node => {
+    setNodeStatus(node.id, 'pending');
+  });
   
   // Fetch current LLM config from API to ensure we use what's in the header/settings
   let llmConfig = {};
@@ -528,34 +696,102 @@ async function runWorkflow() {
     
     const result = await res.json();
     
-    // Render logs
+    // Render logs and update node statuses
     logContent.innerHTML = '';
     
     if (result.logs) {
-      result.logs.forEach(log => {
+      result.logs.forEach((log, index) => {
+        // Update node status based on log
+        const status = log.status === 'success' ? 'success' : 'error';
+        setNodeStatus(log.nodeId, status);
+        
+        // Check if this is an assertion result
+        const isAssertion = log.output && log.output.assertion;
+        const assertPassed = isAssertion ? log.output.passed : null;
+        
         const color = log.status === 'success' ? 'var(--success)' : 'var(--error)';
+        const icon = log.status === 'success' ? '✅' : '❌';
         const div = document.createElement('div');
         div.style.marginBottom = '8px';
-        div.style.borderLeft = `2px solid ${color}`;
-        div.style.paddingLeft = '8px';
-        div.innerHTML = `
-          <div style="font-weight: 500;">${log.nodeId} (${log.type})</div>
-          <div style="color: var(--text-secondary); white-space: pre-wrap;">${escapeHtml(typeof log.output === 'object' ? JSON.stringify(log.output, null, 2) : log.output)}</div>
-          ${log.error ? `<div style="color: var(--error);">${log.error}</div>` : ''}
-        `;
+        div.style.borderRadius = '0 6px 6px 0';
+        div.style.padding = '8px 10px';
+        
+        // Special display for assertions
+        if (isAssertion) {
+          const assertIcon = assertPassed ? '✅ PASS' : '❌ FAIL';
+          const assertColor = assertPassed ? 'var(--success)' : 'var(--error)';
+          div.style.borderLeft = `3px solid ${assertColor}`;
+          div.style.background = assertPassed ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+          div.innerHTML = `
+            <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 1rem;">${assertIcon}</span>
+              <span>${log.nodeId}</span>
+              <span style="font-size: 0.65rem; background: ${assertColor}; color: white; padding: 2px 6px; border-radius: 10px;">${log.output.condition}</span>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">${escapeHtml(log.output.message)}</div>
+          `;
+        } else {
+          div.style.borderLeft = `3px solid ${color}`;
+          div.style.background = log.status === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+          div.innerHTML = `
+            <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+              <span>${icon}</span>
+              <span>${log.nodeId}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: normal;">(${log.type})</span>
+            </div>
+            <div style="color: var(--text-secondary); white-space: pre-wrap; font-size: 0.8rem; margin-top: 4px; max-height: 100px; overflow-y: auto;">${escapeHtml(typeof log.output === 'object' ? JSON.stringify(log.output, null, 2) : String(log.output).substring(0, 500))}</div>
+            ${log.error ? `<div style="color: var(--error); margin-top: 4px;">⚠️ ${escapeHtml(log.error)}</div>` : ''}
+          `;
+        }
         logContent.appendChild(div);
       });
+      
+      // Add test summary for assertions
+      const assertions = result.logs.filter(l => l.output && l.output.assertion);
+      if (assertions.length > 0) {
+        const passed = assertions.filter(a => a.output.passed).length;
+        const total = assertions.length;
+        const allPassed = passed === total;
+        const summaryColor = allPassed ? 'var(--success)' : 'var(--error)';
+        const summaryBg = allPassed ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+        logContent.innerHTML += `
+          <div style="margin-top: 16px; padding: 12px; background: ${summaryBg}; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.2rem; font-weight: bold; color: ${summaryColor};">
+              ${allPassed ? '🎉' : '⚠️'} Test Results: ${passed}/${total} Passed
+            </div>
+          </div>
+        `;
+      }
     }
     
     if (result.status === 'error') {
-      logContent.innerHTML += `<div style="color: var(--error); font-weight: bold; margin-top: 8px;">Execution Failed: ${result.error}</div>`;
+      logContent.innerHTML += `<div style="color: var(--error); font-weight: bold; margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">❌ Execution Failed: ${escapeHtml(result.error)}</div>`;
     } else {
-      logContent.innerHTML += `<div style="color: var(--success); font-weight: bold; margin-top: 8px;">Execution Completed</div>`;
+      logContent.innerHTML += `<div style="color: var(--success); font-weight: bold; margin-top: 12px; padding: 8px; background: rgba(34, 197, 94, 0.1); border-radius: 6px;">✅ Execution Completed</div>`;
     }
     
   } catch (error) {
-    logContent.innerHTML = `<div style="color: var(--error);">Error: ${error.message}</div>`;
+    logContent.innerHTML = `<div style="color: var(--error); padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">❌ Error: ${escapeHtml(error.message)}</div>`;
   }
+}
+
+// Helper functions for node execution status
+function setNodeStatus(nodeId, status) {
+  const nodeEl = document.querySelector(`.workflow-node[data-id="${nodeId}"]`);
+  if (nodeEl) {
+    // Remove all status classes
+    nodeEl.classList.remove('status-pending', 'status-running', 'status-success', 'status-error');
+    // Add new status
+    if (status) {
+      nodeEl.classList.add(`status-${status}`);
+    }
+  }
+}
+
+function clearNodeStatuses() {
+  document.querySelectorAll('.workflow-node').forEach(node => {
+    node.classList.remove('status-pending', 'status-running', 'status-success', 'status-error');
+  });
 }
 
 
@@ -582,23 +818,249 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
   }
 }
 
-// Add styles dynamically for ports
+// Add enhanced styles for workflow nodes with glassmorphism and animations
 const style = document.createElement('style');
 style.textContent = `
+  /* ==========================================
+     WORKFLOW NODE STYLES (Enhanced)
+     ========================================== */
+  
+  .workflow-node {
+    min-width: 220px;
+    max-width: 280px;
+    background: rgba(30, 30, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    position: absolute;
+    z-index: 10;
+  }
+  
+  /* Disable all transitions during drag for smooth movement */
+  .workflow-node.dragging {
+    transition: none !important;
+  }
+  
+  .workflow-node.dragging:hover {
+    transform: none !important;
+  }
+  
+  .workflow-node:hover {
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(99, 102, 241, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  .workflow-node-header {
+    padding: 10px 14px;
+    border-radius: 12px 12px 0 0;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* Subtle shimmer effect on header */
+  .workflow-node-header::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transition: left 0.5s;
+  }
+  
+  .workflow-node:hover .workflow-node-header::after {
+    left: 100%;
+  }
+  
+  /* Port Styles (Enhanced) */
   .port {
-    width: 12px;
-    height: 12px;
-    background: var(--text-muted);
+    width: 14px;
+    height: 14px;
+    background: var(--text-muted, #64748b);
     border-radius: 50%;
     position: absolute;
     cursor: crosshair;
-    border: 1px solid var(--bg-card);
+    border: 2px solid var(--bg-card, #1e1e2a);
+    transition: all 0.2s ease;
+    z-index: 20;
   }
-  .port:hover { background: var(--primary); }
-  .port-in { top: 40px; left: -6px; }
-  .port-out { top: 40px; right: -6px; }
-  .workflow-node { transition: box-shadow 0.2s; }
-  .workflow-node:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+  
+  .port:hover {
+    background: var(--accent-primary, #6366f1);
+    transform: scale(1.3);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+  }
+  
+  .port-in {
+    top: 42px;
+    left: -7px;
+  }
+  
+  .port-out {
+    top: 42px;
+    right: -7px;
+  }
+  
+  /* Execution Status Animations */
+  .workflow-node.status-pending {
+    opacity: 0.6;
+  }
+  
+  .workflow-node.status-running {
+    border-color: var(--accent-primary, #6366f1);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4), 0 0 40px rgba(99, 102, 241, 0.2);
+    animation: node-pulse 1.5s ease-in-out infinite;
+  }
+  
+  .workflow-node.status-success {
+    border-color: var(--success, #22c55e);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+  }
+  
+  .workflow-node.status-error {
+    border-color: var(--error, #ef4444);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    animation: node-shake 0.5s ease;
+  }
+  
+  @keyframes node-pulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+    }
+    50% {
+      transform: scale(1.02);
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.6), 0 0 50px rgba(99, 102, 241, 0.3);
+    }
+  }
+  
+  @keyframes node-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  
+  /* Node Type Header Colors */
+  .workflow-node[data-type="trigger"] .workflow-node-header {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  }
+  
+  .workflow-node[data-type="tool"] .workflow-node-header {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  }
+  
+  .workflow-node[data-type="llm"] .workflow-node-header {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
+  
+  .workflow-node[data-type="javascript"] .workflow-node-header {
+    background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+  }
+  
+  /* Node Content Area */
+  .workflow-node-content {
+    padding: 12px;
+    background: transparent;
+  }
+  
+  .workflow-node-content label {
+    font-size: 0.7rem;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 4px;
+    display: block;
+  }
+  
+  .workflow-node-content select,
+  .workflow-node-content textarea,
+  .workflow-node-content input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: var(--text-primary, #f8fafc);
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    transition: all 0.2s ease;
+  }
+  
+  .workflow-node-content select:focus,
+  .workflow-node-content textarea:focus,
+  .workflow-node-content input:focus {
+    outline: none;
+    border-color: var(--accent-primary, #6366f1);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+  }
+  
+  .workflow-node-content textarea {
+    font-family: 'JetBrains Mono', monospace;
+    resize: vertical;
+  }
+  
+  /* Node Delete Button */
+  .workflow-node-delete {
+    width: 22px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.3);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    transition: all 0.2s ease;
+  }
+  
+  .workflow-node-delete:hover {
+    background: var(--error, #ef4444);
+    transform: scale(1.1);
+  }
+  
+  /* Workflow Canvas Enhancement */
+  #workflowCanvas {
+    background-color: var(--bg-surface, #1a1a24);
+    background-image: 
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  
+  /* SVG Connection Lines */
+  #workflowConnections path {
+    transition: stroke 0.2s ease;
+  }
+  
+  #workflowConnections path:hover {
+    stroke: var(--accent-primary, #6366f1) !important;
+    stroke-width: 3 !important;
+  }
+  
+  /* Light theme adjustments */
+  [data-theme='light'] .workflow-node {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  [data-theme='light'] .workflow-node-content select,
+  [data-theme='light'] .workflow-node-content textarea,
+  [data-theme='light'] .workflow-node-content input {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.15);
+  }
 `;
 document.head.appendChild(style);
 
@@ -616,14 +1078,18 @@ function escapeHtml(text) {
 // AI BUILDER
 // ==========================================
 
-function showAIBuilder() {
-  document.getElementById('aiBuilderModal').classList.add('active');
-  document.getElementById('aiBuilderPrompt').focus();
-}
-
-function hideAIBuilder() {
-  document.getElementById('aiBuilderModal').classList.remove('active');
-  document.getElementById('aiBuilderStatus').textContent = '';
+async function toggleAIBuilder() {
+  const sidebar = document.getElementById('aiBuilderSidebar');
+  
+  if (sidebar.style.transform === 'translateX(0%)') {
+    sidebar.style.transform = 'translateX(100%)';
+  } else {
+    sidebar.style.transform = 'translateX(0%)';
+    document.getElementById('aiBuilderPrompt').focus();
+    
+    // Refresh the model badge when opening
+    updateAIBuilderModelBadge();
+  }
 }
 
 async function generateWorkflow() {
@@ -637,38 +1103,58 @@ async function generateWorkflow() {
     // 1. Fetch available tools to give context to the LLM
     const toolsRes = await fetch('/api/mcp/tools');
     const toolsData = await toolsRes.json();
-    const availableTools = toolsData.tools.map(t => `${t.fullName} (${t.description || ''})`).join('\n');
     
-    // 2. Construct System Prompt
-    const systemPrompt = `You are an expert Workflow Architect. Your goal is to generate a JSON workflow structure based on the user's request.    
-    The workflow schema is:
-    {
-      "nodes": [
-        { "id": "trigger_start", "type": "trigger", "position": { "x": 50, "y": 50 }, "data": {} },
-        { "id": "tool_1", "type": "tool", "position": { "x": 350, "y": 50 }, "data": { "server": "server_name", "tool": "tool_name", "args": "{...}" } },
-        { "id": "llm_1", "type": "llm", "position": { "x": 650, "y": 50 }, "data": { "systemPrompt": "...", "prompt": "Analyze: {{tool_1.output}}" } }
-      ],
-      "edges": [
-        { "from": "trigger_start", "to": "tool_1" },
-        { "from": "tool_1", "to": "llm_1" }
-      ]
+    // Format tools with clear server and tool separation
+    const toolsByServer = {};
+    toolsData.tools.forEach(t => {
+      if (!toolsByServer[t.serverName]) toolsByServer[t.serverName] = [];
+      toolsByServer[t.serverName].push({ name: t.name, description: t.description || 'No description' });
+    });
+    
+    let toolList = '';
+    for (const [serverName, tools] of Object.entries(toolsByServer)) {
+      toolList += `\nServer: "${serverName}"\n`;
+      tools.forEach(t => {
+        toolList += `  - Tool: "${t.name}" - ${t.description}\n`;
+      });
     }
     
-    Node Types:
-    - trigger: Always the start.
-    - tool: Calls an MCP tool. data.server and data.tool MUST match available tools exactly.
-    - llm: Calls an AI model. Use {{prev_node_id.output}} for variable substitution.
-    - javascript: Runs custom code.
-    
-    Available Tools (use these exact names):
-    ${availableTools}
-    
-    Output ONLY raw valid JSON. No markdown formatting. No explanation.`;
+    // 2. Construct System Prompt
+    const systemPrompt = `You are an expert MCP Workflow Architect. 
+Build a workflow using the connected MCP tools.
+
+AVAILABLE TOOLS (use these exact names):
+${toolList}
+
+WORKFLOW JSON SCHEMA:
+{
+  "nodes": [
+    { "id": "trigger_start", "type": "trigger", "position": { "x": 50, "y": 100 }, "data": {} },
+    { "id": "tool_1", "type": "tool", "position": { "x": 350, "y": 100 }, "data": { "server": "EXACT_SERVER_NAME", "tool": "EXACT_TOOL_NAME", "args": "{\\"param\\": \\"value\\"}" } },
+    { "id": "llm_1", "type": "llm", "position": { "x": 650, "y": 100 }, "data": { "systemPrompt": "Analyze this output", "prompt": "Result: {{tool_1.output}}" } }
+  ],
+  "edges": [
+    { "from": "trigger_start", "to": "tool_1" },
+    { "from": "tool_1", "to": "llm_1" }
+  ]
+}
+
+CRITICAL RULES:
+1. "server" and "tool" in tool nodes MUST exactly match the names shown above
+2. "args" must be a JSON STRING (escaped quotes), not an object
+3. Return ONLY the JSON, no markdown, no explanation
+4. Position nodes horizontally: x increases by ~300 for each node
+
+NODE TYPES:
+- trigger: Starting point (always include one)
+- tool: Calls an MCP tool
+- llm: AI analysis/assertions
+- javascript: Custom code (use: context.steps.nodeId.output)
+`;
     
     statusEl.textContent = '🤖 Generating workflow design...';
     
-    // 3. Call LLM (using the chat endpoint but non-streaming if possible, or handle stream)
-    // We'll use the existing chat endpoint but treating it as a single request
+    // 3. Call LLM with useTools: false to prevent recursive execution
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -677,18 +1163,44 @@ async function generateWorkflow() {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
-        stream: false // We want the full JSON at once
+        stream: false,
+        useTools: false // CRITICAL: Don't let the LLM try to run tools during generation
       })
     });
     
     const data = await response.json();
+    
+    if (data.error) {
+        throw new Error(data.error);
+    }
+    
+    if (!data.choices || !data.choices[0]) {
+        throw new Error('Invalid response from LLM');
+    }
+
     let content = data.choices[0].message.content;
     
     // Clean up markdown code blocks if present
-    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    // Try to extract JSON object from response (LLMs sometimes add prose around it)
+    let jsonMatch = content.match(/\{[\s\S]*\}/); // Find first { to last }
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in response. The LLM may not have followed the format.');
+    }
+    content = jsonMatch[0];
     
     try {
       const workflow = JSON.parse(content);
+      
+      // Normalize node data - ensure args is a string
+      if (workflow.nodes) {
+        workflow.nodes.forEach(node => {
+          if (node.data && typeof node.data.args === 'object') {
+            node.data.args = JSON.stringify(node.data.args, null, 2);
+          }
+        });
+      }
       
       // Load into canvas
       workflowState.currentId = null; // New unsaved workflow
@@ -703,15 +1215,73 @@ async function generateWorkflow() {
       }
       
       renderWorkflow();
-      hideAIBuilder();
-      alert('✨ Workflow generated! Please review the tool arguments.');
+      statusEl.innerHTML = '<span style="color: var(--success)">✨ Done! Workflow generated.</span>';
       
     } catch (parseError) {
-      console.error(parseError);
-      statusEl.textContent = '❌ Failed to parse generated JSON. The LLM might have returned invalid format.';
+      console.error('JSON Parse Error:', parseError);
+      console.error('Content was:', content);
+      statusEl.innerHTML = `<span style="color: var(--error)">❌ Failed to parse: ${parseError.message}</span>`;
     }
     
   } catch (error) {
-    statusEl.textContent = `❌ Error: ${error.message}`;
+    statusEl.innerHTML = `<span style="color: var(--error)">❌ Error: ${error.message}</span>`;
   }
+}
+
+// ==========================================
+// EXPORT TO CODE
+// ==========================================
+
+function showExportModal() {
+  document.getElementById('exportCodeModal').classList.add('active');
+  generateExportCode();
+}
+
+function hideExportModal() {
+  document.getElementById('exportCodeModal').classList.remove('active');
+}
+
+async function generateExportCode() {
+  const format = document.getElementById('exportFormat').value;
+  const textarea = document.getElementById('exportCodePreview');
+  textarea.value = "Generating...";
+  
+  if (!workflowState.currentId) {
+    // Save first to get an ID (or just save state)
+    // Actually for export we might need backend to process it.
+    // Let's ensure it's saved.
+    await saveWorkflow();
+  }
+  
+  try {
+    const res = await fetch(`/api/workflows/${workflowState.currentId}/export?format=${format}`);
+    const code = await res.text();
+    textarea.value = code;
+  } catch(e) {
+    textarea.value = `Error generating code: ${e.message}`;
+  }
+}
+
+function copyExportCode() {
+  const textarea = document.getElementById('exportCodePreview');
+  textarea.select();
+  document.execCommand('copy');
+  alert('Code copied to clipboard!');
+}
+
+function downloadExportCode() {
+  const format = document.getElementById('exportFormat').value;
+  const code = document.getElementById('exportCodePreview').value;
+  const ext = format === 'python' ? 'py' : 'js';
+  const filename = `workflow_${workflowState.currentId || 'export'}.${ext}`;
+  
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

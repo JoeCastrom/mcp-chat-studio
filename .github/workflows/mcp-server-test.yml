@@ -1,0 +1,76 @@
+# MCP Server Testing Template
+# Copy this file to your MCP server repository as .github/workflows/test.yml
+
+name: MCP Server Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Test MCP Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Start MCP Chat Studio
+        run: |
+          # Clone MCP Chat Studio
+          git clone https://github.com/JoeCastrom/mcp-chat-studio.git ../mcp-chat-studio
+          cd ../mcp-chat-studio
+          npm ci
+
+          # Start server in background
+          npm start &
+
+          # Wait for server to be ready
+          sleep 10
+
+      - name: Test MCP server integration
+        run: |
+          cd ../mcp-chat-studio
+
+          # Add your MCP server to config
+          cat > test-config.yaml <<EOF
+          mcpServers:
+            test-server:
+              type: stdio
+              command: node
+              args:
+                - ${GITHUB_WORKSPACE}/dist/index.js
+              description: Test server
+          EOF
+
+          # Test server connection
+          curl -X POST http://localhost:3082/api/mcp/connect \
+            -H "Content-Type: application/json" \
+            -d '{"serverName": "test-server"}'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            coverage/
+            test-results/

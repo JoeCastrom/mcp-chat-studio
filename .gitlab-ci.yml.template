@@ -1,0 +1,75 @@
+# GitLab CI Template for MCP Servers
+# Copy this file to your MCP server repository as .gitlab-ci.yml
+
+image: node:20
+
+stages:
+  - lint
+  - test
+  - integration
+
+variables:
+  NODE_ENV: test
+
+cache:
+  paths:
+    - node_modules/
+
+before_script:
+  - npm ci
+
+lint:
+  stage: lint
+  script:
+    - npm run lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:
+  stage: test
+  script:
+    - npm test
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+      junit: junit.xml
+    paths:
+      - coverage/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+integration:
+  stage: integration
+  services:
+    - name: node:20
+      alias: mcp-chat-studio
+  script:
+    # Clone and start MCP Chat Studio
+    - git clone https://github.com/JoeCastrom/mcp-chat-studio.git ../mcp-chat-studio
+    - cd ../mcp-chat-studio && npm ci && npm start &
+    - sleep 10
+
+    # Test integration
+    - |
+      curl -X POST http://localhost:3082/api/mcp/add \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "test-server",
+          "config": {
+            "type": "stdio",
+            "command": "node",
+            "args": ["'$CI_PROJECT_DIR'/dist/index.js"]
+          }
+        }'
+
+    - |
+      curl -X POST http://localhost:3082/api/mcp/connect \
+        -H "Content-Type: application/json" \
+        -d '{"serverName": "test-server"}'
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

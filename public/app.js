@@ -391,6 +391,47 @@
         getBranch(id) {
           return this.getBranches().find(b => b.id === id);
         },
+
+        // ==========================================
+        // TOOL FAVORITES
+        // ==========================================
+        FAVORITES_KEY: 'mcp_chat_studio_favorites',
+
+        // Get all favorite tool IDs
+        getFavorites() {
+          try {
+            return JSON.parse(localStorage.getItem(this.FAVORITES_KEY)) || [];
+          } catch (e) {
+            return [];
+          }
+        },
+
+        // Toggle favorite status for a tool
+        toggleFavorite(toolFullName) {
+          const favorites = this.getFavorites();
+          const index = favorites.indexOf(toolFullName);
+          if (index >= 0) {
+            favorites.splice(index, 1);
+          } else {
+            favorites.push(toolFullName);
+          }
+          localStorage.setItem(this.FAVORITES_KEY, JSON.stringify(favorites));
+          return index < 0; // Returns true if now favorited
+        },
+
+        // Check if tool is favorited
+        isFavorite(toolFullName) {
+          return this.getFavorites().includes(toolFullName);
+        },
+
+        // Generate cURL command for a tool call
+        generateCurlCommand(serverName, toolName, args = {}) {
+          const url = `http://localhost:3000/api/mcp/call`;
+          const body = JSON.stringify({ serverName, toolName, args });
+          return `curl -X POST "${url}" \\
+  -H "Content-Type: application/json" \\
+  -d '${body.replace(/'/g, "'\"'\"'")}'`;
+        },
       };
 
       // ==========================================
@@ -557,6 +598,31 @@
           }
         }
 
+        // Ctrl+T: Quick tool search (same as Ctrl+K)
+        if (e.ctrlKey && e.key === 't') {
+          e.preventDefault();
+          const searchInput = document.getElementById('toolSearch');
+          if (searchInput) {
+            searchInput.select();
+          }
+        }
+
+        // Ctrl+R: Refresh all servers
+        if (e.ctrlKey && e.key === 'r') {
+          e.preventDefault();
+          location.reload();
+        }
+
+        // F5: Re-run last tool (disabled browser default)
+        if (e.key === 'F5') {
+          e.preventDefault();
+          // Rerun last inspector tool call if available
+          const lastTool = window.lastToolCall;
+          if (lastTool) {
+            executeTool(lastTool.server, lastTool.tool, lastTool.args);
+          }
+        }
+
         // Ctrl+Shift+E: Export chat
         if (e.ctrlKey && e.shiftKey && e.key === 'E') {
           e.preventDefault();
@@ -567,6 +633,16 @@
         if (e.ctrlKey && e.key === '/') {
           e.preventDefault();
           showShortcutsHelp();
+        }
+
+        // Ctrl+1-5: Switch tabs
+        if (e.ctrlKey && e.key >= '1' && e.key <= '5') {
+          e.preventDefault();
+          const tabs = ['chat', 'inspector', 'scenarios', 'history', 'workflows'];
+          const index = parseInt(e.key) - 1;
+          if (tabs[index]) {
+            switchTab(tabs[index]);
+          }
         }
       });
 
@@ -1580,6 +1656,35 @@
       // Update badge on page load
       updateModelBadge();
 
+      // Update workflow toolbar model badge
+      async function updateWorkflowModelBadge() {
+        try {
+          const response = await fetch('/api/llm/config', { credentials: 'include' });
+          const config = await response.json();
+
+          const providerEmojis = {
+            ollama: '🦙',
+            openai: '🤖',
+            anthropic: '🎭',
+            gemini: '💎',
+            azure: '☁️',
+            groq: '⚡',
+            together: '🤝',
+            openrouter: '🌐',
+          };
+
+          const iconEl = document.getElementById('workflowModelIcon');
+          const nameEl = document.getElementById('workflowModelName');
+          
+          if (iconEl && nameEl) {
+            iconEl.textContent = providerEmojis[config.provider] || '🤖';
+            nameEl.textContent = config.model || 'unknown';
+          }
+        } catch (e) {
+          console.error('Failed to update workflow model badge:', e);
+        }
+      }
+
       // ==========================================
       // TOOL SEARCH FILTER
       // ==========================================
@@ -1894,6 +1999,7 @@
         } else if (tabName === 'workflows') {
           document.getElementById('workflowsPanel').classList.add('active');
           if (workflowsTabBtn) workflowsTabBtn.classList.add('active');
+          updateWorkflowModelBadge(); // Show current model in workflow toolbar
         }
       }
 
@@ -1914,46 +2020,64 @@
               select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${info.toolCount} tools)</option>`;
             }
           }
-          
-          // Also populate Resources and Prompts server selects
+
+          // Also populate Resources, Prompts, Bulk Test, and Diff server selects
           const resourceSelect = document.getElementById('resourceServerSelect');
           const promptSelect = document.getElementById('promptServerSelect');
+          const bulkTestServerSelect = document.getElementById('bulkTestServerSelect');
+          const diffServerSelect = document.getElementById('diffServerSelect');
           if (resourceSelect) resourceSelect.innerHTML = select.innerHTML;
           if (promptSelect) promptSelect.innerHTML = select.innerHTML;
+          if (bulkTestServerSelect) bulkTestServerSelect.innerHTML = select.innerHTML;
+          if (diffServerSelect) diffServerSelect.innerHTML = select.innerHTML;
         } catch (error) {
           console.error('Failed to load servers:', error);
         }
       }
 
-      // Switch between Inspector sub-tabs (Tools, Resources, Prompts)
+      // Switch between Inspector sub-tabs (Tools, Resources, Prompts, Timeline, Bulk Test, Diff)
       function switchInspectorTab(tabName) {
-        const toolsPanel = document.getElementById('inspectorToolsPanel');
-        const resourcesPanel = document.getElementById('inspectorResourcesPanel');
-        const promptsPanel = document.getElementById('inspectorPromptsPanel');
-        const toolsTab = document.getElementById('inspectorToolsTab');
-        const resourcesTab = document.getElementById('inspectorResourcesTab');
-        const promptsTab = document.getElementById('inspectorPromptsTab');
+        const panels = {
+          tools: document.getElementById('inspectorToolsPanel'),
+          resources: document.getElementById('inspectorResourcesPanel'),
+          prompts: document.getElementById('inspectorPromptsPanel'),
+          timeline: document.getElementById('inspectorTimelinePanel'),
+          bulktest: document.getElementById('inspectorBulkTestPanel'),
+          diff: document.getElementById('inspectorDiffPanel')
+        };
 
-        // Hide all panels
-        if (toolsPanel) toolsPanel.style.display = 'none';
-        if (resourcesPanel) resourcesPanel.style.display = 'none';
-        if (promptsPanel) promptsPanel.style.display = 'none';
+        const tabs = {
+          tools: document.getElementById('inspectorToolsTab'),
+          resources: document.getElementById('inspectorResourcesTab'),
+          prompts: document.getElementById('inspectorPromptsTab'),
+          timeline: document.getElementById('inspectorTimelineTab'),
+          bulktest: document.getElementById('inspectorBulkTestTab'),
+          diff: document.getElementById('inspectorDiffTab')
+        };
 
-        // Remove active from all tabs
-        if (toolsTab) toolsTab.classList.remove('active');
-        if (resourcesTab) resourcesTab.classList.remove('active');
-        if (promptsTab) promptsTab.classList.remove('active');
+        // Hide all panels and remove active from all tabs
+        for (const [name, panel] of Object.entries(panels)) {
+          if (panel) panel.style.display = 'none';
+        }
+        for (const [name, tab] of Object.entries(tabs)) {
+          if (tab) tab.classList.remove('active');
+        }
 
-        // Show selected panel
-        if (tabName === 'tools') {
-          if (toolsPanel) toolsPanel.style.display = 'block';
-          if (toolsTab) toolsTab.classList.add('active');
-        } else if (tabName === 'resources') {
-          if (resourcesPanel) resourcesPanel.style.display = 'block';
-          if (resourcesTab) resourcesTab.classList.add('active');
-        } else if (tabName === 'prompts') {
-          if (promptsPanel) promptsPanel.style.display = 'block';
-          if (promptsTab) promptsTab.classList.add('active');
+        // Show selected panel and activate tab
+        if (panels[tabName]) {
+          panels[tabName].style.display = 'block';
+        }
+        if (tabs[tabName]) {
+          tabs[tabName].classList.add('active');
+        }
+
+        // Initialize new panels when switched to
+        if (tabName === 'timeline') {
+          loadTimelineServers();
+        } else if (tabName === 'bulktest') {
+          loadBulkTestServers();
+        } else if (tabName === 'diff') {
+          loadDiffServers();
         }
       }
 
@@ -5774,6 +5898,438 @@ main().catch(console.error);
           closeBranchesModal();
           showBranchesModal();
           appendMessage('system', `💾 Saved current conversation as "${name}"`);
+        }
+      }
+
+      // ==========================================
+      // ADVANCED INSPECTOR - TIMELINE
+      // ==========================================
+      let timelineSessionId = null;
+
+      async function loadTimelineServers() {
+        const select = document.getElementById('timelineServerFilter');
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+
+          select.innerHTML = '<option value="">All Servers</option>';
+          const servers = status.servers || status;
+          for (const [name, info] of Object.entries(servers)) {
+            if (info.connected) {
+              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load servers:', error);
+        }
+      }
+
+      async function startTimeline() {
+        try {
+          timelineSessionId = `session_${Date.now()}`;
+          const response = await fetch('/api/inspector/timeline/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: timelineSessionId }),
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            document.getElementById('timelineSessionStatus').textContent =
+              `✅ Tracking (Session: ${timelineSessionId})`;
+            document.getElementById('timelineSessionStatus').style.color = 'var(--success)';
+            appendMessage('system', `⏱️ Timeline tracking started`);
+          }
+        } catch (error) {
+          appendMessage('error', `Failed to start timeline: ${error.message}`);
+        }
+      }
+
+      async function refreshTimeline() {
+        if (!timelineSessionId) {
+          document.getElementById('timelineEvents').innerHTML =
+            '<div style="color: var(--text-muted); font-style: italic; padding: 12px">Start timeline tracking to see events...</div>';
+          return;
+        }
+
+        try {
+          const serverFilter = document.getElementById('timelineServerFilter').value;
+          const typeFilter = document.getElementById('timelineTypeFilter').value;
+
+          let url = `/api/inspector/timeline/${timelineSessionId}?limit=100`;
+          if (serverFilter) url += `&serverName=${encodeURIComponent(serverFilter)}`;
+          if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+
+          const response = await fetch(url, { credentials: 'include' });
+          const data = await response.json();
+
+          const eventsEl = document.getElementById('timelineEvents');
+          if (!data.events || data.events.length === 0) {
+            eventsEl.innerHTML = '<div style="color: var(--text-muted); font-style: italic; padding: 12px">No events captured yet...</div>';
+            return;
+          }
+
+          let html = '';
+          for (const event of data.events.reverse()) {
+            const time = new Date(event.timestamp).toLocaleTimeString();
+            const typeColor = event.type === 'error' ? 'var(--danger)' :
+                            event.type === 'response' ? 'var(--success)' : 'var(--info)';
+            const dirIcon = event.direction === 'outgoing' ? '→' : '←';
+
+            html += `
+              <div style="padding: 8px; border-bottom: 1px solid var(--border); font-family: monospace">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px">
+                  <span style="color: ${typeColor}; font-weight: 500">${dirIcon} ${event.type.toUpperCase()}</span>
+                  <span style="color: var(--text-muted)">${time}</span>
+                </div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary)">
+                  Server: ${escapeHtml(event.serverName || 'N/A')} | Method: ${escapeHtml(event.method || 'N/A')}
+                  ${event.duration ? ` | ${event.duration}ms` : ''}
+                </div>
+              </div>
+            `;
+          }
+          eventsEl.innerHTML = html;
+        } catch (error) {
+          console.error('Failed to refresh timeline:', error);
+        }
+      }
+
+      async function exportTimeline() {
+        if (!timelineSessionId) {
+          appendMessage('error', 'No timeline session active');
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/inspector/timeline/${timelineSessionId}/export?format=json`, {
+            credentials: 'include'
+          });
+          const text = await response.text();
+
+          const blob = new Blob([text], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `timeline-${timelineSessionId}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          appendMessage('system', '📥 Timeline exported');
+        } catch (error) {
+          appendMessage('error', `Export failed: ${error.message}`);
+        }
+      }
+
+      async function clearTimeline() {
+        if (!timelineSessionId) return;
+
+        try {
+          await fetch(`/api/inspector/timeline/${timelineSessionId}/clear`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+
+          document.getElementById('timelineEvents').innerHTML =
+            '<div style="color: var(--text-muted); font-style: italic; padding: 12px">Timeline cleared</div>';
+          timelineSessionId = null;
+          document.getElementById('timelineSessionStatus').textContent =
+            'Not tracking. Click "Start" to begin capturing messages.';
+          document.getElementById('timelineSessionStatus').style.color = 'var(--text-muted)';
+          appendMessage('system', '🗑️ Timeline cleared');
+        } catch (error) {
+          console.error('Failed to clear timeline:', error);
+        }
+      }
+
+      // ==========================================
+      // ADVANCED INSPECTOR - BULK TEST
+      // ==========================================
+      let bulkTestCache = [];
+
+      async function loadBulkTestServers() {
+        const select = document.getElementById('bulkTestServerSelect');
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+
+          select.innerHTML = '<option value="">-- Select Server --</option>';
+          const servers = status.servers || status;
+          for (const [name, info] of Object.entries(servers)) {
+            if (info.connected) {
+              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load servers:', error);
+        }
+      }
+
+      async function loadBulkTestTools() {
+        const serverName = document.getElementById('bulkTestServerSelect').value;
+        const toolSelect = document.getElementById('bulkTestToolSelect');
+
+        if (!serverName) {
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/mcp/tools', { credentials: 'include' });
+          const data = await response.json();
+
+          bulkTestCache = (data.tools || []).filter(t => t.serverName === serverName);
+
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          for (const tool of bulkTestCache) {
+            toolSelect.innerHTML += `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}</option>`;
+          }
+        } catch (error) {
+          console.error('Failed to load tools:', error);
+        }
+      }
+
+      async function runBulkTest() {
+        const serverName = document.getElementById('bulkTestServerSelect').value;
+        const toolName = document.getElementById('bulkTestToolSelect').value;
+        const inputsText = document.getElementById('bulkTestInputs').value.trim();
+        const parallel = document.getElementById('bulkTestParallel').checked;
+        const continueOnError = document.getElementById('bulkTestContinueOnError').checked;
+
+        if (!serverName || !toolName || !inputsText) {
+          appendMessage('error', 'Please select server, tool, and provide inputs');
+          return;
+        }
+
+        let inputs;
+        try {
+          inputs = JSON.parse(inputsText);
+          if (!Array.isArray(inputs)) {
+            throw new Error('Inputs must be a JSON array');
+          }
+        } catch (error) {
+          appendMessage('error', `Invalid JSON: ${error.message}`);
+          return;
+        }
+
+        const btn = document.getElementById('bulkTestRunBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Running...';
+
+        try {
+          const response = await fetch('/api/inspector/bulk-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serverName, toolName, inputs, parallel, continueOnError }),
+            credentials: 'include'
+          });
+
+          const results = await response.json();
+
+          // Show results
+          document.getElementById('bulkTestResultsSection').style.display = 'block';
+
+          // Summary
+          const summaryEl = document.getElementById('bulkTestSummary');
+          summaryEl.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+              <div><strong>Total:</strong> ${results.total}</div>
+              <div style="color: var(--success)"><strong>✓ Successful:</strong> ${results.successful}</div>
+              <div style="color: var(--danger)"><strong>✗ Failed:</strong> ${results.failed}</div>
+              <div><strong>Duration:</strong> ${results.duration}ms</div>
+              ${results.stats ? `
+                <div><strong>Avg Latency:</strong> ${Math.round(results.stats.avgDuration)}ms</div>
+                <div><strong>Min:</strong> ${Math.round(results.stats.minDuration)}ms</div>
+                <div><strong>Max:</strong> ${Math.round(results.stats.maxDuration)}ms</div>
+                <div><strong>p95:</strong> ${Math.round(results.stats.p95Duration)}ms</div>
+              ` : ''}
+            </div>
+          `;
+
+          // Results table
+          let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.7rem">';
+          html += '<thead><tr style="background: var(--bg-card); font-weight: 500"><th style="padding: 6px; text-align: left">#</th><th style="padding: 6px; text-align: left">Status</th><th style="padding: 6px; text-align: left">Duration</th><th style="padding: 6px; text-align: left">Output</th></tr></thead><tbody>';
+
+          for (const result of results.results) {
+            const statusColor = result.status === 'success' ? 'var(--success)' : 'var(--danger)';
+            const statusIcon = result.status === 'success' ? '✓' : '✗';
+            const output = result.error || JSON.stringify(result.output).substring(0, 100);
+
+            html += `
+              <tr style="border-bottom: 1px solid var(--border)">
+                <td style="padding: 6px">${result.index + 1}</td>
+                <td style="padding: 6px; color: ${statusColor}">${statusIcon} ${result.status}</td>
+                <td style="padding: 6px">${result.duration}ms</td>
+                <td style="padding: 6px; font-family: monospace; max-width: 300px; overflow: hidden; text-overflow: ellipsis">${escapeHtml(output)}</td>
+              </tr>
+            `;
+          }
+          html += '</tbody></table>';
+          document.getElementById('bulkTestResults').innerHTML = html;
+
+          appendMessage('system', `✅ Bulk test completed: ${results.successful}/${results.total} successful`);
+
+        } catch (error) {
+          appendMessage('error', `Bulk test failed: ${error.message}`);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '▶️ Run Bulk Test';
+        }
+      }
+
+      async function exportBulkTestResults() {
+        const results = document.getElementById('bulkTestResults').textContent;
+        if (!results) {
+          appendMessage('error', 'No results to export');
+          return;
+        }
+
+        const blob = new Blob([results], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bulk-test-results-${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        appendMessage('system', '📥 Results exported');
+      }
+
+      // ==========================================
+      // ADVANCED INSPECTOR - DIFF
+      // ==========================================
+      let diffToolsCache = [];
+
+      async function loadDiffServers() {
+        const select = document.getElementById('diffServerSelect');
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+
+          select.innerHTML = '<option value="">-- Select Server --</option>';
+          const servers = status.servers || status;
+          for (const [name, info] of Object.entries(servers)) {
+            if (info.connected) {
+              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load servers:', error);
+        }
+      }
+
+      async function loadDiffTools() {
+        const serverName = document.getElementById('diffServerSelect').value;
+        const toolSelect = document.getElementById('diffToolSelect');
+
+        if (!serverName) {
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/mcp/tools', { credentials: 'include' });
+          const data = await response.json();
+
+          diffToolsCache = (data.tools || []).filter(t => t.serverName === serverName);
+
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          for (const tool of diffToolsCache) {
+            toolSelect.innerHTML += `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}</option>`;
+          }
+        } catch (error) {
+          console.error('Failed to load tools:', error);
+        }
+      }
+
+      async function runDiff() {
+        const serverName = document.getElementById('diffServerSelect').value;
+        const toolName = document.getElementById('diffToolSelect').value;
+        const args1Text = document.getElementById('diffArgs1').value.trim();
+        const args2Text = document.getElementById('diffArgs2').value.trim();
+
+        if (!serverName || !toolName || !args1Text || !args2Text) {
+          appendMessage('error', 'Please select server, tool, and provide both argument sets');
+          return;
+        }
+
+        let args1, args2;
+        try {
+          args1 = JSON.parse(args1Text);
+          args2 = JSON.parse(args2Text);
+        } catch (error) {
+          appendMessage('error', `Invalid JSON: ${error.message}`);
+          return;
+        }
+
+        const btn = document.getElementById('diffRunBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Comparing...';
+
+        try {
+          const response = await fetch('/api/inspector/diff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              serverName,
+              toolName,
+              args1,
+              args2,
+              label1: 'Result A',
+              label2: 'Result B'
+            }),
+            credentials: 'include'
+          });
+
+          const diffResult = await response.json();
+
+          // Show results
+          document.getElementById('diffResultsSection').style.display = 'block';
+
+          // Similarity score
+          const similarity = (diffResult.similarity * 100).toFixed(1);
+          const similarityEl = document.getElementById('diffSimilarity');
+          similarityEl.innerHTML = `<strong>Similarity:</strong> ${similarity}% ${diffResult.identical ? '(Identical)' : ''}`;
+          similarityEl.style.color = diffResult.identical ? 'var(--success)' : 'var(--warning)';
+
+          // Diff view
+          let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">';
+
+          // Side A
+          html += `
+            <div>
+              <h4 style="margin: 0 0 8px 0; font-size: 0.85rem">${diffResult.label1}</h4>
+              <pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; margin: 0; font-size: 0.7rem">${escapeHtml(diffResult.text1)}</pre>
+            </div>
+          `;
+
+          // Side B
+          html += `
+            <div>
+              <h4 style="margin: 0 0 8px 0; font-size: 0.85rem">${diffResult.label2}</h4>
+              <pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; margin: 0; font-size: 0.7rem">${escapeHtml(diffResult.text2)}</pre>
+            </div>
+          `;
+
+          html += '</div>';
+
+          // Diff summary
+          if (diffResult.diff) {
+            const changes = diffResult.diff.filter(d => d.type !== 'unchanged').length;
+            html += `<div style="margin-top: 12px; padding: 8px; background: var(--bg-card); border-radius: 8px; font-size: 0.75rem">
+              <strong>Changes:</strong> ${changes} line(s) different
+            </div>`;
+          }
+
+          document.getElementById('diffResults').innerHTML = html;
+
+          appendMessage('system', `🔀 Diff completed: ${similarity}% similar`);
+
+        } catch (error) {
+          appendMessage('error', `Diff failed: ${error.message}`);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔀 Compare';
         }
       }
 

@@ -41,7 +41,7 @@
           class="model-badge"
           onclick="showTokenUsage()"
           title="Token usage this session (click for details)"
-          style="font-size: 0.7rem; padding: 4px 8px;"
+          style="font-size: 0.7rem; padding: 4px 8px"
         >
           <span>📊</span>
           <span id="tokenCount">0 tokens</span>
@@ -52,7 +52,7 @@
           class="btn"
           onclick="showBranchesModal()"
           title="Manage conversation branches"
-          style="font-size: 0.7rem; padding: 4px 8px;"
+          style="font-size: 0.7rem; padding: 4px 8px"
         >
           🌿 Branches
         </button>
@@ -121,9 +121,17 @@
         />
 
         <!-- Environment Profile -->
-        <div style="padding: 8px 12px; border-bottom: 1px solid var(--border);">
-          <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Environment</label>
-          <select id="envProfile" class="form-select" onchange="switchEnvironment(this.value)" style="width: 100%; font-size: 0.75rem; padding: 4px 8px;">
+        <div style="padding: 8px 12px; border-bottom: 1px solid var(--border)">
+          <label
+            style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px"
+            >Environment</label
+          >
+          <select
+            id="envProfile"
+            class="form-select"
+            onchange="switchEnvironment(this.value)"
+            style="width: 100%; font-size: 0.75rem; padding: 4px 8px"
+          >
             <option value="development">🛠️ Development</option>
             <option value="staging">🧪 Staging</option>
             <option value="production">🚀 Production</option>
@@ -190,11 +198,89 @@
 
         <!-- Chat Panel (default) -->
         <div class="content-panel active" id="chatPanel">
-          <div class="messages" id="messages">
-            <div class="message assistant">
-              👋 Welcome to <strong>MCP Chat Studio</strong>! I'm your AI assistant with MCP tool
-              support. Connect to MCP servers using the sidebar to enable powerful tools. Some
-              servers may require authentication - click "Login" to connect to secured services.
+          <!-- Chat Header / Toolbar -->
+          <div
+            style="
+              padding: 12px;
+              border-bottom: 1px solid var(--border);
+              background: var(--bg-card);
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <div style="font-weight: 600; display: flex; align-items: center; gap: 8px">
+              <span>💬 Chat Session</span>
+              <div
+                id="connectionStatus"
+                style="font-size: 0.7rem; font-weight: normal; color: var(--text-muted)"
+              ></div>
+            </div>
+            <div style="display: flex; gap: 8px">
+              <button
+                class="btn"
+                id="toggleBrainBtn"
+                onclick="toggleBrainView()"
+                title="Toggle Visualization"
+              >
+                🧠 Brain View
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex: 1; overflow: hidden; position: relative">
+            <!-- Messages Area -->
+            <div class="messages" id="messages" style="flex: 1; overflow-y: auto; padding: 20px">
+              <div class="message assistant">
+                👋 Welcome to <strong>MCP Chat Studio</strong>! I'm your AI assistant with MCP tool
+                support. Connect to MCP servers using the sidebar to enable powerful tools. Some
+                servers may require authentication - click "Login" to connect to secured services.
+              </div>
+            </div>
+
+            <!-- Brain Visualization Split Pane (Hidden by default) -->
+            <div
+              id="brainPanel"
+              style="
+                width: 0;
+                transition: width 0.3s ease;
+                border-left: 1px solid var(--border);
+                background: var(--bg-surface);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+              "
+            >
+              <div
+                style="
+                  padding: 8px;
+                  border-bottom: 1px solid var(--border);
+                  font-size: 0.75rem;
+                  font-weight: 600;
+                  color: var(--text-muted);
+                  background: var(--bg-card);
+                "
+              >
+                AGENT EXECUTION TRACE
+              </div>
+              <div id="brainGraph" style="flex: 1; overflow: auto; position: relative">
+                <svg
+                  id="brainConnections"
+                  style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 0;
+                  "
+                ></svg>
+                <div
+                  id="brainNodesContainer"
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1"
+                ></div>
+              </div>
             </div>
           </div>
 
@@ -227,11 +313,24 @@
                 <span>⚡ Stream</span>
               </label>
               <!-- System Prompt Selector -->
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <select id="systemPromptSelect" class="form-select" style="font-size: 0.75rem; padding: 4px 8px; min-width: 120px;" onchange="changeSystemPrompt(this.value)" title="System Prompt Persona">
+              <div style="display: flex; align-items: center; gap: 4px">
+                <select
+                  id="systemPromptSelect"
+                  class="form-select"
+                  style="font-size: 0.75rem; padding: 4px 8px; min-width: 120px"
+                  onchange="changeSystemPrompt(this.value)"
+                  title="System Prompt Persona"
+                >
                   <!-- Options populated by JS -->
                 </select>
-                <button class="btn" onclick="showPromptManager()" title="Manage Prompts" style="padding: 4px 6px; font-size: 0.7rem;">✏️</button>
+                <button
+                  class="btn"
+                  onclick="showPromptManager()"
+                  title="Manage Prompts"
+                  style="padding: 4px 6px; font-size: 0.7rem"
+                >
+                  ✏️
+                </button>
               </div>
               <div id="selectedToolBadge"></div>
             </div>
@@ -242,10 +341,64 @@
         <div class="content-panel" id="inspectorPanel">
           <div class="inspector-panel">
             <!-- Inspector Sub-tabs -->
-            <div class="inspector-subtabs" style="display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-              <button class="btn active" id="inspectorToolsTab" onclick="switchInspectorTab('tools')" style="font-size: 0.75rem; padding: 6px 12px;">🔧 Tools</button>
-              <button class="btn" id="inspectorResourcesTab" onclick="switchInspectorTab('resources')" style="font-size: 0.75rem; padding: 6px 12px;">📁 Resources</button>
-              <button class="btn" id="inspectorPromptsTab" onclick="switchInspectorTab('prompts')" style="font-size: 0.75rem; padding: 6px 12px;">💬 Prompts</button>
+            <div
+              class="inspector-subtabs"
+              style="
+                display: flex;
+                gap: 4px;
+                margin-bottom: 12px;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 8px;
+              "
+            >
+              <button
+                class="btn active"
+                id="inspectorToolsTab"
+                onclick="switchInspectorTab('tools')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                🔧 Tools
+              </button>
+              <button
+                class="btn"
+                id="inspectorResourcesTab"
+                onclick="switchInspectorTab('resources')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                📁 Resources
+              </button>
+              <button
+                class="btn"
+                id="inspectorPromptsTab"
+                onclick="switchInspectorTab('prompts')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                💬 Prompts
+              </button>
+              <button
+                class="btn"
+                id="inspectorTimelineTab"
+                onclick="switchInspectorTab('timeline')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                ⏱️ Timeline
+              </button>
+              <button
+                class="btn"
+                id="inspectorBulkTestTab"
+                onclick="switchInspectorTab('bulktest')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                📊 Bulk Test
+              </button>
+              <button
+                class="btn"
+                id="inspectorDiffTab"
+                onclick="switchInspectorTab('diff')"
+                style="font-size: 0.75rem; padding: 6px 12px"
+              >
+                🔀 Diff
+              </button>
             </div>
 
             <!-- Tools Sub-panel (default) -->
@@ -271,161 +424,350 @@
                 </div>
               </div>
 
-            <!-- Input Form -->
-            <div class="inspector-section" id="inspectorFormSection" style="display: none">
-              <h3>📝 Input Parameters</h3>
-              <div
-                id="inspectorToolDescription"
-                style="
-                  font-size: 0.8rem;
-                  color: var(--text-secondary);
-                  margin-bottom: var(--spacing-md);
-                "
-              ></div>
-              <div class="inspector-form" id="inspectorForm">
-                <!-- Dynamic fields will be generated here -->
-              </div>
-              <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm)">
-                <button
-                  class="btn primary"
-                  onclick="executeInspectorTool()"
-                  id="inspectorExecuteBtn"
-                >
-                  ▶️ Execute
-                </button>
-                <button class="btn" onclick="clearInspectorForm()">🗑️ Clear</button>
-              </div>
-            </div>
-
-            <!-- Response Display -->
-            <div class="inspector-section" id="inspectorResponseSection" style="display: none">
-              <h3>📤 Response</h3>
-              <div class="inspector-response-header" id="inspectorResponseHeader">
-                <div class="inspector-status" id="inspectorResponseStatus"></div>
-                <button
-                  class="btn"
-                  onclick="copyInspectorResponse()"
-                  style="font-size: 0.7rem; padding: 2px 8px"
-                >
-                  📋 Copy JSON
-                </button>
-              </div>
-              <div class="inspector-response" id="inspectorResponseBody"></div>
-            </div>
-
-            <!-- Protocol Log -->
-            <div class="inspector-section">
-              <h3 style="display: flex; justify-content: space-between; align-items: center">
-                <span>📜 Protocol Log</span>
-                <button
-                  class="btn"
-                  onclick="clearProtocolLog()"
-                  style="font-size: 0.65rem; padding: 2px 6px"
-                >
-                  🗑️ Clear
-                </button>
-              </h3>
-              <div id="protocolLog" style="max-height: 300px; overflow-y: auto; font-size: 0.75rem">
-                <div style="color: var(--text-muted); font-style: italic">
-                  Execute a tool to see protocol messages...
+              <!-- Input Form -->
+              <div class="inspector-section" id="inspectorFormSection" style="display: none">
+                <h3>📝 Input Parameters</h3>
+                <div
+                  id="inspectorToolDescription"
+                  style="
+                    font-size: 0.8rem;
+                    color: var(--text-secondary);
+                    margin-bottom: var(--spacing-md);
+                  "
+                ></div>
+                <div class="inspector-form" id="inspectorForm">
+                  <!-- Dynamic fields will be generated here -->
+                </div>
+                <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm)">
+                  <button
+                    class="btn primary"
+                    onclick="executeInspectorTool()"
+                    id="inspectorExecuteBtn"
+                  >
+                    ▶️ Execute
+                  </button>
+                  <button class="btn" onclick="clearInspectorForm()">🗑️ Clear</button>
                 </div>
               </div>
-            </div>
 
-            <!-- SSE Events Viewer -->
-            <div class="inspector-section">
-              <h3 style="display: flex; justify-content: space-between; align-items: center">
-                <span>📡 SSE Events</span>
-                <div style="display: flex; gap: 4px">
+              <!-- Response Display -->
+              <div class="inspector-section" id="inspectorResponseSection" style="display: none">
+                <h3>📤 Response</h3>
+                <div class="inspector-response-header" id="inspectorResponseHeader">
+                  <div class="inspector-status" id="inspectorResponseStatus"></div>
                   <button
-                    id="sseConnectBtn"
                     class="btn"
-                    onclick="toggleSSEViewer()"
-                    style="font-size: 0.65rem; padding: 2px 6px"
+                    onclick="copyInspectorResponse()"
+                    style="font-size: 0.7rem; padding: 2px 8px"
                   >
-                    🔌 Connect
+                    📋 Copy JSON
                   </button>
+                </div>
+                <div class="inspector-response" id="inspectorResponseBody"></div>
+              </div>
+
+              <!-- Protocol Log -->
+              <div class="inspector-section">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📜 Protocol Log</span>
                   <button
                     class="btn"
-                    onclick="clearSSEEvents()"
+                    onclick="clearProtocolLog()"
                     style="font-size: 0.65rem; padding: 2px 6px"
                   >
                     🗑️ Clear
                   </button>
+                </h3>
+                <div
+                  id="protocolLog"
+                  style="max-height: 300px; overflow-y: auto; font-size: 0.75rem"
+                >
+                  <div style="color: var(--text-muted); font-style: italic">
+                    Execute a tool to see protocol messages...
+                  </div>
                 </div>
-              </h3>
-              <div
-                id="sseStatus"
-                style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px"
-              >
-                Not connected - select an SSE server and click Connect
               </div>
-              <div id="sseEvents" style="max-height: 250px; overflow-y: auto; font-size: 0.75rem">
-                <div style="color: var(--text-muted); font-style: italic">
-                  Connect to an SSE server to see real-time events...
+
+              <!-- SSE Events Viewer -->
+              <div class="inspector-section">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📡 SSE Events</span>
+                  <div style="display: flex; gap: 4px">
+                    <button
+                      id="sseConnectBtn"
+                      class="btn"
+                      onclick="toggleSSEViewer()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      🔌 Connect
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="clearSSEEvents()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      🗑️ Clear
+                    </button>
+                  </div>
+                </h3>
+                <div
+                  id="sseStatus"
+                  style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px"
+                >
+                  Not connected - select an SSE server and click Connect
+                </div>
+                <div id="sseEvents" style="max-height: 250px; overflow-y: auto; font-size: 0.75rem">
+                  <div style="color: var(--text-muted); font-style: italic">
+                    Connect to an SSE server to see real-time events...
+                  </div>
                 </div>
               </div>
             </div>
-            </div> <!-- End Tools Sub-panel -->
+            <!-- End Tools Sub-panel -->
 
             <!-- Resources Sub-panel -->
-            <div id="inspectorResourcesPanel" style="display: none;">
+            <div id="inspectorResourcesPanel" style="display: none">
               <div class="inspector-section">
                 <h3>📁 MCP Resources</h3>
                 <div class="inspector-toolbar">
-                  <select class="form-select" id="resourceServerSelect" onchange="loadServerResources()">
+                  <select
+                    class="form-select"
+                    id="resourceServerSelect"
+                    onchange="loadServerResources()"
+                  >
                     <option value="">-- Select Server --</option>
                   </select>
-                  <button class="btn" onclick="loadServerResources()" style="font-size: 0.75rem; padding: 4px 8px;">🔄 Reload</button>
+                  <button
+                    class="btn"
+                    onclick="loadServerResources()"
+                    style="font-size: 0.75rem; padding: 4px 8px"
+                  >
+                    🔄 Reload
+                  </button>
                 </div>
               </div>
               <div class="inspector-section">
-                <div id="resourcesList" style="max-height: 400px; overflow-y: auto;">
-                  <div style="color: var(--text-muted); font-style: italic; padding: 12px;">
+                <div id="resourcesList" style="max-height: 400px; overflow-y: auto">
+                  <div style="color: var(--text-muted); font-style: italic; padding: 12px">
                     Select a server to view available resources...
                   </div>
                 </div>
               </div>
-              <div class="inspector-section" id="resourceContentSection" style="display: none;">
-                <h3 style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="inspector-section" id="resourceContentSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
                   <span>📄 Resource Content</span>
-                  <button class="btn" onclick="copyResourceContent()" style="font-size: 0.65rem; padding: 2px 6px;">📋 Copy</button>
+                  <button
+                    class="btn"
+                    onclick="copyResourceContent()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📋 Copy
+                  </button>
                 </h3>
-                <div id="resourceContent" style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 300px; overflow: auto;">
-                  <pre style="margin: 0; white-space: pre-wrap; font-size: 0.75rem;"></pre>
+                <div
+                  id="resourceContent"
+                  style="
+                    background: var(--bg-card);
+                    padding: 12px;
+                    border-radius: 8px;
+                    max-height: 300px;
+                    overflow: auto;
+                  "
+                >
+                  <pre style="margin: 0; white-space: pre-wrap; font-size: 0.75rem"></pre>
                 </div>
               </div>
             </div>
 
             <!-- Prompts Sub-panel -->
-            <div id="inspectorPromptsPanel" style="display: none;">
+            <div id="inspectorPromptsPanel" style="display: none">
               <div class="inspector-section">
                 <h3>💬 MCP Prompts</h3>
                 <div class="inspector-toolbar">
-                  <select class="form-select" id="promptServerSelect" onchange="loadServerPrompts()">
+                  <select
+                    class="form-select"
+                    id="promptServerSelect"
+                    onchange="loadServerPrompts()"
+                  >
                     <option value="">-- Select Server --</option>
                   </select>
-                  <button class="btn" onclick="loadServerPrompts()" style="font-size: 0.75rem; padding: 4px 8px;">🔄 Reload</button>
+                  <button
+                    class="btn"
+                    onclick="loadServerPrompts()"
+                    style="font-size: 0.75rem; padding: 4px 8px"
+                  >
+                    🔄 Reload
+                  </button>
                 </div>
               </div>
               <div class="inspector-section">
-                <div id="promptsList" style="max-height: 400px; overflow-y: auto;">
-                  <div style="color: var(--text-muted); font-style: italic; padding: 12px;">
+                <div id="promptsList" style="max-height: 400px; overflow-y: auto">
+                  <div style="color: var(--text-muted); font-style: italic; padding: 12px">
                     Select a server to view available prompts...
                   </div>
                 </div>
               </div>
-              <div class="inspector-section" id="promptPreviewSection" style="display: none;">
-                <h3 style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="inspector-section" id="promptPreviewSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
                   <span>📝 Prompt Preview</span>
-                  <button class="btn success" onclick="usePromptInChat()" style="font-size: 0.65rem; padding: 2px 8px;">💬 Use in Chat</button>
+                  <button
+                    class="btn success"
+                    onclick="usePromptInChat()"
+                    style="font-size: 0.65rem; padding: 2px 8px"
+                  >
+                    💬 Use in Chat
+                  </button>
                 </h3>
-                <div id="promptPreview" style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 300px; overflow: auto;">
-                  <pre style="margin: 0; white-space: pre-wrap; font-size: 0.75rem;"></pre>
+                <div
+                  id="promptPreview"
+                  style="
+                    background: var(--bg-card);
+                    padding: 12px;
+                    border-radius: 8px;
+                    max-height: 300px;
+                    overflow: auto;
+                  "
+                >
+                  <pre style="margin: 0; white-space: pre-wrap; font-size: 0.75rem"></pre>
                 </div>
               </div>
             </div>
 
+            <!-- Timeline Sub-panel -->
+            <div id="inspectorTimelinePanel" style="display: none">
+              <div class="inspector-section">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>⏱️ Message Timeline</span>
+                  <div style="display: flex; gap: 4px">
+                    <button class="btn" onclick="startTimeline()" style="font-size: 0.65rem; padding: 2px 6px">▶️ Start</button>
+                    <button class="btn" onclick="refreshTimeline()" style="font-size: 0.65rem; padding: 2px 6px">🔄 Refresh</button>
+                    <button class="btn" onclick="exportTimeline()" style="font-size: 0.65rem; padding: 2px 6px">📥 Export</button>
+                    <button class="btn" onclick="clearTimeline()" style="font-size: 0.65rem; padding: 2px 6px">🗑️ Clear</button>
+                  </div>
+                </h3>
+                <div style="margin-bottom: 12px">
+                  <div style="display: flex; gap: 8px; align-items: center; font-size: 0.75rem">
+                    <span>Filter:</span>
+                    <select class="form-select" id="timelineServerFilter" onchange="refreshTimeline()" style="flex: 1; max-width: 200px">
+                      <option value="">All Servers</option>
+                    </select>
+                    <select class="form-select" id="timelineTypeFilter" onchange="refreshTimeline()" style="flex: 1; max-width: 150px">
+                      <option value="">All Types</option>
+                      <option value="request">Requests</option>
+                      <option value="response">Responses</option>
+                      <option value="error">Errors</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="timelineSessionStatus" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px">
+                  Not tracking. Click "Start" to begin capturing messages.
+                </div>
+                <div id="timelineEvents" style="max-height: 500px; overflow-y: auto; font-size: 0.75rem">
+                  <div style="color: var(--text-muted); font-style: italic; padding: 12px">
+                    Start timeline tracking to see chronological message flow...
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bulk Test Sub-panel -->
+            <div id="inspectorBulkTestPanel" style="display: none">
+              <div class="inspector-section">
+                <h3>📊 Bulk Test</h3>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                  Execute a tool with multiple inputs and compare results
+                </p>
+                <div class="inspector-toolbar" style="margin-bottom: 12px">
+                  <select class="form-select" id="bulkTestServerSelect" onchange="loadBulkTestTools()">
+                    <option value="">-- Select Server --</option>
+                  </select>
+                  <select class="form-select" id="bulkTestToolSelect">
+                    <option value="">-- Select Tool --</option>
+                  </select>
+                </div>
+                <div style="margin-bottom: 12px">
+                  <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Test Inputs (JSON array of objects):</label>
+                  <textarea
+                    id="bulkTestInputs"
+                    class="form-control"
+                    rows="8"
+                    placeholder='[
+  {"param1": "value1", "param2": "value2"},
+  {"param1": "value3", "param2": "value4"},
+  {"param1": "value5", "param2": "value6"}
+]'
+                    style="font-family: 'Courier New', monospace; font-size: 0.75rem"
+                  ></textarea>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 0.75rem">
+                  <label style="display: flex; align-items: center; gap: 4px">
+                    <input type="checkbox" id="bulkTestParallel" checked />
+                    Run in parallel
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 4px">
+                    <input type="checkbox" id="bulkTestContinueOnError" checked />
+                    Continue on error
+                  </label>
+                </div>
+                <button class="btn primary" onclick="runBulkTest()" id="bulkTestRunBtn">▶️ Run Bulk Test</button>
+              </div>
+              <div class="inspector-section" id="bulkTestResultsSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📈 Results</span>
+                  <button class="btn" onclick="exportBulkTestResults()" style="font-size: 0.65rem; padding: 2px 6px">📥 Export</button>
+                </h3>
+                <div id="bulkTestSummary" style="margin-bottom: 12px; padding: 12px; background: var(--bg-card); border-radius: 8px; font-size: 0.75rem"></div>
+                <div id="bulkTestResults" style="max-height: 400px; overflow-y: auto; font-size: 0.75rem"></div>
+              </div>
+            </div>
+
+            <!-- Diff Sub-panel -->
+            <div id="inspectorDiffPanel" style="display: none">
+              <div class="inspector-section">
+                <h3>🔀 Result Diff</h3>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                  Compare two tool call results side-by-side
+                </p>
+                <div class="inspector-toolbar" style="margin-bottom: 12px">
+                  <select class="form-select" id="diffServerSelect" onchange="loadDiffTools()">
+                    <option value="">-- Select Server --</option>
+                  </select>
+                  <select class="form-select" id="diffToolSelect">
+                    <option value="">-- Select Tool --</option>
+                  </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px">
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Args A:</label>
+                    <textarea
+                      id="diffArgs1"
+                      class="form-control"
+                      rows="6"
+                      placeholder='{"param": "value1"}'
+                      style="font-family: 'Courier New', monospace; font-size: 0.75rem"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Args B:</label>
+                    <textarea
+                      id="diffArgs2"
+                      class="form-control"
+                      rows="6"
+                      placeholder='{"param": "value2"}'
+                      style="font-family: 'Courier New', monospace; font-size: 0.75rem"
+                    ></textarea>
+                  </div>
+                </div>
+                <button class="btn primary" onclick="runDiff()" id="diffRunBtn">🔀 Compare</button>
+              </div>
+              <div class="inspector-section" id="diffResultsSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📊 Comparison</span>
+                  <div id="diffSimilarity" style="font-size: 0.75rem"></div>
+                </h3>
+                <div id="diffResults" style="font-size: 0.75rem"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -459,12 +801,31 @@
                   </button>
                 </div>
               </h3>
-              <div id="toolHistoryStats" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px">
+              <div
+                id="toolHistoryStats"
+                style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px"
+              >
                 No tool executions recorded
               </div>
             </div>
-            <div id="toolHistoryList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 280px)">
-              <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+            <div
+              id="toolHistoryList"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                overflow-y: auto;
+                max-height: calc(100vh - 280px);
+              "
+            >
+              <div
+                style="
+                  color: var(--text-muted);
+                  font-style: italic;
+                  text-align: center;
+                  padding: 20px;
+                "
+              >
                 Execute tools from the Inspector tab to see history here...
               </div>
             </div>
@@ -513,11 +874,11 @@
                   </button>
                 </div>
               </h3>
-              <div id="suitesList" style="font-size: 0.75rem;">
-                <div style="color: var(--text-muted);">No test suites created yet.</div>
+              <div id="suitesList" style="font-size: 0.75rem">
+                <div style="color: var(--text-muted)">No test suites created yet.</div>
               </div>
             </div>
-            
+
             <!-- Saved Scenarios -->
             <div class="inspector-section">
               <h3 style="display: flex; justify-content: space-between; align-items: center">
@@ -539,12 +900,31 @@
                   </button>
                 </div>
               </h3>
-              <div id="scenariosStats" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px">
+              <div
+                id="scenariosStats"
+                style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px"
+              >
                 No scenarios saved
               </div>
             </div>
-            <div id="scenariosList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 350px)">
-              <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
+            <div
+              id="scenariosList"
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                overflow-y: auto;
+                max-height: calc(100vh - 350px);
+              "
+            >
+              <div
+                style="
+                  color: var(--text-muted);
+                  font-style: italic;
+                  text-align: center;
+                  padding: 20px;
+                "
+              >
                 Record tool executions from Inspector → Save as Scenario → Replay anytime
               </div>
             </div>
@@ -553,47 +933,178 @@
 
         <!-- Workflows Panel -->
         <div class="content-panel" id="workflowsPanel">
-          <div style="display: flex; height: 100%; overflow: hidden;">
+          <div style="display: flex; height: 100%; overflow: hidden">
             <!-- Workflow Sidebar -->
-            <div style="width: 250px; border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; background: var(--bg-card);">
-              <h3 style="margin-bottom: 12px; font-size: 1rem;">⛓️ Workflows</h3>
-              
-              <button class="btn primary" onclick="createNewWorkflow()" style="width: 100%; margin-bottom: 12px;">+ New Workflow</button>
-              
-              <div style="margin-bottom: 8px; font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">SAVED WORKFLOWS</div>
-              <div id="workflowList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                <div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Loading...</div>
+            <div
+              style="
+                width: 250px;
+                border-right: 1px solid var(--border);
+                padding: 12px;
+                display: flex;
+                flex-direction: column;
+                background: var(--bg-card);
+              "
+            >
+              <h3 style="margin-bottom: 12px; font-size: 1rem">⛓️ Workflows</h3>
+
+              <button
+                class="btn primary"
+                onclick="createNewWorkflow()"
+                style="width: 100%; margin-bottom: 12px"
+              >
+                + New Workflow
+              </button>
+
+              <div
+                style="
+                  margin-bottom: 8px;
+                  font-size: 0.75rem;
+                  font-weight: 500;
+                  color: var(--text-muted);
+                "
+              >
+                SAVED WORKFLOWS
+              </div>
+              <div
+                id="workflowList"
+                style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px"
+              >
+                <div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic">
+                  Loading...
+                </div>
               </div>
             </div>
-            
+
             <!-- Workflow Canvas Area -->
-            <div style="flex: 1; display: flex; flex-direction: column; position: relative;">
+            <div style="flex: 1; display: flex; flex-direction: column; position: relative">
               <!-- Toolbar -->
-              <div style="padding: 8px; border-bottom: 1px solid var(--border); background: var(--bg-surface); display: flex; gap: 8px; align-items: center;">
-                <input type="text" id="workflowName" class="form-input" placeholder="Workflow Name" style="width: 200px;">
+              <div
+                style="
+                  padding: 8px;
+                  border-bottom: 1px solid var(--border);
+                  background: var(--bg-surface);
+                  display: flex;
+                  gap: 8px;
+                  align-items: center;
+                "
+              >
+                <input
+                  type="text"
+                  id="workflowName"
+                  class="form-input"
+                  placeholder="Workflow Name"
+                  style="width: 200px"
+                />
                 <button class="btn" onclick="addNode('tool')">➕ Tool Node</button>
                 <button class="btn" onclick="addNode('llm')">➕ LLM Node</button>
                 <button class="btn" onclick="addNode('javascript')">➕ JS Node</button>
-                <div style="width: 1px; height: 20px; background: var(--border); margin: 0 8px;"></div>
-                <button class="btn success" onclick="showAIBuilder()" title="Build with AI">✨ AI Builder</button>
-                <div style="flex: 1;"></div>
+                <button class="btn" onclick="addNode('assert')" style="background: rgba(34, 197, 94, 0.2); border-color: var(--success);">✓ Assert</button>
+                <div
+                  style="width: 1px; height: 20px; background: var(--border); margin: 0 8px"
+                ></div>
+                <button class="btn success" onclick="toggleAIBuilder()" title="Build with AI">
+                  ✨ AI Builder
+                </button>
+                <button
+                  class="btn"
+                  onclick="showExportModal()"
+                  title="Export as Python Script"
+                  style="margin-left: 8px"
+                >
+                  📤 Export Code
+                </button>
+
+                <!-- LLM Model Indicator -->
+                <div
+                  id="workflowModelBadge"
+                  onclick="showSettingsModal()"
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 4px 10px;
+                    background: var(--bg-card);
+                    border: 1px solid var(--border);
+                    border-radius: 16px;
+                    cursor: pointer;
+                    font-size: 0.7rem;
+                  "
+                  title="LLM nodes will use this model. Click to change."
+                >
+                  <span id="workflowModelIcon">🦙</span>
+                  <span id="workflowModelName">Loading...</span>
+                </div>
+
+                <div style="flex: 1"></div>
                 <button class="btn primary" onclick="runWorkflow()">▶️ Run</button>
                 <button class="btn" onclick="saveWorkflow()">💾 Save</button>
               </div>
-              
+
               <!-- Canvas -->
-              <div id="workflowCanvas" style="flex: 1; position: relative; overflow: auto; background: var(--bg-surface); background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 20px 20px;">
+              <div
+                id="workflowCanvas"
+                style="
+                  flex: 1;
+                  position: relative;
+                  overflow: auto;
+                  background: var(--bg-surface);
+                  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+                  background-size: 20px 20px;
+                "
+              >
                 <!-- Nodes will be added here -->
-                <svg id="workflowConnections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"></svg>
+                <svg
+                  id="workflowConnections"
+                  style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 0;
+                  "
+                ></svg>
               </div>
-              
+
               <!-- Execution Log -->
-              <div id="workflowLogs" style="height: 200px; border-top: 1px solid var(--border); background: var(--bg-card); display: none; flex-direction: column;">
-                <div style="padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
-                  <span style="font-weight: 500;">Execution Log</span>
-                  <button class="btn" onclick="document.getElementById('workflowLogs').style.display='none'" style="font-size: 0.7rem;">✕</button>
+              <div
+                id="workflowLogs"
+                style="
+                  height: 200px;
+                  border-top: 1px solid var(--border);
+                  background: var(--bg-card);
+                  display: none;
+                  flex-direction: column;
+                "
+              >
+                <div
+                  style="
+                    padding: 8px;
+                    border-bottom: 1px solid var(--border);
+                    display: flex;
+                    justify-content: space-between;
+                  "
+                >
+                  <span style="font-weight: 500">Execution Log</span>
+                  <button
+                    class="btn"
+                    onclick="document.getElementById('workflowLogs').style.display = 'none'"
+                    style="font-size: 0.7rem"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <div id="workflowLogContent" style="flex: 1; overflow-y: auto; padding: 8px; font-family: monospace; font-size: 0.8rem;"></div>
+                <div
+                  id="workflowLogContent"
+                  style="
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 8px;
+                    font-family: monospace;
+                    font-size: 0.8rem;
+                  "
+                ></div>
               </div>
             </div>
           </div>
@@ -604,26 +1115,39 @@
           <div class="inspector-panel">
             <div class="inspector-section">
               <h3>⚙️ Mock MCP Server Generator</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">
-                Design tools visually and generate Python or Node.js starter code for your own MCP server.
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Design tools visually and generate Python or Node.js starter code for your own MCP
+                server.
               </p>
             </div>
 
             <!-- Server Settings -->
             <div class="inspector-section">
               <h3>📋 Server Settings</h3>
-              <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <div>
-                  <label style="font-size: 0.75rem; font-weight: 500;">Server Name</label>
-                  <input type="text" id="genServerName" class="form-input" placeholder="my-mcp-server" style="width: 100%;">
+                  <label style="font-size: 0.75rem; font-weight: 500">Server Name</label>
+                  <input
+                    type="text"
+                    id="genServerName"
+                    class="form-input"
+                    placeholder="my-mcp-server"
+                    style="width: 100%"
+                  />
                 </div>
                 <div>
-                  <label style="font-size: 0.75rem; font-weight: 500;">Description</label>
-                  <input type="text" id="genServerDesc" class="form-input" placeholder="A custom MCP server" style="width: 100%;">
+                  <label style="font-size: 0.75rem; font-weight: 500">Description</label>
+                  <input
+                    type="text"
+                    id="genServerDesc"
+                    class="form-input"
+                    placeholder="A custom MCP server"
+                    style="width: 100%"
+                  />
                 </div>
                 <div>
-                  <label style="font-size: 0.75rem; font-weight: 500;">Output Language</label>
-                  <select id="genLanguage" class="form-select" style="width: 100%;">
+                  <label style="font-size: 0.75rem; font-weight: 500">Output Language</label>
+                  <select id="genLanguage" class="form-select" style="width: 100%">
                     <option value="python">Python (mcp SDK)</option>
                     <option value="nodejs">Node.js (TypeScript)</option>
                   </select>
@@ -633,12 +1157,34 @@
 
             <!-- Tool Designer -->
             <div class="inspector-section">
-              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="display: flex; justify-content: space-between; align-items: center">
                 <span>🔧 Tool Designer</span>
-                <button class="btn" onclick="addGeneratorTool()" style="font-size: 0.65rem; padding: 2px 8px;">➕ Add Tool</button>
+                <button
+                  class="btn"
+                  onclick="addGeneratorTool()"
+                  style="font-size: 0.65rem; padding: 2px 8px"
+                >
+                  ➕ Add Tool
+                </button>
               </h3>
-              <div id="generatorToolsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
-                <div style="color: var(--text-muted); font-style: italic; padding: 12px; text-align: center;">
+              <div
+                id="generatorToolsList"
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                  max-height: 250px;
+                  overflow-y: auto;
+                "
+              >
+                <div
+                  style="
+                    color: var(--text-muted);
+                    font-style: italic;
+                    padding: 12px;
+                    text-align: center;
+                  "
+                >
                   No tools defined. Click "Add Tool" to start designing.
                 </div>
               </div>
@@ -646,59 +1192,196 @@
 
             <!-- Generate Actions -->
             <div class="inspector-section">
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn primary" onclick="generateMCPCode()" style="flex: 1;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                <button class="btn primary" onclick="generateMCPCode()" style="flex: 1">
                   🚀 Generate Code
                 </button>
-                <button class="btn" onclick="previewMCPCode()" style="flex: 1;">
-                  👁️ Preview
-                </button>
-                <button class="btn" onclick="clearGenerator()">
-                  🗑️ Clear
-                </button>
+                <button class="btn" onclick="previewMCPCode()" style="flex: 1">👁️ Preview</button>
+                <button class="btn" onclick="clearGenerator()">🗑️ Clear</button>
               </div>
             </div>
 
             <!-- Code Preview -->
-            <div class="inspector-section" id="generatorPreviewSection" style="display: none;">
-              <h3 style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="inspector-section" id="generatorPreviewSection" style="display: none">
+              <h3 style="display: flex; justify-content: space-between; align-items: center">
                 <span>📄 Generated Code</span>
-                <div style="display: flex; gap: 4px;">
-                  <button class="btn" onclick="copyGeneratedCode()" style="font-size: 0.65rem; padding: 2px 6px;">📋 Copy</button>
-                  <button class="btn success" onclick="downloadGeneratedCode()" style="font-size: 0.65rem; padding: 2px 6px;">📥 Download</button>
+                <div style="display: flex; gap: 4px">
+                  <button
+                    class="btn"
+                    onclick="copyGeneratedCode()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📋 Copy
+                  </button>
+                  <button
+                    class="btn success"
+                    onclick="downloadGeneratedCode()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📥 Download
+                  </button>
                 </div>
               </h3>
-              <pre id="generatorCodePreview" style="background: var(--bg-card); padding: 12px; border-radius: 8px; overflow: auto; max-height: 300px; font-size: 0.7rem;"></pre>
+              <pre
+                id="generatorCodePreview"
+                style="
+                  background: var(--bg-card);
+                  padding: 12px;
+                  border-radius: 8px;
+                  overflow: auto;
+                  max-height: 300px;
+                  font-size: 0.7rem;
+                "
+              ></pre>
             </div>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- AI Workflow Builder Modal -->
-    <div class="modal-overlay" id="aiBuilderModal">
-      <div class="modal" style="max-width: 600px">
+    <!-- AI Workflow Builder Sidebar -->
+    <div
+      id="aiBuilderSidebar"
+      style="
+        position: absolute;
+        top: 56px;
+        right: 0;
+        bottom: 0;
+        width: 400px;
+        background: var(--bg-card);
+        border-left: 1px solid var(--border);
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      "
+    >
+      <div
+        style="
+          padding: 12px;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: var(--bg-surface);
+        "
+      >
+        <h3
+          style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 6px"
+        >
+          ✨ AI Builder
+          <span
+            id="aiModelBadge"
+            style="
+              font-size: 0.65rem;
+              background: var(--bg-surface);
+              padding: 2px 6px;
+              border-radius: 10px;
+              border: 1px solid var(--border);
+              font-weight: normal;
+            "
+            >Loading...</span
+          >
+        </h3>
+        <button class="btn" onclick="toggleAIBuilder()" style="font-size: 0.7rem; padding: 4px 8px">
+          ✕
+        </button>
+      </div>
+
+      <div
+        style="
+          flex: 1;
+          padding: 16px;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        "
+      >
+        <div class="message system" style="font-size: 0.8rem">
+          Describe your testing goal. I'll build a workflow using your
+          <strong>connected tools</strong>.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Goal</label>
+          <textarea
+            id="aiBuilderPrompt"
+            class="form-input"
+            rows="6"
+            placeholder="e.g. Call 'list_files' on the filesystem server, then loop through them and check if 'package.json' exists using an LLM node."
+            style="resize: vertical"
+          ></textarea>
+        </div>
+
+        <div
+          id="aiBuilderStatus"
+          style="font-size: 0.75rem; color: var(--text-muted); min-height: 20px"
+        ></div>
+      </div>
+
+      <div
+        style="padding: 12px; border-top: 1px solid var(--border); background: var(--bg-surface)"
+      >
+        <button class="btn primary" onclick="generateWorkflow()" style="width: 100%">
+          🚀 Generate Workflow
+        </button>
+      </div>
+    </div>
+
+    <!-- Export Code Modal -->
+    <div class="modal-overlay" id="exportCodeModal">
+      <div
+        class="modal"
+        style="max-width: 800px; height: 80vh; display: flex; flex-direction: column"
+      >
         <div class="modal-header">
-          <h2 class="modal-title">✨ AI Workflow Builder</h2>
-          <button class="modal-close" onclick="hideAIBuilder()">
+          <h2 class="modal-title">📤 Export Workflow as Code</h2>
+          <button class="modal-close" onclick="hideExportModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
         </div>
-        
-        <div class="form-group">
-          <label class="form-label">Describe your workflow</label>
-          <textarea id="aiBuilderPrompt" class="form-input" rows="4" placeholder="Example: Get the latest issue from the 'mcp-chat-studio' repo, then use an LLM to summarize it, and finally save the summary to a file."></textarea>
-          <div class="form-hint">I'll use your connected tools to build this for you.</div>
+
+        <div
+          style="
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+          "
+        >
+          <select id="exportFormat" class="form-select" onchange="generateExportCode()">
+            <option value="python">🐍 Python (mcp SDK)</option>
+            <option value="nodejs">📦 Node.js (Coming Soon)</option>
+          </select>
+          <div style="flex: 1"></div>
+          <button class="btn" onclick="copyExportCode()">📋 Copy to Clipboard</button>
+          <button class="btn primary" onclick="downloadExportCode()">📥 Download File</button>
         </div>
 
-        <div id="aiBuilderStatus" style="margin-bottom: 12px; font-size: 0.8rem; color: var(--text-muted); min-height: 20px;"></div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn" onclick="hideAIBuilder()">Cancel</button>
-          <button type="button" class="btn primary" onclick="generateWorkflow()">🚀 Generate</button>
+        <div style="flex: 1; overflow: hidden; position: relative">
+          <textarea
+            id="exportCodePreview"
+            style="
+              width: 100%;
+              height: 100%;
+              border: none;
+              padding: 16px;
+              background: var(--bg-surface);
+              color: var(--text-primary);
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 0.8rem;
+              resize: none;
+            "
+            readonly
+          ></textarea>
         </div>
       </div>
     </div>
@@ -726,7 +1409,12 @@
         <div style="margin-bottom: var(--spacing-md)">
           <label class="form-label">📦 Quick Templates</label>
           <div style="display: flex; gap: var(--spacing-sm)">
-            <select class="form-select" id="serverTemplate" onchange="applyServerTemplate()" style="flex: 1">
+            <select
+              class="form-select"
+              id="serverTemplate"
+              onchange="applyServerTemplate()"
+              style="flex: 1"
+            >
               <option value="">-- Select a template --</option>
               <optgroup label="Official MCP Servers">
                 <option value="github">🐙 GitHub (requires token)</option>
@@ -738,17 +1426,34 @@
               <optgroup label="SSE Examples">
                 <option value="sse-example">🌐 SSE Server (example URL)</option>
               </optgroup>
-              <optgroup id="customTemplatesGroup" label="📌 My Templates" style="display: none">
-              </optgroup>
+              <optgroup
+                id="customTemplatesGroup"
+                label="📌 My Templates"
+                style="display: none"
+              ></optgroup>
             </select>
-            <button type="button" class="btn" onclick="saveAsCustomTemplate()" title="Save current form as template" style="white-space: nowrap">
+            <button
+              type="button"
+              class="btn"
+              onclick="saveAsCustomTemplate()"
+              title="Save current form as template"
+              style="white-space: nowrap"
+            >
               💾 Save
             </button>
-            <button type="button" class="btn" onclick="manageCustomTemplates()" title="Delete custom templates" style="white-space: nowrap">
+            <button
+              type="button"
+              class="btn"
+              onclick="manageCustomTemplates()"
+              title="Delete custom templates"
+              style="white-space: nowrap"
+            >
               🗑️
             </button>
           </div>
-          <div class="form-hint">Select a template to auto-fill, save your own 💾, or delete 🗑️</div>
+          <div class="form-hint">
+            Select a template to auto-fill, save your own 💾, or delete 🗑️
+          </div>
         </div>
 
         <!-- Import YAML/JSON Button -->
@@ -1054,5 +1759,6 @@ env:
 
     <script src="app.js"></script>
     <script src="workflow.js"></script>
+    <script src="brain.js"></script>
   </body>
 </html>

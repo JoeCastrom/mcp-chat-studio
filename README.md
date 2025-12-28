@@ -39,7 +39,11 @@ npm run dev
 | -------------------------------- | :-------------: | :--------------: | :--------------: |
 | Test ALL tools automatically     |       ✅        |        ❌        |        ❌        |
 | Record & Replay scenarios        |       ✅        |        ❌        |        ❌        |
+| Workflow debugger (breakpoints)  |       ✅        |        ❌        |        ❌        |
+| Bulk testing (multiple inputs)   |       ✅        |        ❌        |        ❌        |
 | Response diffing                 |       ✅        |        ❌        |        ❌        |
+| Contract testing                 |       ✅        |        ❌        |        ❌        |
+| Tool usage analytics             |       ✅        |        ❌        |        ❌        |
 | Custom assertions (14 operators) |       ✅        |        ❌        |        ❌        |
 | Low-level MCP debugging          |       ✅        |        ❌        |        ❌        |
 | Mock server generator            |       ✅        |        ❌        |        ❌        |
@@ -50,7 +54,39 @@ npm run dev
 
 ---
 
-## 🎨 NEW: Visual MCP Server Generator
+## 🎨 NEW in v1.3: Advanced Testing & Debugging Suite
+
+### 🐛 Workflow Debugger
+Debug complex workflows with professional debugging tools:
+- **Breakpoint debugging** - Pause execution at any node
+- **Step-through mode** - Execute one node at a time
+- **Variable inspection** - View inputs, outputs, and context
+- **Session management** - Pause, resume, step, or abort
+
+### 🔍 Advanced Inspector
+Three powerful new testing tools:
+- **📊 Timeline** - Chronological log of all JSON-RPC messages
+- **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
+- **🔀 Diff** - Side-by-side comparison with similarity scoring
+
+### 📋 Contract Testing
+Consumer-driven contract testing for MCP servers:
+- **Define contracts** - Specify expected tool behavior
+- **Multiple assertions** - Schema, contains, equals, response time, custom
+- **Auto-generation** - Generate contracts from tool schemas
+- **Version tracking** - Track contract changes over time
+
+### 📊 Tool Explorer & Analytics
+Real-time usage statistics and performance metrics:
+- **Usage tracking** - Calls, success rates, latency per tool
+- **Performance metrics** - p50/p95/p99 latency tracking
+- **Error monitoring** - Recent errors per tool
+- **Leaderboards** - Most-used tools across servers
+- **Health dashboard** - System-wide health overview
+
+---
+
+## 🎨 Visual MCP Server Generator
 
 Create production-ready MCP servers without writing boilerplate code!
 
@@ -151,6 +187,41 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Protocol log** - See raw MCP request/response JSON
 - **SSE event viewer** - Real-time server events for SSE transports
 - **Resources/Prompts API** - Full MCP protocol support
+- **Timeline** - Chronological JSON-RPC message log with filtering
+- **Bulk Testing** - Execute tools with arrays of inputs
+- **Diff Tool** - Side-by-side result comparison with similarity %
+
+### 🐛 Workflow Debugger
+
+- **Breakpoint debugging** - Set breakpoints on any workflow node
+- **Step-through execution** - Execute workflows one node at a time
+- **Variable inspection** - View all context, inputs, and outputs
+- **Pause/Resume/Abort** - Full execution control
+- **Debug sessions** - Multiple concurrent debug sessions
+- **Execution log** - Complete history of node executions
+- **11 API endpoints** - Full REST API for debugging
+
+### 📋 Contract Testing Suite
+
+- **Define contracts** - JSON-based contract definitions
+- **Schema assertions** - Validate response structure
+- **Response time limits** - Performance SLAs
+- **Custom assertions** - Path-based queries with operators
+- **Auto-generation** - Create contracts from tool schemas
+- **Version tracking** - Contract versioning and updates
+- **CRUD API** - Full contract lifecycle management
+- **Test reporting** - Detailed pass/fail with error messages
+
+### 📊 Tool Explorer & Analytics
+
+- **Usage statistics** - Total calls, success/failure rates
+- **Performance metrics** - p50/p95/p99 latency percentiles
+- **Error tracking** - Last 10 errors per tool
+- **Leaderboard** - Most-used tools across servers
+- **Health dashboard** - System-wide health overview
+- **Trend analysis** - Usage patterns over time
+- **Automatic tracking** - Zero-config usage recording
+- **Export stats** - CSV/JSON export for reporting
 
 ### 📤 Config Export/Import
 

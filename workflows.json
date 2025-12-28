@@ -1,1 +1,405 @@
-[]
+[
+  {
+    "id": "wf_1766926342680",
+    "name": "Open Paint Test",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "trigger",
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "data": {}
+      },
+      {
+        "id": "tool_1766926228697",
+        "type": "tool",
+        "position": {
+          "x": 70,
+          "y": 70
+        },
+        "data": {
+          "server": "windows",
+          "tool": "Launch-Tool",
+          "args": "{\"name\": \"paint\"}"
+        }
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T12:52:22.680Z",
+    "updatedAt": "2025-12-28T12:52:22.680Z"
+  },
+  {
+    "id": "wf_1766926589661",
+    "name": "New Workflow",
+    "nodes": [
+      {
+        "id": "trigger_start",
+        "type": "trigger",
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "data": {}
+      },
+      {
+        "id": "tool_node_paint",
+        "type": "tool",
+        "position": {
+          "x": 300,
+          "y": 100
+        },
+        "data": {
+          "server": "windows__Launch-Tool",
+          "tool": "launch",
+          "args": {
+            "app_name": "paint"
+          }
+        }
+      },
+      {
+        "id": "tool_node_notepad",
+        "type": "tool",
+        "position": {
+          "x": 300,
+          "y": 200
+        },
+        "data": {
+          "server": "windows__Launch-Tool",
+          "tool": "launch",
+          "args": {
+            "app_name": "notepad"
+          }
+        }
+      },
+      {
+        "id": "llm_node_assertions",
+        "type": "llm",
+        "position": {
+          "x": 550,
+          "y": 300
+        },
+        "data": {
+          "systemPrompt": "Both applications are now open.",
+          "prompt": "Paint and Notepad are open. Check the output of both tools."
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_start",
+        "to": "tool_node_paint"
+      },
+      {
+        "from": "tool_node_paint",
+        "to": "llm_node_assertions"
+      },
+      {
+        "from": "trigger_start",
+        "to": "tool_node_notepad"
+      }
+    ],
+    "createdAt": "2025-12-28T12:56:29.661Z",
+    "updatedAt": "2025-12-28T12:56:29.661Z"
+  },
+  {
+    "id": "wf_1766928297959",
+    "name": "New Workflow",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "trigger",
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "data": {}
+      },
+      {
+        "id": "llm_1766928134061",
+        "type": "llm",
+        "position": {
+          "x": 70,
+          "y": 70
+        },
+        "data": {}
+      },
+      {
+        "id": "javascript_1766928157494",
+        "type": "javascript",
+        "position": {
+          "x": 90,
+          "y": 90
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T13:24:57.959Z",
+    "updatedAt": "2025-12-28T13:24:57.959Z"
+  },
+  {
+    "id": "wf_1766928934186",
+    "name": "",
+    "nodes": [],
+    "edges": [],
+    "createdAt": "2025-12-28T13:35:34.186Z",
+    "updatedAt": "2025-12-28T13:35:34.186Z"
+  },
+  {
+    "id": "test_wf_1766941708809",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T17:08:28.809Z",
+    "updatedAt": "2025-12-28T17:08:28.810Z"
+  },
+  {
+    "id": "test_assert_1766941708811",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      },
+      {
+        "id": "assert_1",
+        "type": "assert",
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "data": {
+          "condition": "contains",
+          "expected": "success"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "assert_1"
+      }
+    ],
+    "createdAt": "2025-12-28T17:08:28.833Z",
+    "updatedAt": "2025-12-28T17:08:28.833Z"
+  },
+  {
+    "id": "test_wf_1766943424785",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T17:37:04.785Z",
+    "updatedAt": "2025-12-28T17:37:04.786Z"
+  },
+  {
+    "id": "test_assert_1766943424787",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      },
+      {
+        "id": "assert_1",
+        "type": "assert",
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "data": {
+          "condition": "contains",
+          "expected": "success"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "assert_1"
+      }
+    ],
+    "createdAt": "2025-12-28T17:37:04.809Z",
+    "updatedAt": "2025-12-28T17:37:04.809Z"
+  },
+  {
+    "id": "test_wf_1766943903820",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T17:45:03.820Z",
+    "updatedAt": "2025-12-28T17:45:03.821Z"
+  },
+  {
+    "id": "test_assert_1766943903822",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      },
+      {
+        "id": "assert_1",
+        "type": "assert",
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "data": {
+          "condition": "contains",
+          "expected": "success"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "assert_1"
+      }
+    ],
+    "createdAt": "2025-12-28T17:45:03.844Z",
+    "updatedAt": "2025-12-28T17:45:03.844Z"
+  },
+  {
+    "id": "test_wf_1766955369060",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T20:56:09.060Z",
+    "updatedAt": "2025-12-28T20:56:09.061Z"
+  },
+  {
+    "id": "test_assert_1766955369062",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      },
+      {
+        "id": "assert_1",
+        "type": "assert",
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "data": {
+          "condition": "contains",
+          "expected": "success"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "assert_1"
+      }
+    ],
+    "createdAt": "2025-12-28T20:56:09.074Z",
+    "updatedAt": "2025-12-28T20:56:09.074Z"
+  },
+  {
+    "id": "test_wf_1766956226316",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      }
+    ],
+    "edges": [],
+    "createdAt": "2025-12-28T21:10:26.316Z",
+    "updatedAt": "2025-12-28T21:10:26.317Z"
+  },
+  {
+    "id": "test_assert_1766956226318",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {}
+      },
+      {
+        "id": "assert_1",
+        "type": "assert",
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "data": {
+          "condition": "contains",
+          "expected": "success"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "assert_1"
+      }
+    ],
+    "createdAt": "2025-12-28T21:10:26.338Z",
+    "updatedAt": "2025-12-28T21:10:26.338Z"
+  }
+]
