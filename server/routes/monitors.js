@@ -96,7 +96,7 @@ router.get('/:id', (req, res) => {
  *                 type: string
  *               schedule:
  *                 type: string
- *                 description: "Format: 5m, 1h, 30s, or cron */5 * * * *"
+ *                 description: "Format: 5m, 1h, 30s, or cron expression"
  *               environment:
  *                 type: object
  *               enabled:
