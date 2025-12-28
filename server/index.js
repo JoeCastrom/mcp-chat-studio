@@ -31,6 +31,11 @@ import performanceRoutes from './routes/performance.js';
 import inspectorRoutes from './routes/inspector.js';
 import contractsRoutes from './routes/contracts.js';
 import toolexplorerRoutes from './routes/toolexplorer.js';
+import collectionsRoutes from './routes/collections.js';
+import monitorsRoutes from './routes/monitors.js';
+import mocksRoutes from './routes/mocks.js';
+import scriptsRoutes from './routes/scripts.js';
+import documentationRoutes from './routes/documentation.js';
 import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -41,7 +46,7 @@ const swaggerOptions = {
     openapi: '3.0.0',
     info: {
       title: 'MCP Chat Studio API',
-      version: '1.3.0',
+      version: '1.5.0',
       description: 'API for MCP Chat Studio - Multi-provider LLM support with MCP tool integration, debugging, testing, and analytics',
       contact: {
         name: 'MCP Chat Studio',
@@ -58,6 +63,11 @@ const swaggerOptions = {
       { name: 'Inspector', description: 'Advanced inspector features (timeline, bulk testing, diff)' },
       { name: 'Contracts', description: 'Consumer-driven contract testing' },
       { name: 'ToolExplorer', description: 'Tool usage statistics and metrics' },
+      { name: 'Collections', description: 'Organize scenarios into collections (like Postman)' },
+      { name: 'Monitors', description: 'Scheduled test execution (like Postman Monitors)' },
+      { name: 'Mocks', description: 'Runtime mock MCP servers (like Postman Mock Servers)' },
+      { name: 'Scripts', description: 'Pre-request and post-response scripts (like Postman scripts)' },
+      { name: 'Documentation', description: 'Auto-generate server documentation' },
       { name: 'LLM', description: 'LLM configuration' },
       { name: 'OAuth', description: 'OAuth authentication' }
     ]
@@ -256,6 +266,11 @@ app.use('/api/performance', generalLimiter, performanceRoutes);
 app.use('/api/inspector', generalLimiter, inspectorRoutes);
 app.use('/api/contracts', generalLimiter, contractsRoutes);
 app.use('/api/toolexplorer', generalLimiter, toolexplorerRoutes);
+app.use('/api/collections', generalLimiter, collectionsRoutes);
+app.use('/api/monitors', generalLimiter, monitorsRoutes);
+app.use('/api/mocks', generalLimiter, mocksRoutes);
+app.use('/api/scripts', generalLimiter, scriptsRoutes);
+app.use('/api/documentation', generalLimiter, documentationRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 
@@ -336,12 +351,24 @@ process.on('SIGINT', async () => {
   console.log('\nShutting down...');
   const mcpManager = getMCPManager();
   await mcpManager.shutdown();
+
+  // Shutdown monitors
+  const { getMonitorManager } = await import('./services/MonitorManager.js');
+  const monitorManager = getMonitorManager();
+  monitorManager.shutdown();
+
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   const mcpManager = getMCPManager();
   await mcpManager.shutdown();
+
+  // Shutdown monitors
+  const { getMonitorManager } = await import('./services/MonitorManager.js');
+  const monitorManager = getMonitorManager();
+  monitorManager.shutdown();
+
   process.exit(0);
 });
 

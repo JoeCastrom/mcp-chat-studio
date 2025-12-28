@@ -5,6 +5,249 @@ All notable changes to MCP Chat Studio will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-29
+
+### 🚀 Major Features
+
+**Collections System (like Postman):**
+- ✨ **Organize scenarios** - Group test scenarios into logical collections
+- ✨ **Environment variables** - Define variables at collection level
+- ✨ **Authentication support** - Collection-level auth configuration
+- ✨ **Run entire collections** - Execute all scenarios with one API call
+- ✨ **Fork/Clone collections** - Duplicate collections for variations
+- ✨ **Import/Export** - Share collections as JSON files
+- ✨ **Version control friendly** - Collections stored as JSON in `collections/` directory
+- ✨ **12 API endpoints** - Complete CRUD + run/fork/import/export at `/api/collections/*`
+
+**CLI Runner (like newman):**
+- ✨ **Command-line testing** - Run collections from terminal with `mcp-test` command
+- ✨ **Multiple reporters** - CLI (color-coded), JSON, JUnit formats
+- ✨ **CI/CD integration** - Exit codes and JUnit XML for Jenkins/GitLab
+- ✨ **Environment files** - Load variables from JSON files
+- ✨ **Execution options** - Control delay, iterations, timeout, bail on error
+- ✨ **Collection validation** - Validate collection structure before running
+- ✨ **Result export** - Save results to files for analysis
+- ✨ **3 commands** - `run`, `list`, `validate` with full option support
+
+**Monitors (like Postman Monitors):**
+- ✨ **Scheduled execution** - Run collections automatically on a schedule
+- ✨ **Flexible scheduling** - Simple formats (5m, 1h, 30s) and cron expressions
+- ✨ **Auto-start on load** - Monitors resume automatically on server restart
+- ✨ **Webhook notifications** - POST test results to external URLs
+- ✨ **Statistics tracking** - Last run, status, run count per monitor
+- ✨ **Manual execution** - Trigger monitor runs on-demand
+- ✨ **Graceful shutdown** - All monitors stopped cleanly on server shutdown
+- ✨ **9 API endpoints** - Full lifecycle management at `/api/monitors/*`
+
+### ✨ New Features
+
+**Collections:**
+- ✨ **Scenario management** - Add/remove scenarios from collections
+- ✨ **Collection statistics** - Total collections, scenarios, recent activity
+- ✨ **Runtime options** - stopOnError, delay between scenarios, environment overrides
+- ✨ **Detailed results** - Per-scenario status, duration, error tracking
+
+**CLI Runner:**
+- ✨ **Color-coded output** - Green ✓ for pass, Red ✗ for fail, Yellow ○ for skip
+- ✨ **Summary statistics** - Total/passed/failed/skipped counts with duration
+- ✨ **Iteration support** - Run collections multiple times for load testing
+- ✨ **Progress tracking** - Real-time feedback during execution
+
+**Monitors:**
+- ✨ **Email notifications** - Infrastructure ready (implementation pending)
+- ✨ **Health dashboard** - Failed monitor tracking and statistics
+- ✨ **Recent runs** - Last 10 executions with timestamps and status
+- ✨ **Enable/Disable** - Control monitor execution without deletion
+
+### Changed
+
+- 📝 **Server version** - Updated to 1.4.0
+- 📝 **Swagger tags** - Added Collections and Monitors tags
+- 📝 **Graceful shutdown** - Now includes monitor cleanup
+- 📝 **Package.json** - Added `commander` and `chalk` dependencies
+- 📝 **CLI binaries** - Added `mcp-test` command alongside `mcp-cli`
+
+### Fixed
+
+- 🐛 **Critical: Reserved keyword bug** - Fixed `debugger` variable name causing SyntaxError
+- 🐛 **Workflow debugger** - All 11 occurrences of `debugger` renamed to `workflowDebugger`
+- 🐛 **Server startup** - Application now starts without errors
+
+### Developer Experience
+
+- ✨ **21 new API endpoints** - Collections (12) + Monitors (9)
+- ✨ **Full CLI suite** - Professional command-line testing capabilities
+- ✨ **Postman parity** - Core features matching industry standard
+- ✨ **Swagger documentation** - All new endpoints fully documented
+
+### Documentation
+
+- 📚 **API documentation** - 21 new endpoints in Swagger
+- 📚 **CLI help** - Built-in help for all commands and options
+- 📚 **Feature comparison** - Now competitive with Postman for MCP testing
+
+---
+
+## [1.5.0] - 2025-12-29
+
+### 🚀 Major Features
+
+**Mock MCP Servers (like Postman Mock Servers):**
+- ✨ **Runtime mock servers** - Create mock MCP servers that return canned responses
+- ✨ **Variable substitution** - Use `{{variableName}}` syntax in responses
+- ✨ **Simulated behavior** - Configure delay and error rates for realistic testing
+- ✨ **Full MCP support** - Mock tools, resources, and prompts
+- ✨ **Call tracking** - Monitor how many times each mock is called
+- ✨ **From collections** - Auto-generate mocks from test collections
+- ✨ **14 API endpoints** - Complete mock server management at `/api/mocks/*`
+
+**Pre/Post Scripts (like Postman Scripts):**
+- ✨ **Pre-request scripts** - Execute JavaScript before tool calls
+- ✨ **Post-response scripts** - Execute JavaScript after receiving responses
+- ✨ **Test assertions** - Use `pm.test()` and `pm.expect()` for validation
+- ✨ **Variable management** - Get/set variables and environment values
+- ✨ **Sandboxed execution** - Safe script execution with vm2 (5s timeout)
+- ✨ **Syntax validation** - Validate scripts before saving
+- ✨ **Chain multiple scripts** - Execute multiple pre/post scripts in sequence
+- ✨ **8 API endpoints** - Script management at `/api/scripts/*`
+
+**Documentation Generator:**
+- ✨ **Auto-generate docs** - Create documentation from MCP server schemas
+- ✨ **Multiple formats** - Export as Markdown, HTML, or JSON
+- ✨ **Beautiful HTML output** - Professional styled HTML documentation
+- ✨ **Parameter tables** - Auto-generated tables for tool inputs
+- ✨ **Example requests** - Auto-generated examples for all tools
+- ✨ **Batch generation** - Generate docs for all servers at once
+- ✨ **3 API endpoints** - Documentation generation at `/api/documentation/*`
+
+### ✨ New Features
+
+**Mock Servers:**
+- ✨ **Tools, Resources, Prompts** - Full MCP capability mocking
+- ✨ **Response templates** - JSON templates with variable substitution
+- ✨ **Statistics** - Track total calls and most-used mocks
+- ✨ **Reset stats** - Clear call counters for fresh testing
+
+**Scripts:**
+- ✨ **Postman-compatible API** - Familiar `pm.variables`, `pm.environment`, `pm.test()`
+- ✨ **Assertion helpers** - `expect().to.equal()`, `.contain()`, `.have.property()`
+- ✨ **Console logging** - Debug scripts with `console.log()`
+- ✨ **Type filtering** - Query scripts by type (pre/post)
+- ✨ **Enable/Disable** - Control script execution without deletion
+
+**Documentation:**
+- ✨ **Table of contents** - Auto-generated navigation
+- ✨ **Type information** - Parameter types and requirements
+- ✨ **MIME types** - Resource content types
+- ✨ **Preview mode** - View docs in browser before saving
+- ✨ **Timestamp tracking** - When documentation was generated
+
+### Changed
+
+- 📝 **Server version** - Updated to 1.5.0
+- 📝 **Swagger tags** - Added Mocks, Scripts, Documentation tags
+- 📝 **API coverage** - 25 new endpoints total
+- 📝 **Feature parity** - Now exceeding Postman core features for MCP testing
+
+### Developer Experience
+
+- ✨ **25 new API endpoints** - Mocks (14) + Scripts (8) + Documentation (3)
+- ✨ **vm2 sandbox** - Safe JavaScript execution environment
+- ✨ **Canned responses** - Test without real MCP servers
+- ✨ **Swagger documentation** - All new endpoints fully documented
+
+### Documentation
+
+- 📚 **API documentation** - 25 new endpoints in Swagger
+- 📚 **Script API** - Postman-compatible scripting interface
+- 📚 **Mock examples** - Template responses with variables
+- 📚 **Auto-documentation** - Generate beautiful docs automatically
+
+---
+
+## [1.4.0] - 2025-12-29
+
+### 🚀 Major Features
+
+**Collections System (like Postman):**
+- ✨ **Organize scenarios** - Group test scenarios into logical collections
+- ✨ **Environment variables** - Define variables at collection level
+- ✨ **Authentication support** - Collection-level auth configuration
+- ✨ **Run entire collections** - Execute all scenarios with one API call
+- ✨ **Fork/Clone collections** - Duplicate collections for variations
+- ✨ **Import/Export** - Share collections as JSON files
+- ✨ **Version control friendly** - Collections stored as JSON in `collections/` directory
+- ✨ **12 API endpoints** - Complete CRUD + run/fork/import/export at `/api/collections/*`
+
+**CLI Runner (like newman):**
+- ✨ **Command-line testing** - Run collections from terminal with `mcp-test` command
+- ✨ **Multiple reporters** - CLI (color-coded), JSON, JUnit formats
+- ✨ **CI/CD integration** - Exit codes and JUnit XML for Jenkins/GitLab
+- ✨ **Environment files** - Load variables from JSON files
+- ✨ **Execution options** - Control delay, iterations, timeout, bail on error
+- ✨ **Collection validation** - Validate collection structure before running
+- ✨ **Result export** - Save results to files for analysis
+- ✨ **3 commands** - `run`, `list`, `validate` with full option support
+
+**Monitors (like Postman Monitors):**
+- ✨ **Scheduled execution** - Run collections automatically on a schedule
+- ✨ **Flexible scheduling** - Simple formats (5m, 1h, 30s) and cron expressions
+- ✨ **Auto-start on load** - Monitors resume automatically on server restart
+- ✨ **Webhook notifications** - POST test results to external URLs
+- ✨ **Statistics tracking** - Last run, status, run count per monitor
+- ✨ **Manual execution** - Trigger monitor runs on-demand
+- ✨ **Graceful shutdown** - All monitors stopped cleanly on server shutdown
+- ✨ **9 API endpoints** - Full lifecycle management at `/api/monitors/*`
+
+### ✨ New Features
+
+**Collections:**
+- ✨ **Scenario management** - Add/remove scenarios from collections
+- ✨ **Collection statistics** - Total collections, scenarios, recent activity
+- ✨ **Runtime options** - stopOnError, delay between scenarios, environment overrides
+- ✨ **Detailed results** - Per-scenario status, duration, error tracking
+
+**CLI Runner:**
+- ✨ **Color-coded output** - Green ✓ for pass, Red ✗ for fail, Yellow ○ for skip
+- ✨ **Summary statistics** - Total/passed/failed/skipped counts with duration
+- ✨ **Iteration support** - Run collections multiple times for load testing
+- ✨ **Progress tracking** - Real-time feedback during execution
+
+**Monitors:**
+- ✨ **Email notifications** - Infrastructure ready (implementation pending)
+- ✨ **Health dashboard** - Failed monitor tracking and statistics
+- ✨ **Recent runs** - Last 10 executions with timestamps and status
+- ✨ **Enable/Disable** - Control monitor execution without deletion
+
+### Changed
+
+- 📝 **Server version** - Updated to 1.4.0
+- 📝 **Swagger tags** - Added Collections and Monitors tags
+- 📝 **Graceful shutdown** - Now includes monitor cleanup
+- 📝 **Package.json** - Added `commander` and `chalk` dependencies
+- 📝 **CLI binaries** - Added `mcp-test` command alongside `mcp-cli`
+
+### Fixed
+
+- 🐛 **Critical: Reserved keyword bug** - Fixed `debugger` variable name causing SyntaxError
+- 🐛 **Workflow debugger** - All 11 occurrences of `debugger` renamed to `workflowDebugger`
+- 🐛 **Server startup** - Application now starts without errors
+
+### Developer Experience
+
+- ✨ **21 new API endpoints** - Collections (12) + Monitors (9)
+- ✨ **Full CLI suite** - Professional command-line testing capabilities
+- ✨ **Postman parity** - Core features matching industry standard
+- ✨ **Swagger documentation** - All new endpoints fully documented
+
+### Documentation
+
+- 📚 **API documentation** - 21 new endpoints in Swagger
+- 📚 **CLI help** - Built-in help for all commands and options
+- 📚 **Feature comparison** - Now competitive with Postman for MCP testing
+
+---
+
 ## [1.3.0] - 2025-12-29
 
 ### 🚀 Major Features
