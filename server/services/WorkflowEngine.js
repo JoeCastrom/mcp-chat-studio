@@ -1,0 +1,248 @@
+import { getMCPManager } from './MCPManager.js';
+import { createLLMClient } from './LLMClient.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const WORKFLOWS_FILE = path.join(__dirname, '../../workflows.json');
+
+// Ensure workflows file exists
+if (!fs.existsSync(WORKFLOWS_FILE)) {
+  fs.writeFileSync(WORKFLOWS_FILE, '[]');
+}
+
+export class WorkflowEngine {
+  constructor() {
+    this.mcpManager = getMCPManager();
+    // We'll create LLM client on demand or pass it in context
+  }
+
+  // CRUD Operations
+  getAllWorkflows() {
+    try {
+      const data = fs.readFileSync(WORKFLOWS_FILE, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Failed to read workflows:', error);
+      return [];
+    }
+  }
+
+  getWorkflow(id) {
+    const workflows = this.getAllWorkflows();
+    return workflows.find(w => w.id === id);
+  }
+
+  saveWorkflow(workflow) {
+    const workflows = this.getAllWorkflows();
+    const index = workflows.findIndex(w => w.id === workflow.id);
+    
+    if (index >= 0) {
+      workflows[index] = { ...workflows[index], ...workflow, updatedAt: new Date().toISOString() };
+    } else {
+      workflows.push({
+        ...workflow,
+        id: workflow.id || `wf_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    fs.writeFileSync(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2));
+    return workflow.id || workflows[workflows.length - 1].id;
+  }
+
+  deleteWorkflow(id) {
+    let workflows = this.getAllWorkflows();
+    workflows = workflows.filter(w => w.id !== id);
+    fs.writeFileSync(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2));
+  }
+
+  // Execution Logic
+  async executeWorkflow(workflowId, inputData = {}, llmConfig = {}) {
+    const workflow = this.getWorkflow(workflowId);
+    if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
+
+    const context = {
+      input: inputData,
+      steps: {}, // Store outputs of each node
+      logs: []
+    };
+
+    const executionLog = [];
+    
+    // Simple topological sort / dependency resolution
+    // For now, we assume linear or simple branching flows that can be traversed
+    // We'll find start nodes and follow edges
+    
+    // Map nodes and edges for easy access
+    const nodeMap = new Map(workflow.nodes.map(n => [n.id, n]));
+    const adjacency = {}; // node.id -> [next_node_ids]
+    
+    workflow.edges.forEach(edge => {
+      if (!adjacency[edge.from]) adjacency[edge.from] = [];
+      adjacency[edge.from].push(edge.to);
+    });
+
+    // Find start nodes (nodes with no incoming edges or type 'trigger')
+    const incomingEdges = new Set(workflow.edges.map(e => e.to));
+    const startNodes = workflow.nodes.filter(n => !incomingEdges.has(n.id) || n.type === 'trigger');
+
+    // Queue for BFS execution
+    const queue = [...startNodes];
+    const visited = new Set();
+    const results = {}; // node.id -> result
+
+    // Initialize custom LLM client if needed for this execution
+    let llmClient = null;
+    if (llmConfig.provider) {
+      llmClient = createLLMClient(llmConfig);
+    }
+
+    while (queue.length > 0) {
+      const node = queue.shift();
+      
+      // If we've already visited this node in this path, skip to avoid cycles
+      // (This is a simplified execution model)
+      if (visited.has(node.id)) continue;
+      
+      // Check if all dependencies are met (all incoming edges have results)
+      const incoming = workflow.edges.filter(e => e.to === node.id);
+      const ready = incoming.every(e => results[e.from] !== undefined);
+      
+      if (!ready && incoming.length > 0) {
+        // Push back to end of queue to wait for dependencies
+        queue.push(node);
+        continue;
+      }
+
+      visited.add(node.id);
+
+      try {
+        console.log(`[Workflow] Executing node ${node.id} (${node.type})`);
+        const result = await this.executeNode(node, context, llmClient);
+        results[node.id] = result;
+        context.steps[node.id] = result;
+        
+        executionLog.push({
+          nodeId: node.id,
+          type: node.type,
+          status: 'success',
+          output: result,
+          timestamp: new Date().toISOString()
+        });
+
+        // Add next nodes to queue
+        const nextNodes = (adjacency[node.id] || []).map(id => nodeMap.get(id));
+        queue.push(...nextNodes);
+
+      } catch (error) {
+        console.error(`[Workflow] Node ${node.id} failed:`, error);
+        executionLog.push({
+          nodeId: node.id,
+          type: node.type,
+          status: 'error',
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+        // Stop execution on error
+        throw new Error(`Node ${node.label || node.id} failed: ${error.message}`);
+      }
+    }
+
+    return {
+      status: 'completed',
+      results,
+      logs: executionLog
+    };
+  }
+
+  async executeNode(node, context, llmClient) {
+    // Variable substitution in node data
+    const data = this.substituteVariables(node.data, context);
+
+    switch (node.type) {
+      case 'trigger':
+        return context.input; // Pass through initial input
+
+      case 'tool':
+        if (!data.server || !data.tool) throw new Error('Tool node missing server or tool selection');
+        return await this.mcpManager.callTool(data.server, data.tool, data.args || {});
+
+      case 'llm':
+        if (!data.prompt) throw new Error('LLM node missing prompt');
+        // If no specific client provided, we need one (could fetch default from config)
+        if (!llmClient) {
+          // Fallback to reading config file to create default client
+          // For now, assume one is passed or throw
+          throw new Error('LLM execution requires LLM configuration');
+        }
+        
+        const response = await llmClient.chat({
+          messages: [{ role: 'user', content: data.prompt }],
+          system: data.systemPrompt
+        });
+        return response.content;
+
+      case 'javascript':
+        // Safe-ish eval? Maybe not "safe", but "functional" for a dev tool
+        // We'll use a Function constructor with restricted scope
+        try {
+          const func = new Function('input', 'context', `return (async () => { ${data.code} })()`);
+          return await func(context.steps, context);
+        } catch (e) {
+          throw new Error(`Script execution failed: ${e.message}`);
+        }
+
+      default:
+        return null;
+    }
+  }
+
+  substituteVariables(obj, context) {
+    if (typeof obj === 'string') {
+      // Replace {{nodeId.property}} or {{input.property}}
+      return obj.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+        const parts = path.split('.');
+        let current = context.steps;
+        
+        // Handle 'input' root
+        if (parts[0] === 'input') {
+          current = context.input;
+          parts.shift();
+        } else {
+          // Handle node ID root
+          const nodeId = parts.shift();
+          current = context.steps[nodeId];
+        }
+
+        for (const part of parts) {
+          if (current === undefined || current === null) return match;
+          current = current[part];
+        }
+        
+        return current !== undefined ? current : match;
+      });
+    } else if (Array.isArray(obj)) {
+      return obj.map(item => this.substituteVariables(item, context));
+    } else if (obj && typeof obj === 'object') {
+      const result = {};
+      for (const key in obj) {
+        result[key] = this.substituteVariables(obj[key], context);
+      }
+      return result;
+    }
+    return obj;
+  }
+}
+
+// Singleton
+let instance = null;
+export function getWorkflowEngine() {
+  if (!instance) {
+    instance = new WorkflowEngine();
+  }
+  return instance;
+}

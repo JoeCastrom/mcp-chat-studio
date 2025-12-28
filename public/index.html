@@ -180,6 +180,9 @@
           <button class="tab-btn" onclick="switchTab('scenarios')" id="scenariosTabBtn">
             🧪 Scenarios
           </button>
+          <button class="tab-btn" onclick="switchTab('workflows')" id="workflowsTabBtn">
+            ⛓️ Workflows
+          </button>
           <button class="tab-btn" onclick="switchTab('generator')" id="generatorTabBtn">
             ⚙️ Generator
           </button>
@@ -470,6 +473,7 @@
 
         <!-- Scenarios Panel -->
         <div class="content-panel" id="scenariosPanel">
+          <!-- ... (content omitted for brevity) ... -->
           <div class="inspector-panel">
             <!-- Recording Status -->
             <div class="inspector-section" id="recordingSection">
@@ -542,6 +546,52 @@
             <div id="scenariosList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 350px)">
               <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
                 Record tool executions from Inspector → Save as Scenario → Replay anytime
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflows Panel -->
+        <div class="content-panel" id="workflowsPanel">
+          <div style="display: flex; height: 100%; overflow: hidden;">
+            <!-- Workflow Sidebar -->
+            <div style="width: 250px; border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; background: var(--bg-card);">
+              <h3 style="margin-bottom: 12px; font-size: 1rem;">⛓️ Workflows</h3>
+              
+              <button class="btn primary" onclick="createNewWorkflow()" style="width: 100%; margin-bottom: 12px;">+ New Workflow</button>
+              
+              <div style="margin-bottom: 8px; font-size: 0.75rem; font-weight: 500; color: var(--text-muted);">SAVED WORKFLOWS</div>
+              <div id="workflowList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                <div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Loading...</div>
+              </div>
+            </div>
+            
+            <!-- Workflow Canvas Area -->
+            <div style="flex: 1; display: flex; flex-direction: column; position: relative;">
+              <!-- Toolbar -->
+              <div style="padding: 8px; border-bottom: 1px solid var(--border); background: var(--bg-surface); display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="workflowName" class="form-input" placeholder="Workflow Name" style="width: 200px;">
+                <button class="btn" onclick="addNode('tool')">➕ Tool Node</button>
+                <button class="btn" onclick="addNode('llm')">➕ LLM Node</button>
+                <button class="btn" onclick="addNode('javascript')">➕ JS Node</button>
+                <div style="flex: 1;"></div>
+                <button class="btn primary" onclick="runWorkflow()">▶️ Run</button>
+                <button class="btn" onclick="saveWorkflow()">💾 Save</button>
+              </div>
+              
+              <!-- Canvas -->
+              <div id="workflowCanvas" style="flex: 1; position: relative; overflow: auto; background: var(--bg-surface); background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 20px 20px;">
+                <!-- Nodes will be added here -->
+                <svg id="workflowConnections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"></svg>
+              </div>
+              
+              <!-- Execution Log -->
+              <div id="workflowLogs" style="height: 200px; border-top: 1px solid var(--border); background: var(--bg-card); display: none; flex-direction: column;">
+                <div style="padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+                  <span style="font-weight: 500;">Execution Log</span>
+                  <button class="btn" onclick="document.getElementById('workflowLogs').style.display='none'" style="font-size: 0.7rem;">✕</button>
+                </div>
+                <div id="workflowLogContent" style="flex: 1; overflow-y: auto; padding: 8px; font-family: monospace; font-size: 0.8rem;"></div>
               </div>
             </div>
           </div>
@@ -973,5 +1023,6 @@ env:
     </div>
 
     <script src="app.js"></script>
+    <script src="workflow.js"></script>
   </body>
 </html>

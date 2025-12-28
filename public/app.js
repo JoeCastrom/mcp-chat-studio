@@ -1854,6 +1854,7 @@
         const historyTabBtn = document.getElementById('historyTabBtn');
         const scenariosTabBtn = document.getElementById('scenariosTabBtn');
         const generatorTabBtn = document.getElementById('generatorTabBtn');
+        const workflowsTabBtn = document.getElementById('workflowsTabBtn');
 
         // Remove active from all
         chatPanel.classList.remove('active');
@@ -1861,11 +1862,14 @@
         historyPanel.classList.remove('active');
         scenariosPanel.classList.remove('active');
         generatorPanel.classList.remove('active');
+        if (document.getElementById('workflowsPanel')) document.getElementById('workflowsPanel').classList.remove('active');
+        
         chatTabBtn.classList.remove('active');
         inspectorTabBtn.classList.remove('active');
         historyTabBtn.classList.remove('active');
         scenariosTabBtn.classList.remove('active');
         generatorTabBtn.classList.remove('active');
+        if (workflowsTabBtn) workflowsTabBtn.classList.remove('active');
 
         // Activate selected tab
         if (tabName === 'chat') {
@@ -1887,6 +1891,9 @@
         } else if (tabName === 'generator') {
           generatorPanel.classList.add('active');
           generatorTabBtn.classList.add('active');
+        } else if (tabName === 'workflows') {
+          document.getElementById('workflowsPanel').classList.add('active');
+          if (workflowsTabBtn) workflowsTabBtn.classList.add('active');
         }
       }
 

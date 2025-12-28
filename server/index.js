@@ -25,6 +25,7 @@ import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
 import llmRoutes from './routes/llm.js';
+import workflowRoutes from './routes/workflows.js';
 import rateLimit from 'express-rate-limit';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -198,6 +199,7 @@ async function initializeServices(config) {
 // Routes with rate limiting
 app.use('/api/chat', chatLimiter, chatRoutes);
 app.use('/api/mcp', mcpLimiter, mcpRoutes);
+app.use('/api/workflows', generalLimiter, workflowRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 
