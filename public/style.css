@@ -363,6 +363,22 @@ body::before {
   z-index: 1;
 }
 
+/* Adjust for icon sidebar */
+.modern-layout .main {
+  margin-left: 60px;
+}
+
+.modern-layout .sidebar {
+  position: fixed;
+  right: 0;
+  top: 56px;
+  bottom: 0;
+  left: auto;
+  z-index: 90;
+  border-right: none;
+  border-left: 1px solid var(--border-subtle);
+}
+
 /* ===== SIDEBAR ===== */
 .sidebar {
   width: 320px;

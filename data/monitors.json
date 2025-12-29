@@ -7,10 +7,10 @@
     "environment": {},
     "enabled": true,
     "notifications": [],
-    "lastRun": "2025-12-29T01:02:10.681Z",
+    "lastRun": "2025-12-29T11:02:26.445Z",
     "lastStatus": "passed",
-    "runCount": 2,
+    "runCount": 106,
     "createdAt": "2025-12-29T00:48:43.503Z",
-    "updatedAt": "2025-12-29T01:02:10.681Z"
+    "updatedAt": "2025-12-29T11:02:26.445Z"
   }
 ]

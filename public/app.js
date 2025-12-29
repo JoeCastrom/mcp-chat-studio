@@ -568,11 +568,19 @@
       });
 
       sendBtnEl.addEventListener('click', sendMessage);
-      toggleSidebarEl.addEventListener('click', () => {
-        sidebarEl.classList.toggle('collapsed');
-        toggleSidebarEl.classList.toggle('active');
-      });
-      clearChatEl.addEventListener('click', clearChat);
+
+      // Optional: Toggle sidebar button (not used in floating workspace)
+      if (toggleSidebarEl) {
+        toggleSidebarEl.addEventListener('click', () => {
+          sidebarEl.classList.toggle('collapsed');
+          toggleSidebarEl.classList.toggle('active');
+        });
+      }
+
+      // Optional: Clear chat button (not used in floating workspace)
+      if (clearChatEl) {
+        clearChatEl.addEventListener('click', clearChat);
+      }
 
       // Escape key to cancel loading
       document.addEventListener('keydown', e => {

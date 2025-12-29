@@ -1124,6 +1124,96 @@ function showNotification(message, type = 'info') {
 }
 
 // Add CSS animations
+// ==========================================
+// PERFORMANCE PROFILING
+// ==========================================
+async function loadPerformanceMetrics() {
+  try {
+    // Get tool explorer stats which includes performance metrics
+    const response = await fetch('/api/toolexplorer/stats');
+    if (!response.ok) {
+      console.error('Failed to load performance metrics');
+      return;
+    }
+
+    const data = await response.json();
+    renderPerformanceMetrics(data);
+  } catch (error) {
+    console.error('Error loading performance metrics:', error);
+    // Show placeholder data
+    renderPerformanceMetrics({
+      avgResponseTime: null,
+      p95Latency: null,
+      totalCalls: 0,
+      slowestTools: []
+    });
+  }
+}
+
+function renderPerformanceMetrics(data) {
+  // Update summary stats
+  const avgEl = document.getElementById('avgResponseTime');
+  const p95El = document.getElementById('p95Latency');
+  const totalEl = document.getElementById('totalCalls');
+
+  if (avgEl) avgEl.textContent = data.avgResponseTime ? `${data.avgResponseTime.toFixed(0)}ms` : '-';
+  if (p95El) p95El.textContent = data.p95Latency ? `${data.p95Latency.toFixed(0)}ms` : '-';
+  if (totalEl) totalEl.textContent = data.totalCalls ? data.totalCalls.toLocaleString() : '0';
+
+  // Render slowest tools
+  const slowestToolsEl = document.getElementById('slowestTools');
+  if (slowestToolsEl && data.slowestTools) {
+    slowestToolsEl.innerHTML = '<h4 style="font-size: 0.9rem; margin-bottom: 8px">Slowest Tools</h4>';
+    data.slowestTools.slice(0, 5).forEach(tool => {
+      slowestToolsEl.innerHTML += `
+        <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--bg-card); border-radius: 4px">
+          <span>${tool.name}</span>
+          <span style="color: ${tool.avgTime > 1000 ? 'var(--error)' : 'var(--text-secondary)'}">${tool.avgTime.toFixed(0)}ms</span>
+        </div>
+      `;
+    });
+  }
+}
+
+// ==========================================
+// WORKFLOW DEBUGGER
+// ==========================================
+let debuggerState = {
+  currentWorkflow: null,
+  breakpoints: [],
+  currentStep: 0,
+  isPaused: false
+};
+
+function toggleBreakpoints() {
+  console.log('Toggle breakpoints - TODO: Implement breakpoint UI');
+  // TODO: Show breakpoint editor modal
+}
+
+async function stepThroughWorkflow() {
+  if (!debuggerState.currentWorkflow) {
+    console.warn('No workflow loaded in debugger');
+    return;
+  }
+
+  debuggerState.currentStep++;
+  updateDebuggerTimeline();
+}
+
+function updateDebuggerTimeline() {
+  const stepsEl = document.getElementById('executionSteps');
+  const variablesEl = document.getElementById('currentVariables');
+
+  if (stepsEl && debuggerState.currentWorkflow) {
+    // TODO: Render execution timeline
+    stepsEl.innerHTML = `<div style="padding: 12px; color: var(--text-secondary)">Load a workflow to start debugging</div>`;
+  }
+
+  if (variablesEl) {
+    variablesEl.textContent = JSON.stringify(debuggerState, null, 2);
+  }
+}
+
 const advancedFeaturesStyle = document.createElement('style');
 advancedFeaturesStyle.textContent = `
   @keyframes slideIn {

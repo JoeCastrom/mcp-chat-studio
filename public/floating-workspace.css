@@ -1,0 +1,957 @@
+/* ==========================================
+   FLOATING WORKSPACE - Draggable Panels Canvas
+   ========================================== */
+
+/* Workspace canvas with animated gradient */
+.workspace-canvas {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(168, 85, 247, 0.04) 0%, transparent 60%),
+    var(--bg-base);
+  background-size: 100% 100%;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Light theme overrides for workspace */
+[data-theme='light'] .workspace-canvas {
+  background: 
+    radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(168, 85, 247, 0.08) 0%, transparent 60%),
+    #f0f4f8;
+}
+
+/* Subtle animated grid */
+.workspace-canvas::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* Inner container for zoom/pan transforms - INFINITE CANVAS */
+.workspace-inner {
+  position: absolute;
+  /* Make it huge so you can pan anywhere */
+  width: 10000px;
+  height: 10000px;
+  /* Start centered so panels can go in any direction */
+  left: -3000px;
+  top: -2000px;
+  transform-origin: center center;
+  /* Removed: transition was causing lag during panning (Issue #14) */
+}
+
+/* Zoom controls */
+.zoom-controls {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+}
+
+[data-theme='light'] .zoom-controls {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zoom-btn:hover {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.zoom-level {
+  min-width: 48px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Radial menu for adding panels */
+.radial-menu {
+  position: fixed;
+  width: 0;
+  height: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.radial-menu.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.radial-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.9);
+  border-radius: 50%;
+  font-size: 1.2rem;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+  z-index: 10;
+}
+
+.radial-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translate(-50%, -50%) translate(0, 0) scale(0);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme='light'] .radial-item {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.radial-menu.active .radial-item {
+  transform: translate(-50%, -50%) translate(var(--x), var(--y)) scale(1);
+}
+
+.radial-item:hover {
+  background: var(--accent-primary);
+  transform: translate(-50%, -50%) translate(var(--x), var(--y)) scale(1.15);
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.5);
+}
+
+.radial-item-icon {
+  font-size: 1.3rem;
+}
+
+/* Floating panel - Glassmorphism style */
+.floating-panel {
+  position: absolute;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  min-height: 200px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme='light'] .floating-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 
+    0 15px 40px rgba(0, 0, 0, 0.12),
+    0 0 20px rgba(99, 102, 241, 0.05);
+}
+
+.floating-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  pointer-events: none;
+}
+
+.floating-panel:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 
+    0 30px 70px rgba(0, 0, 0, 0.6),
+    0 0 50px rgba(99, 102, 241, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.floating-panel.active {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 
+    0 35px 80px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(99, 102, 241, 0.25),
+    0 0 100px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.floating-panel.dragging {
+  opacity: 0.95;
+  cursor: grabbing;
+  transition: none;
+}
+
+.floating-panel.minimized {
+  min-height: auto;
+  height: auto !important;
+}
+
+.floating-panel.minimized .panel-content {
+  display: none;
+}
+
+/* Panel header - drag handle */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+[data-theme='light'] .panel-header {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.panel-icon {
+  font-size: 1.3rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+.panel-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-action-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.9rem;
+}
+
+.panel-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.panel-action-btn.close:hover {
+  background: var(--error);
+  color: white;
+}
+
+/* Panel content */
+.panel-content {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: se-resize;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.floating-panel:hover .resize-handle {
+  opacity: 1;
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  border-radius: 0 0 4px 0;
+}
+
+/* Connection lines between panels */
+.connections-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+  overflow: visible;
+}
+
+.connection-line {
+  transition: opacity 0.3s ease;
+}
+
+@keyframes flowLine {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Workspace toolbar */
+.workspace-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 100px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.workspace-toolbar-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.15s ease;
+}
+
+.workspace-toolbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.workspace-toolbar-btn.active {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.workspace-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-default);
+  margin: 0 4px;
+}
+
+/* Panel add button */
+.add-panel-btn {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--accent-gradient);
+  border: none;
+  border-radius: 100px;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  z-index: 100;
+  transition: all 0.2s ease;
+}
+
+.add-panel-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+}
+
+/* Panel picker dropdown */
+.panel-picker {
+  position: fixed;
+  top: 120px;
+  right: 20px;
+  background: rgba(18, 18, 26, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 18px;
+  padding: 14px;
+  min-width: 260px;
+  box-shadow: 
+    0 25px 60px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 101;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px) scale(0.95);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panel-picker.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.panel-picker-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding: 0 8px;
+}
+
+.panel-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-picker-item:hover {
+  background: var(--accent-primary);
+}
+
+.panel-picker-item-icon {
+  font-size: 1.1rem;
+}
+
+.panel-picker-item-label {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.panel-picker-item:hover .panel-picker-item-label {
+  color: white;
+}
+
+/* Quick access bar - Glassmorphism style */
+.quick-access-bar {
+  position: fixed;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 10px;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+}
+
+[data-theme='light'] .quick-access-bar {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.quick-access-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.quick-access-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.quick-access-btn.has-panel::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
+.quick-access-btn::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 100%;
+  margin-left: 12px;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-8px);
+  transition: all 0.2s ease;
+  z-index: 1000;
+  pointer-events: none;
+  color: var(--text-primary);
+}
+
+.quick-access-btn:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+/* Hide old layouts when workspace is active */
+.workspace-mode .main,
+.workspace-mode .icon-sidebar,
+.workspace-mode .tab-nav {
+  display: none !important;
+}
+
+.workspace-mode .header {
+  z-index: 200;
+}
+
+/* Snap guidelines */
+.snap-guide {
+  position: absolute;
+  background: var(--accent-primary);
+  opacity: 0.6;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.snap-guide.horizontal {
+  height: 1px;
+  left: 0;
+  right: 0;
+}
+
+.snap-guide.vertical {
+  width: 1px;
+  top: 0;
+  bottom: 0;
+}
+
+/* ==========================================
+   FUTURISTIC HEADER STYLING
+   ========================================== */
+
+.workspace-mode .header {
+  background: var(--bg-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-accent);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme='light'] .workspace-mode .header {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+}
+
+.workspace-mode .logo-icon {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+.workspace-mode .btn {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-default);
+  backdrop-filter: blur(10px);
+}
+
+.workspace-mode .btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-accent);
+}
+
+.workspace-mode .btn.primary {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+.workspace-mode .model-badge {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-default);
+  backdrop-filter: blur(10px);
+}
+
+/* Quick access btn active state */
+.quick-access-btn.has-panel {
+  background: var(--accent-primary);
+  color: white;
+}
+
+[data-theme='light'] .quick-access-btn.has-panel {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* ==========================================
+   MCP SIDEBAR IN WORKSPACE MODE
+   ========================================== */
+
+/* Hide sidebar by default in workspace mode (it's inside .main which is hidden) */
+/* We'll clone and show it separately via JS */
+
+/* Workspace sidebar overlay - positioned outside of .main hierarchy */
+.workspace-sidebar-overlay {
+  display: none;
+  position: fixed;
+  left: 80px;
+  top: 56px;
+  bottom: 0;
+  width: 300px;
+  z-index: 150;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border-accent);
+  box-shadow: var(--shadow-lg);
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInSidebar 0.25s ease-out;
+}
+
+.workspace-sidebar-overlay.visible {
+  display: flex;
+}
+
+[data-theme='light'] .workspace-sidebar-overlay {
+  background: rgba(255, 255, 255, 0.98);
+  border-right: 1px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 5px 0 25px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes slideInSidebar {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.workspace-sidebar-overlay .sidebar-header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  padding: var(--spacing-md);
+}
+
+[data-theme='light'] .workspace-sidebar-overlay .sidebar-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.workspace-sidebar-overlay .sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+/* ==========================================
+   COMMAND PALETTE
+   ========================================== */
+.command-palette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+}
+
+.command-palette.active {
+  display: flex;
+}
+
+.command-palette-content {
+  width: 600px;
+  max-width: 90vw;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 20px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.command-item {
+  transition: all 0.15s ease;
+}
+
+.command-item:hover {
+  background: var(--bg-surface) !important;
+  transform: translateX(4px);
+}
+
+.command-item.selected {
+  background: rgba(99, 102, 241, 0.15);
+  border-left: 3px solid var(--accent);
+}
+
+/* ==========================================
+   MINI-MAP
+   ========================================== */
+.mini-map {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 200px;
+  height: 150px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  border-radius: 8px;
+  padding: 8px;
+  z-index: 999;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: slideInBottom 0.3s ease-out;
+}
+
+@keyframes slideInBottom {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.mini-map canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ==========================================
+   KEYBOARD SHORTCUT STYLES
+   ========================================== */
+kbd {
+  display: inline-block;
+  padding: 3px 8px;
+  font-family: monospace;
+  font-size: 0.85em;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+  margin-right: 6px;
+}
+
+[data-theme='light'] kbd {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+/* ==========================================
+   CONNECTION LINE ANIMATIONS
+   ========================================== */
+@keyframes flowLine {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 18;
+  }
+}
+
+.connection-line {
+  pointer-events: auto;
+  transition: stroke-width 0.2s, opacity 0.2s;
+}
+
+/* ==========================================
+   PRESET CARDS
+   ========================================== */
+.preset-card {
+  transition: all 0.2s ease;
+}
+
+.preset-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+  border-color: var(--accent);
+}
+
+/* ==========================================
+   THEME OPTIONS
+   ========================================== */
+.theme-option {
+  transition: all 0.2s ease;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-option:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.theme-option::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 2rem;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.theme-option:active::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+/* ==========================================
+   PANEL GROUPING VISUAL
+   ========================================== */
+.floating-panel[data-group] {
+  outline: 2px solid rgba(99, 102, 241, 0.3);
+  outline-offset: 4px;
+}
+
+/* ==========================================
+   RESPONSIVE ADJUSTMENTS
+   ========================================== */
+@media (max-width: 768px) {
+  .command-palette-content {
+    width: 90vw;
+    padding: 16px;
+  }
+
+  .mini-map {
+    width: 150px;
+    height: 112px;
+    bottom: 60px;
+    right: 10px;
+  }
+}

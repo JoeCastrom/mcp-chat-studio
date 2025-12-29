@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="floating-workspace.css" />
   </head>
   <body>
     <header class="header">
@@ -22,6 +23,9 @@
         </div>
         <span class="logo-text">MCP Chat</span>
         <span class="logo-badge">Studio</span>
+        <span style="font-size: 0.7rem; color: var(--text-secondary); margin-left: 8px; padding: 2px 6px; background: rgba(99, 102, 241, 0.15); border-radius: 4px; font-weight: 500;">
+          🎨 Workspace
+        </span>
       </div>
       <div class="header-actions">
         <!-- Model Badge -->
@@ -69,23 +73,6 @@
 
         <div id="userSection"></div>
         <button class="btn" onclick="showSettingsModal()" title="LLM Settings">⚙️</button>
-        <button class="btn" id="toggleSidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          MCP Tools
-        </button>
-        <button class="btn" id="clearChat">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 6h18"></path>
-            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-          </svg>
-          Clear
-        </button>
         <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
@@ -178,45 +165,6 @@
       </aside>
 
       <div class="chat-container">
-        <!-- Tab Navigation -->
-        <div class="tab-nav">
-          <button class="tab-btn active" onclick="switchTab('chat')" id="chatTabBtn">
-            💬 Chat
-          </button>
-          <button class="tab-btn" onclick="switchTab('inspector')" id="inspectorTabBtn">
-            🔧 Inspector
-          </button>
-          <button class="tab-btn" onclick="switchTab('history')" id="historyTabBtn">
-            📜 History
-          </button>
-          <button class="tab-btn" onclick="switchTab('scenarios')" id="scenariosTabBtn">
-            🧪 Scenarios
-          </button>
-          <button class="tab-btn" onclick="switchTab('workflows')" id="workflowsTabBtn">
-            ⛓️ Workflows
-          </button>
-          <button class="tab-btn" onclick="switchTab('generator')" id="generatorTabBtn">
-            ⚙️ Generator
-          </button>
-          <button class="tab-btn" onclick="switchTab('collections')" id="collectionsTabBtn">
-            📚 Collections
-          </button>
-          <button class="tab-btn" onclick="switchTab('monitors')" id="monitorsTabBtn">
-            ⏰ Monitors
-          </button>
-          <button class="tab-btn" onclick="switchTab('toolexplorer')" id="toolexplorerTabBtn">
-            📊 Analytics
-          </button>
-          <button class="tab-btn" onclick="switchTab('mocks')" id="mocksTabBtn">🎭 Mocks</button>
-          <button class="tab-btn" onclick="switchTab('scripts')" id="scriptsTabBtn">
-            📝 Scripts
-          </button>
-          <button class="tab-btn" onclick="switchTab('docs')" id="docsTabBtn">📖 Docs</button>
-          <button class="tab-btn" onclick="switchTab('contracts')" id="contractsTabBtn">
-            📋 Contracts
-          </button>
-        </div>
-
         <!-- Chat Panel (default) -->
         <div class="content-panel active" id="chatPanel">
           <!-- Chat Header / Toolbar -->
@@ -1546,6 +1494,79 @@
             <div id="contractsList" style="display: flex; flex-direction: column; gap: 12px"></div>
           </div>
         </div>
+
+        <div class="content-panel" id="performancePanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <h3>⚡ Performance Profiling</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Track response times, identify bottlenecks, and optimize tool performance
+              </p>
+            </div>
+            <div id="performanceMetrics" style="display: flex; flex-direction: column; gap: 12px">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px">
+                <div style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
+                  <div style="font-size: 0.7rem; color: var(--text-secondary)">Avg Response</div>
+                  <div id="avgResponseTime" style="font-size: 1.5rem; font-weight: 600">-</div>
+                </div>
+                <div style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
+                  <div style="font-size: 0.7rem; color: var(--text-secondary)">P95 Latency</div>
+                  <div id="p95Latency" style="font-size: 1.5rem; font-weight: 600">-</div>
+                </div>
+                <div style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
+                  <div style="font-size: 0.7rem; color: var(--text-secondary)">Total Calls</div>
+                  <div id="totalCalls" style="font-size: 1.5rem; font-weight: 600">-</div>
+                </div>
+              </div>
+              <div id="performanceChart" style="padding: 12px; background: var(--bg-surface); border-radius: 8px; min-height: 200px"></div>
+              <div id="slowestTools" style="display: flex; flex-direction: column; gap: 8px"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-panel" id="debuggerPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>🐛 Workflow Debugger</h3>
+                <div style="display: flex; gap: 8px">
+                  <button class="btn" onclick="toggleBreakpoints()">⏸️ Breakpoints</button>
+                  <button class="btn primary" onclick="stepThroughWorkflow()">
+                    ▶️ Step Through
+                  </button>
+                </div>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Set breakpoints, step through execution, inspect variables and protocol compliance
+              </p>
+            </div>
+            <div id="debuggerTimeline" style="display: flex; flex-direction: column; gap: 12px">
+              <div id="executionSteps" style="display: flex; flex-direction: column; gap: 8px"></div>
+              <div id="variableInspector" style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
+                <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px">Variables</div>
+                <div id="currentVariables" style="font-family: monospace; font-size: 0.75rem"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-panel" id="brainPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <h3>🧠 Brain View</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Visualize conversation context and reasoning flow
+              </p>
+            </div>
+            <div id="brainVisualization" style="display: flex; flex-direction: column; gap: 12px">
+              <canvas id="brainCanvas" width="400" height="300" style="width: 100%; background: var(--bg-surface); border-radius: 8px"></canvas>
+              <div id="contextBreakdown" style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
+                <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px">Context Breakdown</div>
+                <div id="contextStats" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -2072,5 +2093,6 @@ env:
     <script src="brain.js"></script>
     <script src="advanced-features.js"></script>
     <script src="onboarding.js"></script>
+    <script src="floating-workspace.js"></script>
   </body>
 </html>
