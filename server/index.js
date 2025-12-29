@@ -209,7 +209,7 @@ function loadConfig() {
     return {
       llm: {
         provider: 'ollama',
-        model: 'llama3.2',
+        model: 'llama3.1:8b',
         temperature: 0.7,
         base_url: process.env.LLM_BASE_URL || 'http://localhost:11434/v1',
       },

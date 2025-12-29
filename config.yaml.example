@@ -11,7 +11,7 @@
 llm:
   # Choose your provider (see examples below)
   provider: ollama
-  model: llama3.2
+  model: llama3.1:8b
   temperature: 0.7
 
 # --- Provider Examples ---
@@ -20,7 +20,7 @@ llm:
 # Ollama (Local - Default, no API key needed)
 # llm:
 #   provider: ollama
-#   model: llama3.2
+#   model: llama3.1:8b
 #   base_url: http://localhost:11434/v1
 
 # OpenAI
