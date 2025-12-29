@@ -744,6 +744,15 @@ export class MCPManager {
   }
 
   /**
+   * List tools from a server
+   */
+  async listTools(serverName, sessionId = null) {
+    const connection = this._getConnection(serverName, sessionId);
+    if (!connection) return { tools: [] };
+    return { tools: connection.tools || [] };
+  }
+
+  /**
    * List resources from a server
    */
   async listResources(serverName, sessionId = null) {

@@ -4,7 +4,7 @@
  */
 
 import { getMCPManager } from './MCPManager.js';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -73,7 +73,7 @@ export class ContractTester {
       return contracts;
     }
 
-    const files = require('fs').readdirSync(this.contractsDir);
+    const files = readdirSync(this.contractsDir);
 
     for (const file of files) {
       if (file.endsWith('.json')) {

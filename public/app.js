@@ -635,16 +635,31 @@
           showShortcutsHelp();
         }
 
-        // Ctrl+1-5: Switch tabs
-        if (e.ctrlKey && e.key >= '1' && e.key <= '5') {
+        // Ctrl+1-9 and Ctrl+0: Switch tabs (covers all 13 tabs)
+        if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
           e.preventDefault();
-          const tabs = ['chat', 'inspector', 'scenarios', 'history', 'workflows'];
+          const tabs = ['chat', 'inspector', 'history', 'scenarios', 'workflows', 'generator', 'collections', 'monitors', 'toolexplorer'];
           const index = parseInt(e.key) - 1;
           if (tabs[index]) {
             switchTab(tabs[index]);
           }
         }
+        // Ctrl+0: Switch to mocks tab
+        if (e.ctrlKey && e.key === '0') {
+          e.preventDefault();
+          switchTab('mocks');
+        }
+        // Alt+1-3: Additional tabs (scripts, docs, contracts)
+        if (e.altKey && e.key >= '1' && e.key <= '3') {
+          e.preventDefault();
+          const extraTabs = ['scripts', 'docs', 'contracts'];
+          const index = parseInt(e.key) - 1;
+          if (extraTabs[index]) {
+            switchTab(extraTabs[index]);
+          }
+        }
       });
+
 
       // Check auth status
       async function checkAuthStatus() {
@@ -1947,59 +1962,77 @@
       let selectedInspectorTool = null;
       let lastInspectorResponse = null;
 
-      // Switch between Chat, Inspector, and History tabs
+      // Switch between tabs
       function switchTab(tabName) {
-        const chatPanel = document.getElementById('chatPanel');
-        const inspectorPanel = document.getElementById('inspectorPanel');
-        const historyPanel = document.getElementById('historyPanel');
-        const scenariosPanel = document.getElementById('scenariosPanel');
-        const generatorPanel = document.getElementById('generatorPanel');
-        const chatTabBtn = document.getElementById('chatTabBtn');
-        const inspectorTabBtn = document.getElementById('inspectorTabBtn');
-        const historyTabBtn = document.getElementById('historyTabBtn');
-        const scenariosTabBtn = document.getElementById('scenariosTabBtn');
-        const generatorTabBtn = document.getElementById('generatorTabBtn');
-        const workflowsTabBtn = document.getElementById('workflowsTabBtn');
+        // Get all panels and buttons
+        const panels = ['chatPanel', 'inspectorPanel', 'historyPanel', 'scenariosPanel',
+                        'generatorPanel', 'workflowsPanel', 'collectionsPanel', 'monitorsPanel',
+                        'toolexplorerPanel', 'mocksPanel', 'scriptsPanel', 'docsPanel', 'contractsPanel'];
+        const buttons = ['chatTabBtn', 'inspectorTabBtn', 'historyTabBtn', 'scenariosTabBtn',
+                         'generatorTabBtn', 'workflowsTabBtn', 'collectionsTabBtn', 'monitorsTabBtn',
+                         'toolexplorerTabBtn', 'mocksTabBtn', 'scriptsTabBtn', 'docsTabBtn', 'contractsTabBtn'];
 
-        // Remove active from all
-        chatPanel.classList.remove('active');
-        inspectorPanel.classList.remove('active');
-        historyPanel.classList.remove('active');
-        scenariosPanel.classList.remove('active');
-        generatorPanel.classList.remove('active');
-        if (document.getElementById('workflowsPanel')) document.getElementById('workflowsPanel').classList.remove('active');
-        
-        chatTabBtn.classList.remove('active');
-        inspectorTabBtn.classList.remove('active');
-        historyTabBtn.classList.remove('active');
-        scenariosTabBtn.classList.remove('active');
-        generatorTabBtn.classList.remove('active');
-        if (workflowsTabBtn) workflowsTabBtn.classList.remove('active');
+        // Remove active from all panels and buttons
+        panels.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove('active');
+        });
+        buttons.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove('active');
+        });
 
         // Activate selected tab
         if (tabName === 'chat') {
-          chatPanel.classList.add('active');
-          chatTabBtn.classList.add('active');
+          document.getElementById('chatPanel').classList.add('active');
+          document.getElementById('chatTabBtn').classList.add('active');
         } else if (tabName === 'inspector') {
-          inspectorPanel.classList.add('active');
-          inspectorTabBtn.classList.add('active');
+          document.getElementById('inspectorPanel').classList.add('active');
+          document.getElementById('inspectorTabBtn').classList.add('active');
           loadInspectorServers();
         } else if (tabName === 'history') {
-          historyPanel.classList.add('active');
-          historyTabBtn.classList.add('active');
+          document.getElementById('historyPanel').classList.add('active');
+          document.getElementById('historyTabBtn').classList.add('active');
           refreshHistoryPanel();
         } else if (tabName === 'scenarios') {
-          scenariosPanel.classList.add('active');
-          scenariosTabBtn.classList.add('active');
+          document.getElementById('scenariosPanel').classList.add('active');
+          document.getElementById('scenariosTabBtn').classList.add('active');
           refreshScenariosPanel();
           refreshSuitesList();
         } else if (tabName === 'generator') {
-          generatorPanel.classList.add('active');
-          generatorTabBtn.classList.add('active');
+          document.getElementById('generatorPanel').classList.add('active');
+          document.getElementById('generatorTabBtn').classList.add('active');
         } else if (tabName === 'workflows') {
           document.getElementById('workflowsPanel').classList.add('active');
-          if (workflowsTabBtn) workflowsTabBtn.classList.add('active');
-          updateWorkflowModelBadge(); // Show current model in workflow toolbar
+          document.getElementById('workflowsTabBtn').classList.add('active');
+          updateWorkflowModelBadge();
+        } else if (tabName === 'collections') {
+          document.getElementById('collectionsPanel').classList.add('active');
+          document.getElementById('collectionsTabBtn').classList.add('active');
+          if (typeof loadCollections === 'function') loadCollections();
+        } else if (tabName === 'monitors') {
+          document.getElementById('monitorsPanel').classList.add('active');
+          document.getElementById('monitorsTabBtn').classList.add('active');
+          if (typeof loadMonitors === 'function') loadMonitors();
+        } else if (tabName === 'toolexplorer') {
+          document.getElementById('toolexplorerPanel').classList.add('active');
+          document.getElementById('toolexplorerTabBtn').classList.add('active');
+          if (typeof loadToolExplorer === 'function') loadToolExplorer();
+        } else if (tabName === 'mocks') {
+          document.getElementById('mocksPanel').classList.add('active');
+          document.getElementById('mocksTabBtn').classList.add('active');
+          if (typeof loadMockServers === 'function') loadMockServers();
+        } else if (tabName === 'scripts') {
+          document.getElementById('scriptsPanel').classList.add('active');
+          document.getElementById('scriptsTabBtn').classList.add('active');
+          if (typeof loadScripts === 'function') loadScripts();
+        } else if (tabName === 'docs') {
+          document.getElementById('docsPanel').classList.add('active');
+          document.getElementById('docsTabBtn').classList.add('active');
+        } else if (tabName === 'contracts') {
+          document.getElementById('contractsPanel').classList.add('active');
+          document.getElementById('contractsTabBtn').classList.add('active');
+          if (typeof loadContracts === 'function') loadContracts();
         }
       }
 

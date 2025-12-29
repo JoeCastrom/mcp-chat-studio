@@ -94,6 +94,10 @@
           </svg>
           ?
         </button>
+        <button class="btn" onclick="startTour()" title="Start Guided Tour" style="background: var(--accent-gradient); color: white; border: none;">
+          🎓 Tour
+        </button>
+
       </div>
     </header>
 
@@ -193,6 +197,23 @@
           </button>
           <button class="tab-btn" onclick="switchTab('generator')" id="generatorTabBtn">
             ⚙️ Generator
+          </button>
+          <button class="tab-btn" onclick="switchTab('collections')" id="collectionsTabBtn">
+            📚 Collections
+          </button>
+          <button class="tab-btn" onclick="switchTab('monitors')" id="monitorsTabBtn">
+            ⏰ Monitors
+          </button>
+          <button class="tab-btn" onclick="switchTab('toolexplorer')" id="toolexplorerTabBtn">
+            📊 Analytics
+          </button>
+          <button class="tab-btn" onclick="switchTab('mocks')" id="mocksTabBtn">🎭 Mocks</button>
+          <button class="tab-btn" onclick="switchTab('scripts')" id="scriptsTabBtn">
+            📝 Scripts
+          </button>
+          <button class="tab-btn" onclick="switchTab('docs')" id="docsTabBtn">📖 Docs</button>
+          <button class="tab-btn" onclick="switchTab('contracts')" id="contractsTabBtn">
+            📋 Contracts
           </button>
         </div>
 
@@ -639,19 +660,53 @@
                 <h3 style="display: flex; justify-content: space-between; align-items: center">
                   <span>⏱️ Message Timeline</span>
                   <div style="display: flex; gap: 4px">
-                    <button class="btn" onclick="startTimeline()" style="font-size: 0.65rem; padding: 2px 6px">▶️ Start</button>
-                    <button class="btn" onclick="refreshTimeline()" style="font-size: 0.65rem; padding: 2px 6px">🔄 Refresh</button>
-                    <button class="btn" onclick="exportTimeline()" style="font-size: 0.65rem; padding: 2px 6px">📥 Export</button>
-                    <button class="btn" onclick="clearTimeline()" style="font-size: 0.65rem; padding: 2px 6px">🗑️ Clear</button>
+                    <button
+                      class="btn"
+                      onclick="startTimeline()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      ▶️ Start
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="refreshTimeline()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      🔄 Refresh
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="exportTimeline()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      📥 Export
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="clearTimeline()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      🗑️ Clear
+                    </button>
                   </div>
                 </h3>
                 <div style="margin-bottom: 12px">
                   <div style="display: flex; gap: 8px; align-items: center; font-size: 0.75rem">
                     <span>Filter:</span>
-                    <select class="form-select" id="timelineServerFilter" onchange="refreshTimeline()" style="flex: 1; max-width: 200px">
+                    <select
+                      class="form-select"
+                      id="timelineServerFilter"
+                      onchange="refreshTimeline()"
+                      style="flex: 1; max-width: 200px"
+                    >
                       <option value="">All Servers</option>
                     </select>
-                    <select class="form-select" id="timelineTypeFilter" onchange="refreshTimeline()" style="flex: 1; max-width: 150px">
+                    <select
+                      class="form-select"
+                      id="timelineTypeFilter"
+                      onchange="refreshTimeline()"
+                      style="flex: 1; max-width: 150px"
+                    >
                       <option value="">All Types</option>
                       <option value="request">Requests</option>
                       <option value="response">Responses</option>
@@ -659,10 +714,16 @@
                     </select>
                   </div>
                 </div>
-                <div id="timelineSessionStatus" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px">
+                <div
+                  id="timelineSessionStatus"
+                  style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px"
+                >
                   Not tracking. Click "Start" to begin capturing messages.
                 </div>
-                <div id="timelineEvents" style="max-height: 500px; overflow-y: auto; font-size: 0.75rem">
+                <div
+                  id="timelineEvents"
+                  style="max-height: 500px; overflow-y: auto; font-size: 0.75rem"
+                >
                   <div style="color: var(--text-muted); font-style: italic; padding: 12px">
                     Start timeline tracking to see chronological message flow...
                   </div>
@@ -678,7 +739,11 @@
                   Execute a tool with multiple inputs and compare results
                 </p>
                 <div class="inspector-toolbar" style="margin-bottom: 12px">
-                  <select class="form-select" id="bulkTestServerSelect" onchange="loadBulkTestTools()">
+                  <select
+                    class="form-select"
+                    id="bulkTestServerSelect"
+                    onchange="loadBulkTestTools()"
+                  >
                     <option value="">-- Select Server --</option>
                   </select>
                   <select class="form-select" id="bulkTestToolSelect">
@@ -686,7 +751,10 @@
                   </select>
                 </div>
                 <div style="margin-bottom: 12px">
-                  <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Test Inputs (JSON array of objects):</label>
+                  <label
+                    style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px"
+                    >Test Inputs (JSON array of objects):</label
+                  >
                   <textarea
                     id="bulkTestInputs"
                     class="form-control"
@@ -699,7 +767,15 @@
                     style="font-family: 'Courier New', monospace; font-size: 0.75rem"
                   ></textarea>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 0.75rem">
+                <div
+                  style="
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    margin-bottom: 12px;
+                    font-size: 0.75rem;
+                  "
+                >
                   <label style="display: flex; align-items: center; gap: 4px">
                     <input type="checkbox" id="bulkTestParallel" checked />
                     Run in parallel
@@ -709,15 +785,35 @@
                     Continue on error
                   </label>
                 </div>
-                <button class="btn primary" onclick="runBulkTest()" id="bulkTestRunBtn">▶️ Run Bulk Test</button>
+                <button class="btn primary" onclick="runBulkTest()" id="bulkTestRunBtn">
+                  ▶️ Run Bulk Test
+                </button>
               </div>
               <div class="inspector-section" id="bulkTestResultsSection" style="display: none">
                 <h3 style="display: flex; justify-content: space-between; align-items: center">
                   <span>📈 Results</span>
-                  <button class="btn" onclick="exportBulkTestResults()" style="font-size: 0.65rem; padding: 2px 6px">📥 Export</button>
+                  <button
+                    class="btn"
+                    onclick="exportBulkTestResults()"
+                    style="font-size: 0.65rem; padding: 2px 6px"
+                  >
+                    📥 Export
+                  </button>
                 </h3>
-                <div id="bulkTestSummary" style="margin-bottom: 12px; padding: 12px; background: var(--bg-card); border-radius: 8px; font-size: 0.75rem"></div>
-                <div id="bulkTestResults" style="max-height: 400px; overflow-y: auto; font-size: 0.75rem"></div>
+                <div
+                  id="bulkTestSummary"
+                  style="
+                    margin-bottom: 12px;
+                    padding: 12px;
+                    background: var(--bg-card);
+                    border-radius: 8px;
+                    font-size: 0.75rem;
+                  "
+                ></div>
+                <div
+                  id="bulkTestResults"
+                  style="max-height: 400px; overflow-y: auto; font-size: 0.75rem"
+                ></div>
               </div>
             </div>
 
@@ -736,9 +832,24 @@
                     <option value="">-- Select Tool --</option>
                   </select>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px">
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 12px;
+                    margin-bottom: 12px;
+                  "
+                >
                   <div>
-                    <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Args A:</label>
+                    <label
+                      style="
+                        font-size: 0.8rem;
+                        font-weight: 500;
+                        display: block;
+                        margin-bottom: 4px;
+                      "
+                      >Args A:</label
+                    >
                     <textarea
                       id="diffArgs1"
                       class="form-control"
@@ -748,7 +859,15 @@
                     ></textarea>
                   </div>
                   <div>
-                    <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">Args B:</label>
+                    <label
+                      style="
+                        font-size: 0.8rem;
+                        font-weight: 500;
+                        display: block;
+                        margin-bottom: 4px;
+                      "
+                      >Args B:</label
+                    >
                     <textarea
                       id="diffArgs2"
                       class="form-control"
@@ -998,7 +1117,13 @@
                 <button class="btn" onclick="addNode('tool')">➕ Tool Node</button>
                 <button class="btn" onclick="addNode('llm')">➕ LLM Node</button>
                 <button class="btn" onclick="addNode('javascript')">➕ JS Node</button>
-                <button class="btn" onclick="addNode('assert')" style="background: rgba(34, 197, 94, 0.2); border-color: var(--success);">✓ Assert</button>
+                <button
+                  class="btn"
+                  onclick="addNode('assert')"
+                  style="background: rgba(34, 197, 94, 0.2); border-color: var(--success)"
+                >
+                  ✓ Assert
+                </button>
                 <div
                   style="width: 1px; height: 20px; background: var(--border); margin: 0 8px"
                 ></div>
@@ -1234,6 +1359,191 @@
                 "
               ></pre>
             </div>
+          </div>
+        </div>
+
+        <!-- Collections Panel -->
+        <div class="content-panel" id="collectionsPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>📚 Collections Manager</h3>
+                <button class="btn" onclick="createCollectionModal()">+ New Collection</button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Organize scenarios into reusable test collections (like Postman Collections)
+              </p>
+            </div>
+
+            <div
+              id="collectionsList"
+              style="display: flex; flex-direction: column; gap: 12px"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Monitors Panel -->
+        <div class="content-panel" id="monitorsPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>⏰ Monitors Dashboard</h3>
+                <button class="btn" onclick="createMonitorModal()">+ New Monitor</button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Schedule collections to run automatically (like Postman Monitors)
+              </p>
+            </div>
+
+            <div id="monitorsStats" class="stats-grid" style="margin-bottom: 20px"></div>
+            <div id="monitorsList" style="display: flex; flex-direction: column; gap: 12px"></div>
+          </div>
+        </div>
+
+        <!-- Tool Explorer Panel -->
+        <div class="content-panel" id="toolexplorerPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>📊 Tool Analytics & Explorer</h3>
+                <button class="btn" onclick="exportToolStats()">📥 Export CSV</button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Real-time usage statistics, performance metrics, and health monitoring
+              </p>
+            </div>
+
+            <div id="toolExplorerStats"></div>
+
+            <div class="inspector-section" style="margin-top: 20px">
+              <h3>🏆 Tool Leaderboard</h3>
+              <div id="toolLeaderboard"></div>
+            </div>
+
+            <div class="inspector-section" style="margin-top: 20px">
+              <h3>🏥 Health Dashboard</h3>
+              <div id="healthDashboard"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mock Servers Panel -->
+        <div class="content-panel" id="mocksPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>🎭 Mock MCP Servers</h3>
+                <button class="btn" onclick="createMockServerModal()">+ New Mock</button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Create runtime mock servers with canned responses for testing
+              </p>
+            </div>
+
+            <div
+              id="mockServersList"
+              style="display: flex; flex-direction: column; gap: 12px"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Scripts Panel -->
+        <div class="content-panel" id="scriptsPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>📝 Pre/Post Scripts</h3>
+                <button class="btn" onclick="createScriptModal()">+ New Script</button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Execute JavaScript before/after tool calls (like Postman Scripts)
+              </p>
+              <div
+                style="
+                  font-size: 0.75rem;
+                  background: var(--bg-card);
+                  padding: 8px;
+                  border-radius: 6px;
+                  margin-top: 8px;
+                "
+              >
+                <strong>Example:</strong><br />
+                <code
+                  >pm.test("Status is success", () =>
+                  pm.expect(pm.response).to.have.property("status"));</code
+                >
+              </div>
+            </div>
+
+            <div id="scriptsList" style="display: flex; flex-direction: column; gap: 12px"></div>
+          </div>
+        </div>
+
+        <!-- Documentation Panel -->
+        <div class="content-panel" id="docsPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <h3>📖 Documentation Generator</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Auto-generate beautiful documentation from MCP server schemas
+              </p>
+            </div>
+
+            <div class="inspector-section">
+              <h4>Actions</h4>
+              <div style="display: flex; flex-direction: column; gap: 12px">
+                <button class="btn primary" onclick="generateDocumentation()">
+                  🚀 Generate Documentation
+                </button>
+                <button class="btn" onclick="previewDocumentation()">
+                  👁️ Preview Documentation
+                </button>
+              </div>
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px">
+                Choose a specific server or generate for all connected servers
+              </p>
+            </div>
+
+            <div class="inspector-section">
+              <h4>Formats Supported</h4>
+              <ul style="font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary)">
+                <li>📝 <strong>Markdown</strong> - GitHub-ready docs</li>
+                <li>🌐 <strong>HTML</strong> - Beautiful styled pages</li>
+                <li>📋 <strong>JSON</strong> - Machine-readable schemas</li>
+              </ul>
+            </div>
+
+            <div class="inspector-section">
+              <h4>What's Included</h4>
+              <ul style="font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary)">
+                <li>✅ Table of contents with navigation</li>
+                <li>✅ Tool documentation with parameter tables</li>
+                <li>✅ Auto-generated examples for each tool</li>
+                <li>✅ Resource and prompt documentation</li>
+                <li>✅ Type information and descriptions</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contract Testing Panel -->
+        <div class="content-panel" id="contractsPanel">
+          <div class="inspector-panel">
+            <div class="inspector-section">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <h3>📋 Contract Testing</h3>
+                <div style="display: flex; gap: 8px">
+                  <button class="btn" onclick="createContractModal()">+ New Contract</button>
+                  <button class="btn primary" onclick="runPreDeploymentCheck()">
+                    🚀 Pre-Deploy Check
+                  </button>
+                </div>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Validate tool responses against JSON schemas and detect breaking changes
+              </p>
+            </div>
+            <div id="contractsList" style="display: flex; flex-direction: column; gap: 12px"></div>
           </div>
         </div>
       </div>
@@ -1760,5 +2070,7 @@ env:
     <script src="app.js"></script>
     <script src="workflow.js"></script>
     <script src="brain.js"></script>
+    <script src="advanced-features.js"></script>
+    <script src="onboarding.js"></script>
   </body>
 </html>

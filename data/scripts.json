@@ -1,0 +1,12 @@
+[
+  {
+    "id": "script_1766969343323_2dldjg1lf",
+    "name": "Log Response",
+    "description": "Logs the response",
+    "type": "post",
+    "code": "console.log(pm.response);",
+    "enabled": true,
+    "createdAt": "2025-12-29T00:49:03.323Z",
+    "updatedAt": "2025-12-29T00:49:03.323Z"
+  }
+]

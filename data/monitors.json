@@ -1,0 +1,16 @@
+[
+  {
+    "id": "mon_1766969323503_izbwdq7d3",
+    "name": "Health Check Monitor",
+    "collectionId": "col_1766969248662_2u5kyyuj1",
+    "schedule": "5m",
+    "environment": {},
+    "enabled": true,
+    "notifications": [],
+    "lastRun": "2025-12-29T01:02:10.681Z",
+    "lastStatus": "passed",
+    "runCount": 2,
+    "createdAt": "2025-12-29T00:48:43.503Z",
+    "updatedAt": "2025-12-29T01:02:10.681Z"
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "name": "test-server.test_tool",
+  "server": "test-server",
+  "version": "1.0.0",
+  "createdAt": "2025-12-29T00:49:29.193Z",
+  "updatedAt": "2025-12-29T00:49:29.193Z",
+  "tests": [
+    {
+      "description": "should return object",
+      "path": "result",
+      "expected": "string"
+    }
+  ]
+}
