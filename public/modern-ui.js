@@ -55,7 +55,6 @@ const modernUI = {
     { id: 'settings', icon: '⚙️', title: 'LLM Settings', desc: 'Configure AI provider', category: 'Actions', action: () => showSettingsModal?.() },
     { id: 'clear-chat', icon: '🗑️', title: 'Clear Chat', desc: 'Start fresh conversation', category: 'Actions', action: () => clearChat?.() },
     { id: 'export', icon: '📥', title: 'Export Chat', desc: 'Download conversation', category: 'Actions', action: () => exportChat?.() },
-    { id: 'tour', icon: '🎓', title: 'Start Tour', desc: 'Guided walkthrough', category: 'Actions', action: () => startTour?.() },
     { id: 'shortcuts', icon: '⌨️', title: 'Keyboard Shortcuts', desc: 'View all hotkeys', category: 'Actions', action: () => showShortcutsHelp?.() },
     { id: 'mcp-servers', icon: '🔌', title: 'Toggle MCP Sidebar', desc: 'Show/hide server list', category: 'Actions', action: () => modernUI.toggleMCPSidebar() }
   ],

@@ -1,0 +1,147 @@
+{
+  "id": "col_1767170903555_ez7edf3ru",
+  "name": "Test Collection",
+  "description": "Testing UI",
+  "scenarios": [
+    {
+      "id": "col_1767180176820_qy7qla81a",
+      "name": "Test 10:04:25",
+      "description": "",
+      "steps": [
+        {
+          "server": "windows",
+          "tool": "Wait-Tool",
+          "args": {
+            "duration": 1
+          },
+          "expectedResponse": {
+            "content": [
+              {
+                "type": "text",
+                "text": "Waited for 1 seconds."
+              }
+            ],
+            "isError": false
+          },
+          "responseHash": "-72a488f1",
+          "responseSchema": {
+            "type": "object",
+            "path": "(root)",
+            "properties": {
+              "content": {
+                "type": "array",
+                "path": "content",
+                "items": {
+                  "type": "object",
+                  "path": "content[0]",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "path": "content[0].type"
+                    },
+                    "text": {
+                      "type": "string",
+                      "path": "content[0].text"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ]
+                },
+                "minItems": 1
+              },
+              "isError": {
+                "type": "boolean",
+                "path": "isError"
+              }
+            },
+            "required": [
+              "content",
+              "isError"
+            ]
+          },
+          "timing": 1020,
+          "success": true
+        }
+      ],
+      "variables": {},
+      "preScripts": [],
+      "postScripts": [],
+      "addedAt": "2025-12-31T11:22:56.820Z"
+    },
+    {
+      "id": "col_1767182556279_3y1765ze9",
+      "name": "Test 10:04:25",
+      "description": "",
+      "steps": [
+        {
+          "server": "windows",
+          "tool": "Wait-Tool",
+          "args": {
+            "duration": 1
+          },
+          "expectedResponse": {
+            "content": [
+              {
+                "type": "text",
+                "text": "Waited for 1 seconds."
+              }
+            ],
+            "isError": false
+          },
+          "responseHash": "-72a488f1",
+          "responseSchema": {
+            "type": "object",
+            "path": "(root)",
+            "properties": {
+              "content": {
+                "type": "array",
+                "path": "content",
+                "items": {
+                  "type": "object",
+                  "path": "content[0]",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "path": "content[0].type"
+                    },
+                    "text": {
+                      "type": "string",
+                      "path": "content[0].text"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ]
+                },
+                "minItems": 1
+              },
+              "isError": {
+                "type": "boolean",
+                "path": "isError"
+              }
+            },
+            "required": [
+              "content",
+              "isError"
+            ]
+          },
+          "timing": 1020,
+          "success": true
+        }
+      ],
+      "variables": {},
+      "preScripts": [],
+      "postScripts": [],
+      "addedAt": "2025-12-31T12:02:36.279Z"
+    }
+  ],
+  "variables": {},
+  "auth": null,
+  "createdAt": "2025-12-29T00:47:28.662Z",
+  "updatedAt": "2025-12-31T12:02:36.279Z",
+  "preScripts": [],
+  "postScripts": []
+}

@@ -6,9 +6,10 @@
  */
 
 import { program } from 'commander';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import chalk from 'chalk';
+import axios from 'axios';
 
 program
   .name('mcp-test')
@@ -21,21 +22,40 @@ program
 program
   .command('run <collection>')
   .description('Run a collection')
+  .option('-s, --server <url>', 'MCP Chat Studio server URL', 'http://localhost:3082')
   .option('-e, --environment <file>', 'Environment variables file')
+  .option('--data <file>', 'Iteration data file (JSON array)')
   .option('-d, --delay <ms>', 'Delay between requests (ms)', '0')
   .option('--bail', 'Stop on first error')
   .option('-r, --reporters <list>', 'Reporters (cli,json,junit)', 'cli')
   .option('-n, --iteration-count <n>', 'Number of iterations', '1')
   .option('--timeout <ms>', 'Request timeout (ms)', '30000')
   .option('--export <file>', 'Export results to file')
+  .option('--session <id>', 'Session ID for OAuth-protected MCP servers')
+  .option('--cookie <cookie>', 'Cookie header value for authenticated requests')
+  .option('--token <token>', 'Bearer token for authenticated requests')
   .action(async (collectionPath, options) => {
     try {
       console.log(chalk.blue.bold('\n🚀 MCP Test Runner\n'));
+      const serverUrl = normalizeServerUrl(options.server);
+      const timeout = parseInt(options.timeout, 10) || 30000;
+      const authHeaders = buildAuthHeaders(options);
 
-      // Load collection
-      const collection = loadJSON(collectionPath);
-      console.log(chalk.cyan(`📦 Collection: ${collection.name}`));
-      console.log(chalk.gray(`   Scenarios: ${collection.scenarios?.length || 0}\n`));
+      // Load or resolve collection
+      const resolvedPath = resolve(collectionPath);
+      const isFile = existsSync(resolvedPath);
+      let collectionId = collectionPath;
+
+      if (isFile) {
+        const collection = loadJSON(resolvedPath);
+        console.log(chalk.cyan(`📦 Collection: ${collection.name}`));
+        console.log(chalk.gray(`   Scenarios: ${collection.scenarios?.length || 0}\n`));
+
+        const imported = await importCollection(serverUrl, collection, timeout, authHeaders);
+        collectionId = imported.id;
+      } else {
+        console.log(chalk.cyan(`📦 Collection ID: ${collectionId}`));
+      }
 
       // Load environment
       let environment = {};
@@ -44,14 +64,31 @@ program
         console.log(chalk.cyan(`🌍 Environment: ${options.environment}\n`));
       }
 
-      // Run collection
-      const results = await runCollection(collection, {
-        environment,
-        delay: parseInt(options.delay),
-        stopOnError: options.bail,
-        iterations: parseInt(options.iterationCount),
-        timeout: parseInt(options.timeout)
-      });
+      // Load iteration data
+      let iterationData = [];
+      if (options.data) {
+        const data = loadJSON(options.data);
+        if (!Array.isArray(data)) {
+          throw new Error('Iteration data must be a JSON array');
+        }
+        iterationData = data;
+        console.log(chalk.cyan(`🔁 Iteration data: ${options.data} (${iterationData.length} rows)\n`));
+      }
+
+      // Run collection via API
+      const results = await runCollectionViaApi(
+        serverUrl,
+        collectionId,
+        {
+          environment,
+          delay: parseInt(options.delay, 10),
+          stopOnError: !!options.bail,
+          iterations: parseInt(options.iterationCount, 10),
+          iterationData
+        },
+        timeout,
+        authHeaders
+      );
 
       // Report results
       const reporters = options.reporters.split(',');
@@ -114,12 +151,297 @@ program
   });
 
 /**
+ * Schema tools
+ */
+const schemaCmd = program.command('schema').description('Schema snapshot and diff tools');
+
+schemaCmd
+  .command('snapshot')
+  .description('Capture tool schemas from a running MCP Chat Studio server')
+  .option('-s, --server <url>', 'MCP Chat Studio server URL', 'http://localhost:3082')
+  .option('--timeout <ms>', 'Request timeout (ms)', '30000')
+  .option('-o, --out <file>', 'Output file')
+  .option('--session <id>', 'Session ID for OAuth-protected MCP servers')
+  .option('--cookie <cookie>', 'Cookie header value for authenticated requests')
+  .option('--token <token>', 'Bearer token for authenticated requests')
+  .action(async options => {
+    try {
+      const serverUrl = normalizeServerUrl(options.server);
+      const timeout = parseInt(options.timeout, 10) || 30000;
+      const tools = await fetchToolsSnapshot(serverUrl, timeout, buildAuthHeaders(options));
+
+      const snapshot = {
+        capturedAt: new Date().toISOString(),
+        serverUrl,
+        toolCount: tools.length,
+        tools
+      };
+
+      const json = JSON.stringify(snapshot, null, 2);
+      if (options.out) {
+        writeFileSync(options.out, json);
+        console.log(chalk.green(`\n✓ Snapshot saved to ${options.out}\n`));
+      } else {
+        console.log(json);
+      }
+    } catch (error) {
+      console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
+      process.exit(1);
+    }
+  });
+
+schemaCmd
+  .command('diff <baseline> <current>')
+  .description('Diff two schema snapshots')
+  .option('-f, --format <format>', 'Output format (cli,json,junit)', 'cli')
+  .option('-o, --out <file>', 'Output file')
+  .option('--gate', 'Exit with non-zero if changes are detected')
+  .action((baselinePath, currentPath, options) => {
+    try {
+      const baseline = loadJSON(baselinePath);
+      const current = loadJSON(currentPath);
+      const diff = diffSnapshots(baseline, current);
+
+      if (options.format === 'json') {
+        const json = JSON.stringify(diff, null, 2);
+        if (options.out) {
+          writeFileSync(options.out, json);
+          console.log(chalk.green(`\n✓ Diff exported to ${options.out}\n`));
+        } else {
+          console.log(json);
+        }
+      } else if (options.format === 'junit') {
+        const xml = renderSchemaJUnit(diff);
+        if (options.out) {
+          writeFileSync(options.out, xml);
+          console.log(chalk.green(`\n✓ JUnit diff exported to ${options.out}\n`));
+        } else {
+          console.log(xml);
+        }
+      } else {
+        reportSchemaDiffCLI(diff);
+      }
+
+      if (options.gate && diff.summary.totalChanges > 0) {
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
+      process.exit(1);
+    }
+  });
+
+/**
  * Load JSON file
  */
 function loadJSON(filePath) {
   const absolutePath = resolve(filePath);
   const content = readFileSync(absolutePath, 'utf8');
   return JSON.parse(content);
+}
+
+function normalizeServerUrl(url) {
+  return String(url || '').replace(/\/$/, '');
+}
+
+function buildAuthHeaders(options = {}) {
+  const headers = {};
+  if (options.session) {
+    headers['x-session-id'] = options.session;
+  }
+  if (options.cookie) {
+    headers['Cookie'] = options.cookie;
+  }
+  if (options.token) {
+    headers['Authorization'] = `Bearer ${options.token}`;
+  }
+  return headers;
+}
+
+async function importCollection(serverUrl, collection, timeout, authHeaders = {}) {
+  const res = await axios.post(`${serverUrl}/api/collections/import`, collection, {
+    timeout,
+    headers: { 'Content-Type': 'application/json', ...authHeaders }
+  });
+  return res.data;
+}
+
+async function runCollectionViaApi(serverUrl, collectionId, payload, timeout, authHeaders = {}) {
+  const res = await axios.post(
+    `${serverUrl}/api/collections/${collectionId}/run`,
+    payload,
+    {
+      timeout,
+      headers: { 'Content-Type': 'application/json', ...authHeaders }
+    }
+  );
+  return res.data;
+}
+
+async function fetchToolsSnapshot(serverUrl, timeout, authHeaders = {}) {
+  const res = await axios.get(`${serverUrl}/api/mcp/tools`, {
+    timeout,
+    headers: { ...authHeaders }
+  });
+  const tools = (res.data?.tools || [])
+    .filter(tool => !tool.notConnected)
+    .map(tool => ({
+      serverName: tool.serverName,
+      name: tool.name,
+      description: tool.description || '',
+      inputSchema: tool.inputSchema || { type: 'object', properties: {} }
+    }))
+    .sort((a, b) => {
+      if (a.serverName === b.serverName) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.serverName.localeCompare(b.serverName);
+    });
+
+  return tools;
+}
+
+function stableStringify(value) {
+  if (value === null || value === undefined) return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(item => stableStringify(item)).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function diffSnapshots(baselineSnapshot, currentSnapshot) {
+  const baselineTools = Array.isArray(baselineSnapshot)
+    ? baselineSnapshot
+    : baselineSnapshot.tools || [];
+  const currentTools = Array.isArray(currentSnapshot)
+    ? currentSnapshot
+    : currentSnapshot.tools || [];
+
+  const baselineMap = new Map();
+  baselineTools.forEach(tool => {
+    const key = `${tool.serverName}__${tool.name}`;
+    baselineMap.set(key, tool);
+  });
+
+  const added = [];
+  const removed = [];
+  const changed = [];
+
+  currentTools.forEach(tool => {
+    const key = `${tool.serverName}__${tool.name}`;
+    const previous = baselineMap.get(key);
+    if (!previous) {
+      added.push(tool);
+      return;
+    }
+
+    const previousSignature = stableStringify({
+      description: previous.description || '',
+      inputSchema: previous.inputSchema || {}
+    });
+    const currentSignature = stableStringify({
+      description: tool.description || '',
+      inputSchema: tool.inputSchema || {}
+    });
+
+    if (previousSignature !== currentSignature) {
+      changed.push({
+        key,
+        serverName: tool.serverName,
+        name: tool.name,
+        before: previous,
+        after: tool
+      });
+    }
+    baselineMap.delete(key);
+  });
+
+  for (const tool of baselineMap.values()) {
+    removed.push(tool);
+  }
+
+  const summary = {
+    added: added.length,
+    removed: removed.length,
+    changed: changed.length,
+    totalChanges: added.length + removed.length + changed.length
+  };
+
+  return { summary, added, removed, changed };
+}
+
+function reportSchemaDiffCLI(diff) {
+  console.log(chalk.blue.bold('\n🧬 Schema Diff\n'));
+  console.log(chalk.green(`  Added:   ${diff.summary.added}`));
+  console.log(chalk.red(`  Removed: ${diff.summary.removed}`));
+  console.log(chalk.yellow(`  Changed: ${diff.summary.changed}\n`));
+
+  if (diff.added.length > 0) {
+    console.log(chalk.green('Added tools:'));
+    diff.added.forEach(tool => {
+      console.log(chalk.green(`  + ${tool.serverName}__${tool.name}`));
+    });
+    console.log();
+  }
+
+  if (diff.removed.length > 0) {
+    console.log(chalk.red('Removed tools:'));
+    diff.removed.forEach(tool => {
+      console.log(chalk.red(`  - ${tool.serverName}__${tool.name}`));
+    });
+    console.log();
+  }
+
+  if (diff.changed.length > 0) {
+    console.log(chalk.yellow('Changed tools:'));
+    diff.changed.forEach(change => {
+      console.log(chalk.yellow(`  ~ ${change.key}`));
+    });
+    console.log();
+  }
+}
+
+function renderSchemaJUnit(diff) {
+  const totalChanges = diff.summary.totalChanges;
+  const tests = totalChanges > 0 ? totalChanges : 1;
+  const failures = totalChanges;
+
+  if (totalChanges === 0) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="schema-diff" tests="1" failures="0" time="0">
+  <testsuite name="schema-diff" tests="1" failures="0" time="0">
+    <testcase name="schema-diff"></testcase>
+  </testsuite>
+</testsuites>`;
+  }
+
+  const cases = [];
+  diff.added.forEach(tool => {
+    cases.push(`<testcase name="added: ${tool.serverName}__${tool.name}">
+      <failure message="Tool added"></failure>
+    </testcase>`);
+  });
+  diff.removed.forEach(tool => {
+    cases.push(`<testcase name="removed: ${tool.serverName}__${tool.name}">
+      <failure message="Tool removed"></failure>
+    </testcase>`);
+  });
+  diff.changed.forEach(change => {
+    cases.push(`<testcase name="changed: ${change.key}">
+      <failure message="Tool schema changed"></failure>
+    </testcase>`);
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="schema-diff" tests="${tests}" failures="${failures}" time="0">
+  <testsuite name="schema-diff" tests="${tests}" failures="${failures}" time="0">
+${cases.join('\n')}
+  </testsuite>
+</testsuites>`;
 }
 
 /**
@@ -145,95 +467,6 @@ function validateCollection(collection) {
   }
 
   return errors;
-}
-
-/**
- * Run collection
- */
-async function runCollection(collection, options) {
-  const results = {
-    collectionName: collection.name,
-    startTime: new Date().toISOString(),
-    endTime: null,
-    duration: 0,
-    total: 0,
-    passed: 0,
-    failed: 0,
-    skipped: 0,
-    scenarios: []
-  };
-
-  const startTime = Date.now();
-
-  if (!collection.scenarios || collection.scenarios.length === 0) {
-    results.endTime = new Date().toISOString();
-    results.duration = Date.now() - startTime;
-    return results;
-  }
-
-  results.total = collection.scenarios.length * options.iterations;
-
-  // Run iterations
-  for (let iter = 0; iter < options.iterations; iter++) {
-    for (const scenario of collection.scenarios) {
-      try {
-        const scenarioResult = await runScenario(scenario, options);
-        results.scenarios.push(scenarioResult);
-
-        if (scenarioResult.status === 'passed') {
-          results.passed++;
-        } else if (scenarioResult.status === 'failed') {
-          results.failed++;
-          if (options.stopOnError) {
-            results.endTime = new Date().toISOString();
-            results.duration = Date.now() - startTime;
-            return results;
-          }
-        } else {
-          results.skipped++;
-        }
-
-        // Delay between scenarios
-        if (options.delay > 0) {
-          await new Promise(resolve => setTimeout(resolve, options.delay));
-        }
-
-      } catch (error) {
-        results.scenarios.push({
-          name: scenario.name,
-          status: 'failed',
-          error: error.message
-        });
-        results.failed++;
-
-        if (options.stopOnError) {
-          break;
-        }
-      }
-    }
-  }
-
-  results.endTime = new Date().toISOString();
-  results.duration = Date.now() - startTime;
-
-  return results;
-}
-
-/**
- * Run a single scenario
- */
-async function runScenario(scenario, options) {
-  // This is a simplified mock version
-  // In production, this would actually call MCP tools via HTTP API
-
-  const result = {
-    name: scenario.name,
-    status: 'passed',
-    duration: Math.random() * 1000, // Simulate execution time
-    assertions: []
-  };
-
-  return result;
 }
 
 /**
@@ -288,7 +521,7 @@ function reportJSON(results, exportPath) {
   const json = JSON.stringify(results, null, 2);
 
   if (exportPath) {
-    require('fs').writeFileSync(exportPath, json);
+    writeFileSync(exportPath, json);
     console.log(chalk.green(`\n✓ Results exported to ${exportPath}\n`));
   } else {
     console.log(json);
@@ -309,7 +542,7 @@ ${scenario.status === 'failed' ? `      <failure message="${scenario.error || 'T
 </testsuites>`;
 
   if (exportPath) {
-    require('fs').writeFileSync(exportPath, xml);
+    writeFileSync(exportPath, xml);
     console.log(chalk.green(`\n✓ JUnit report exported to ${exportPath}\n`));
   } else {
     console.log(xml);

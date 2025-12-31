@@ -31,13 +31,13 @@ router.get('/', (req, res) => {
 
 /**
  * @swagger
- * /api/contracts/{name}:
+ * /api/contracts/{id}:
  *   get:
  *     summary: Get a contract by name
  *     tags: [Contracts]
  *     parameters:
  *       - in: path
- *         name: name
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
@@ -45,10 +45,10 @@ router.get('/', (req, res) => {
  *       200:
  *         description: Contract details
  */
-router.get('/:name', (req, res) => {
+router.get('/:id', (req, res) => {
   try {
     const tester = getContractTester();
-    const contract = tester.loadContract(req.params.name);
+    const contract = tester.loadContract(req.params.id);
 
     res.json(contract);
   } catch (error) {
@@ -69,14 +69,16 @@ router.get('/:name', (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               name:
- *                 type: string
  *               server:
+ *                 type: string
+ *               toolName:
  *                 type: string
  *               version:
  *                 type: string
- *               tests:
- *                 type: array
+ *               schema:
+ *                 type: object
+ *               sampleArgs:
+ *                 type: object
  *     responses:
  *       200:
  *         description: Contract created
@@ -94,13 +96,13 @@ router.post('/', (req, res) => {
 
 /**
  * @swagger
- * /api/contracts/{name}:
+ * /api/contracts/{id}:
  *   put:
  *     summary: Update a contract
  *     tags: [Contracts]
  *     parameters:
  *       - in: path
- *         name: name
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
@@ -114,10 +116,10 @@ router.post('/', (req, res) => {
  *       200:
  *         description: Contract updated
  */
-router.put('/:name', (req, res) => {
+router.put('/:id', (req, res) => {
   try {
     const tester = getContractTester();
-    const contract = tester.updateContract(req.params.name, req.body);
+    const contract = tester.updateContract(req.params.id, req.body);
 
     res.json(contract);
   } catch (error) {
@@ -127,13 +129,13 @@ router.put('/:name', (req, res) => {
 
 /**
  * @swagger
- * /api/contracts/{name}:
+ * /api/contracts/{id}:
  *   delete:
  *     summary: Delete a contract
  *     tags: [Contracts]
  *     parameters:
  *       - in: path
- *         name: name
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
@@ -141,10 +143,10 @@ router.put('/:name', (req, res) => {
  *       200:
  *         description: Contract deleted
  */
-router.delete('/:name', (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
     const tester = getContractTester();
-    const result = tester.deleteContract(req.params.name);
+    const result = tester.deleteContract(req.params.id);
 
     res.json(result);
   } catch (error) {
@@ -154,13 +156,85 @@ router.delete('/:name', (req, res) => {
 
 /**
  * @swagger
- * /api/contracts/{name}/run:
+ * /api/contracts/{id}/validate:
+ *   post:
+ *     summary: Validate a contract against live tool output
+ *     tags: [Contracts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Validation results
+ */
+router.post('/:id/validate', async (req, res) => {
+  try {
+    const tester = getContractTester();
+    const result = await tester.validateContract(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/contracts/{id}/breaking-changes:
+ *   get:
+ *     summary: Detect breaking changes against baseline response
+ *     tags: [Contracts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Breaking change report
+ */
+router.get('/:id/breaking-changes', async (req, res) => {
+  try {
+    const tester = getContractTester();
+    const result = await tester.detectBreakingChanges(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/contracts/pre-deployment-check:
+ *   post:
+ *     summary: Validate all contracts before deployment
+ *     tags: [Contracts]
+ *     responses:
+ *       200:
+ *         description: Validation summary
+ */
+router.post('/pre-deployment-check', async (req, res) => {
+  try {
+    const tester = getContractTester();
+    const result = await tester.preDeploymentCheck();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/contracts/{id}/run:
  *   post:
  *     summary: Run contract tests
  *     tags: [Contracts]
  *     parameters:
  *       - in: path
- *         name: name
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
@@ -168,10 +242,10 @@ router.delete('/:name', (req, res) => {
  *       200:
  *         description: Test results
  */
-router.post('/:name/run', async (req, res) => {
+router.post('/:id/run', async (req, res) => {
   try {
     const tester = getContractTester();
-    const results = await tester.runContract(req.params.name);
+    const results = await tester.runContract(req.params.id);
 
     res.json(results);
   } catch (error) {

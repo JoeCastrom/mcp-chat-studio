@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MCP Chat - Tool Testing Studio</title>
+    <meta name="description" content="MCP Chat Studio - A powerful tool for testing and developing with MCP servers" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,7 +15,8 @@
     <link rel="stylesheet" href="floating-workspace.css" />
   </head>
   <body>
-    <header class="header">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <header class="header" role="banner">
       <div class="logo">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -23,9 +25,6 @@
         </div>
         <span class="logo-text">MCP Chat</span>
         <span class="logo-badge">Studio</span>
-        <span style="font-size: 0.7rem; color: var(--text-secondary); margin-left: 8px; padding: 2px 6px; background: rgba(99, 102, 241, 0.15); border-radius: 4px; font-weight: 500;">
-          🎨 Workspace
-        </span>
       </div>
       <div class="header-actions">
         <!-- Model Badge -->
@@ -71,34 +70,113 @@
           <span id="themeIcon">🌙</span>
         </button>
 
+        <!-- Layout Toggle -->
+        <button
+          class="btn layout-toggle"
+          id="layoutToggle"
+          onclick="toggleLayout()"
+          title="Switch between Classic and Workspace layouts"
+          style="font-size: 0.8rem; padding: 4px 12px; background: var(--accent-gradient); color: white; border: none; font-weight: 600;"
+        >
+          <span id="layoutIcon">🎨</span>
+          <span id="layoutText">Workspace</span>
+        </button>
+        <button class="btn" onclick="openWorkspaceTemplates()" title="Workspace templates">
+          🗂️ Templates
+        </button>
+
         <div id="userSection"></div>
-        <button class="btn" onclick="showSettingsModal()" title="LLM Settings">⚙️</button>
-        <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
+        <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)" aria-label="Show keyboard shortcuts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
           ?
         </button>
-        <button class="btn" onclick="startTour()" title="Start Guided Tour" style="background: var(--accent-gradient); color: white; border: none;">
-          🎓 Tour
-        </button>
-
       </div>
     </header>
 
-    <main class="main">
-      <aside class="sidebar" id="sidebar">
+    <!-- Tab Navigation for Classic View (outside main) -->
+    <nav class="tab-nav" id="tabNav" role="navigation" aria-label="Main navigation">
+        <button class="tab-btn active" data-panel="chatPanel" onclick="switchClassicPanel('chatPanel')">
+          <span class="tab-icon">💬</span>
+          <span class="tab-label">Chat</span>
+        </button>
+        <button class="tab-btn" data-panel="inspectorPanel" onclick="switchClassicPanel('inspectorPanel')">
+          <span class="tab-icon">🔧</span>
+          <span class="tab-label">Inspector</span>
+        </button>
+        <button class="tab-btn" data-panel="workflowsPanel" onclick="switchClassicPanel('workflowsPanel')">
+          <span class="tab-icon">⛓️</span>
+          <span class="tab-label">Workflows</span>
+        </button>
+        <button class="tab-btn" data-panel="scenariosPanel" onclick="switchClassicPanel('scenariosPanel')">
+          <span class="tab-icon">🧪</span>
+          <span class="tab-label">Scenarios</span>
+        </button>
+        <button class="tab-btn" data-panel="historyPanel" onclick="switchClassicPanel('historyPanel')">
+          <span class="tab-icon">📜</span>
+          <span class="tab-label">History</span>
+        </button>
+        <button class="tab-btn" data-panel="collectionsPanel" onclick="switchClassicPanel('collectionsPanel')">
+          <span class="tab-icon">📚</span>
+          <span class="tab-label">Collections</span>
+        </button>
+        <button class="tab-btn" data-panel="monitorsPanel" onclick="switchClassicPanel('monitorsPanel')">
+          <span class="tab-icon">⏰</span>
+          <span class="tab-label">Monitors</span>
+        </button>
+        <button class="tab-btn" data-panel="toolexplorerPanel" onclick="switchClassicPanel('toolexplorerPanel')">
+          <span class="tab-icon">📊</span>
+          <span class="tab-label">Analytics</span>
+        </button>
+        <button class="tab-btn" data-panel="generatorPanel" onclick="switchClassicPanel('generatorPanel')">
+          <span class="tab-icon">⚙️</span>
+          <span class="tab-label">Generator</span>
+        </button>
+        <button class="tab-btn" data-panel="mocksPanel" onclick="switchClassicPanel('mocksPanel')">
+          <span class="tab-icon">🎭</span>
+          <span class="tab-label">Mocks</span>
+        </button>
+        <button class="tab-btn" data-panel="scriptsPanel" onclick="switchClassicPanel('scriptsPanel')">
+          <span class="tab-icon">📝</span>
+          <span class="tab-label">Scripts</span>
+        </button>
+        <button class="tab-btn" data-panel="docsPanel" onclick="switchClassicPanel('docsPanel')">
+          <span class="tab-icon">📖</span>
+          <span class="tab-label">Docs</span>
+        </button>
+        <button class="tab-btn" data-panel="contractsPanel" onclick="switchClassicPanel('contractsPanel')">
+          <span class="tab-icon">📋</span>
+          <span class="tab-label">Contracts</span>
+        </button>
+        <button class="tab-btn" data-panel="performancePanel" onclick="switchClassicPanel('performancePanel')">
+          <span class="tab-icon">⚡</span>
+          <span class="tab-label">Performance</span>
+        </button>
+        <button class="tab-btn" data-panel="debuggerPanel" onclick="switchClassicPanel('debuggerPanel')">
+          <span class="tab-icon">🐛</span>
+          <span class="tab-label">Debugger</span>
+        </button>
+        <button class="tab-btn" data-panel="brainPanel" onclick="switchClassicPanel('brainPanel')">
+          <span class="tab-icon">🧠</span>
+          <span class="tab-label">Brain</span>
+        </button>
+      </nav>
+
+    <main class="main" id="main-content" role="main">
+      <aside class="sidebar" id="sidebar" role="complementary" aria-label="MCP Servers">
         <div class="sidebar-header">
           <span class="sidebar-title">MCP Servers</span>
           <div style="display: flex; gap: var(--spacing-xs); align-items: center">
-            <button class="add-server-btn" onclick="showAddServerModal()" title="Add MCP Server">
+            <button class="add-server-btn" onclick="showAddServerModal()" title="Add MCP Server" aria-label="Add new MCP server">
               + Add
             </button>
-            <button class="btn" onclick="exportConfig()" title="Export Config">📥</button>
-            <button class="btn" onclick="importConfigFile()" title="Import Config">📤</button>
-            <span class="sidebar-status" id="serverCount">0 connected</span>
+            <button class="btn" onclick="exportConfig()" title="Export Config" aria-label="Export configuration">📥</button>
+            <button class="btn" onclick="importConfigFile()" title="Import Config" aria-label="Import configuration">📤</button>
+            <span class="sidebar-status" id="serverCount" role="status" aria-live="polite">0 connected</span>
           </div>
         </div>
 
@@ -182,6 +260,8 @@
               <span>💬 Chat Session</span>
               <div
                 id="connectionStatus"
+                role="status"
+                aria-live="polite"
                 style="font-size: 0.7rem; font-weight: normal; color: var(--text-muted)"
               ></div>
             </div>
@@ -191,15 +271,18 @@
                 id="toggleBrainBtn"
                 onclick="toggleBrainView()"
                 title="Toggle Visualization"
+                aria-label="Toggle brain visualization"
+                aria-pressed="false"
               >
                 🧠 Brain View
               </button>
+              <button class="btn" onclick="clearChat()" title="Clear chat">🧹 Clear</button>
             </div>
           </div>
 
           <div style="display: flex; flex: 1; overflow: hidden; position: relative">
             <!-- Messages Area -->
-            <div class="messages" id="messages" style="flex: 1; overflow-y: auto; padding: 20px">
+            <div class="messages" id="messages" style="flex: 1; overflow-y: auto; padding: 20px" role="log" aria-live="polite" aria-atomic="false">
               <div class="message assistant">
                 👋 Welcome to <strong>MCP Chat Studio</strong>! I'm your AI assistant with MCP tool
                 support. Connect to MCP servers using the sidebar to enable powerful tools. Some
@@ -209,7 +292,9 @@
 
             <!-- Brain Visualization Split Pane (Hidden by default) -->
             <div
-              id="brainPanel"
+              id="chatBrainPanel"
+              role="region"
+              aria-label="Agent Execution Trace Visualization"
               style="
                 width: 0;
                 transition: width 0.3s ease;
@@ -221,6 +306,7 @@
               "
             >
               <div
+                id="chatBrainPanelHeader"
                 style="
                   padding: 8px;
                   border-bottom: 1px solid var(--border);
@@ -232,22 +318,13 @@
               >
                 AGENT EXECUTION TRACE
               </div>
-              <div id="brainGraph" style="flex: 1; overflow: auto; position: relative">
-                <svg
-                  id="brainConnections"
-                  style="
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    pointer-events: none;
-                    z-index: 0;
-                  "
-                ></svg>
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px">
+                <div class="brain-timeline" data-brain="chat">
+                  <div class="brain-timeline-list"></div>
+                </div>
                 <div
-                  id="brainNodesContainer"
-                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1"
+                  id="chatContextStats"
+                  style="padding: 10px; background: var(--bg-surface); border-radius: 8px"
                 ></div>
               </div>
             </div>
@@ -260,10 +337,11 @@
                   id="userInput"
                   placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
                   rows="1"
+                  aria-label="Message input"
                 ></textarea>
               </div>
-              <button class="send-btn" id="sendBtn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button class="send-btn" id="sendBtn" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
@@ -404,6 +482,31 @@
                     margin-bottom: var(--spacing-md);
                   "
                 ></div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--spacing-sm)">
+                  <label class="toggle" style="font-size: 0.75rem">
+                    <input
+                      type="checkbox"
+                      id="inspectorRawMode"
+                      onchange="toggleInspectorInputMode(this.checked)"
+                    />
+                    <span class="switch"></span>
+                    <span>Raw JSON</span>
+                  </label>
+                  <button
+                    class="btn"
+                    onclick="fillInspectorDefaults()"
+                    style="font-size: 0.7rem; padding: 4px 8px"
+                  >
+                    ✨ Defaults
+                  </button>
+                </div>
+                <textarea
+                  id="inspectorRawInput"
+                  class="form-input"
+                  rows="6"
+                  style="display: none; font-family: 'JetBrains Mono', monospace"
+                  placeholder='{"param": "value"}'
+                ></textarea>
                 <div class="inspector-form" id="inspectorForm">
                   <!-- Dynamic fields will be generated here -->
                 </div>
@@ -416,6 +519,28 @@
                     ▶️ Execute
                   </button>
                   <button class="btn" onclick="clearInspectorForm()">🗑️ Clear</button>
+                </div>
+              </div>
+
+              <div class="inspector-section" id="inspectorVariablesSection">
+                <h3>🧪 Variables</h3>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px">
+                  Use <code>{{var}}</code> or <code>{{env.key}}</code> in inputs or raw JSON.
+                </p>
+                <textarea
+                  id="inspectorVariablesInput"
+                  class="form-input"
+                  rows="4"
+                  style="font-family: 'JetBrains Mono', monospace"
+                  placeholder='{"token": "YOUR_TOKEN", "env": {"userId": 123}}'
+                ></textarea>
+                <div
+                  id="inspectorVariablesStatus"
+                  style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px"
+                ></div>
+                <div style="margin-top: 8px; display: flex; gap: 8px">
+                  <button class="btn" onclick="saveInspectorVariables()">💾 Save</button>
+                  <button class="btn" onclick="clearInspectorVariables()">🗑️ Clear</button>
                 </div>
               </div>
 
@@ -481,6 +606,8 @@
                 </h3>
                 <div
                   id="sseStatus"
+                  role="status"
+                  aria-live="polite"
                   style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px"
                 >
                   Not connected - select an SSE server and click Connect
@@ -833,6 +960,41 @@
                   <div id="diffSimilarity" style="font-size: 0.75rem"></div>
                 </h3>
                 <div id="diffResults" style="font-size: 0.75rem"></div>
+              </div>
+
+              <div class="inspector-section" style="margin-top: 20px">
+                <h3>🧬 Tool Schema Diff</h3>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                  Compare input schemas across servers or against a saved baseline
+                </p>
+                <div class="inspector-toolbar" style="margin-bottom: 8px">
+                  <select class="form-select" id="schemaServerSelect" onchange="loadSchemaDiffTools('baseline')">
+                    <option value="">-- Baseline Server --</option>
+                  </select>
+                  <select class="form-select" id="schemaToolSelect">
+                    <option value="">-- Baseline Tool --</option>
+                  </select>
+                  <button class="btn" onclick="saveSchemaBaseline()">💾 Save Baseline</button>
+                  <button class="btn" onclick="compareSchemaBaseline()">🔍 Compare to Baseline</button>
+                </div>
+                <div class="inspector-toolbar" style="margin-bottom: 12px">
+                  <select class="form-select" id="schemaServerSelectB" onchange="loadSchemaDiffTools('current')">
+                    <option value="">-- Compare Server --</option>
+                  </select>
+                  <select class="form-select" id="schemaToolSelectB">
+                    <option value="">-- Compare Tool --</option>
+                  </select>
+                </div>
+                <button class="btn primary" onclick="runSchemaDiff()" id="schemaDiffRunBtn">🧬 Compare Schemas</button>
+                <div id="schemaBaselineStatus" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px"></div>
+              </div>
+
+              <div class="inspector-section" id="schemaDiffResultsSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📐 Schema Comparison</span>
+                  <div id="schemaDiffSimilarity" style="font-size: 0.75rem"></div>
+                </h3>
+                <div id="schemaDiffResults" style="font-size: 0.75rem"></div>
               </div>
             </div>
           </div>
@@ -1381,7 +1543,10 @@
             <div class="inspector-section">
               <div style="display: flex; justify-content: space-between; align-items: center">
                 <h3>🎭 Mock MCP Servers</h3>
-                <button class="btn" onclick="createMockServerModal()">+ New Mock</button>
+                <div style="display: flex; gap: 8px">
+                  <button class="btn" onclick="createMockServerModal()">+ New Mock</button>
+                  <button class="btn" onclick="createMockFromHistory()">🧾 From History</button>
+                </div>
               </div>
               <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
                 Create runtime mock servers with canned responses for testing
@@ -1479,7 +1644,10 @@
           <div class="inspector-panel">
             <div class="inspector-section">
               <div style="display: flex; justify-content: space-between; align-items: center">
-                <h3>📋 Contract Testing</h3>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <h3>📋 Contract Testing</h3>
+                  <span id="schemaDiffBadge" class="badge" style="display: none"></span>
+                </div>
                 <div style="display: flex; gap: 8px">
                   <button class="btn" onclick="createContractModal()">+ New Contract</button>
                   <button class="btn primary" onclick="runPreDeploymentCheck()">
@@ -1489,6 +1657,26 @@
               </div>
               <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
                 Validate tool responses against JSON schemas and detect breaking changes
+              </p>
+            </div>
+            <div class="inspector-section">
+              <h4>Schema Regression</h4>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Snapshot tool schemas and compare against a baseline to catch breaking changes.
+              </p>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                <button class="btn" onclick="exportSchemaSnapshot()">📥 Export Snapshot</button>
+                <button class="btn" onclick="compareSchemaSnapshot()">🔍 Compare Snapshot</button>
+              </div>
+              <input
+                type="file"
+                id="schemaBaselineInput"
+                accept=".json,application/json"
+                style="display: none"
+                onchange="handleSchemaBaselineFile(event)"
+              />
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px">
+                CI hint: use <code>mcp-test schema diff --gate</code> to fail builds when schemas change.
               </p>
             </div>
             <div id="contractsList" style="display: flex; flex-direction: column; gap: 12px"></div>
@@ -1527,18 +1715,38 @@
         <div class="content-panel" id="debuggerPanel">
           <div class="inspector-panel">
             <div class="inspector-section">
-              <div style="display: flex; justify-content: space-between; align-items: center">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
                 <h3>🐛 Workflow Debugger</h3>
-                <div style="display: flex; gap: 8px">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+                  <select
+                    id="debuggerWorkflowSelect"
+                    class="form-select"
+                    onchange="onDebuggerWorkflowSelect()"
+                    style="min-width: 200px"
+                  >
+                    <option value="">Select workflow</option>
+                  </select>
+                  <label style="display: flex; gap: 6px; align-items: center; font-size: 0.75rem; color: var(--text-secondary)">
+                    <input type="checkbox" id="debuggerStepMode" />
+                    Step mode
+                  </label>
                   <button class="btn" onclick="toggleBreakpoints()">⏸️ Breakpoints</button>
-                  <button class="btn primary" onclick="stepThroughWorkflow()">
-                    ▶️ Step Through
-                  </button>
+                  <button class="btn" onclick="startDebugSession()">🐞 Start</button>
+                  <button class="btn primary" onclick="stepThroughWorkflow()">⏭️ Step</button>
+                  <button class="btn" onclick="resumeDebugSession()">▶️ Resume</button>
+                  <button class="btn btn-danger" onclick="abortDebugSession()">⛔ Abort</button>
                 </div>
               </div>
               <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
                 Set breakpoints, step through execution, inspect variables and protocol compliance
               </p>
+              <textarea
+                id="debuggerInput"
+                class="form-input"
+                placeholder='Debugger input JSON (optional)'
+                style="width: 100%; min-height: 80px; font-family: monospace; font-size: 0.75rem"
+              ></textarea>
+              <div id="debuggerStatus" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary)">Status: idle</div>
             </div>
             <div id="debuggerTimeline" style="display: flex; flex-direction: column; gap: 12px">
               <div id="executionSteps" style="display: flex; flex-direction: column; gap: 8px"></div>
@@ -1559,7 +1767,9 @@
               </p>
             </div>
             <div id="brainVisualization" style="display: flex; flex-direction: column; gap: 12px">
-              <canvas id="brainCanvas" width="400" height="300" style="width: 100%; background: var(--bg-surface); border-radius: 8px"></canvas>
+              <div class="brain-timeline" data-brain="panel">
+                <div class="brain-timeline-list"></div>
+              </div>
               <div id="contextBreakdown" style="padding: 12px; background: var(--bg-surface); border-radius: 8px">
                 <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px">Context Breakdown</div>
                 <div id="contextStats" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem"></div>
@@ -1667,11 +1877,14 @@
     <div class="modal-overlay" id="exportCodeModal">
       <div
         class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exportCodeModalTitle"
         style="max-width: 800px; height: 80vh; display: flex; flex-direction: column"
       >
         <div class="modal-header">
-          <h2 class="modal-title">📤 Export Workflow as Code</h2>
-          <button class="modal-close" onclick="hideExportModal()">
+          <h2 class="modal-title" id="exportCodeModalTitle">📤 Export Workflow as Code</h2>
+          <button class="modal-close" onclick="hideExportModal()" aria-label="Close modal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1719,10 +1932,10 @@
 
     <!-- Add Server Modal -->
     <div class="modal-overlay" id="addServerModal">
-      <div class="modal" style="max-width: 600px">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addServerModalTitle" style="max-width: 600px">
         <div class="modal-header">
-          <h2 class="modal-title">Add MCP Server</h2>
-          <button class="modal-close" onclick="hideAddServerModal()">
+          <h2 class="modal-title" id="addServerModalTitle">Add MCP Server</h2>
+          <button class="modal-close" onclick="hideAddServerModal()" aria-label="Close modal">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -1803,9 +2016,11 @@
               id="serverName"
               placeholder="my-mcp-server"
               required
+              aria-describedby="serverNameError serverNameHint"
               oninput="updateConfigPreview()"
             />
-            <div class="form-hint">A unique identifier for this server</div>
+            <div id="serverNameError" class="form-error" role="alert" style="display: none;"></div>
+            <div id="serverNameHint" class="form-hint">A unique identifier for this server</div>
           </div>
 
           <div class="form-group">
@@ -1935,10 +2150,10 @@
 
     <!-- Import Config Modal -->
     <div class="modal-overlay" id="importConfigModal">
-      <div class="modal" style="max-width: 550px">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importConfigModalTitle" style="max-width: 550px">
         <div class="modal-header">
-          <h2 class="modal-title">📋 Import Config</h2>
-          <button class="modal-close" onclick="hideImportConfigModal()">
+          <h2 class="modal-title" id="importConfigModalTitle">📋 Import Config</h2>
+          <button class="modal-close" onclick="hideImportConfigModal()" aria-label="Close modal">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -1977,10 +2192,10 @@ env:
 
     <!-- Settings Modal -->
     <div class="modal-overlay" id="settingsModal">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
         <div class="modal-header">
-          <h2 class="modal-title">⚙️ LLM Settings</h2>
-          <button class="modal-close" onclick="hideSettingsModal()">
+          <h2 class="modal-title" id="settingsModalTitle">⚙️ LLM Settings</h2>
+          <button class="modal-close" onclick="hideSettingsModal()" aria-label="Close modal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -2054,10 +2269,10 @@ env:
 
     <!-- Confirm Delete Modal -->
     <div class="modal-overlay" id="confirmDeleteModal">
-      <div class="modal" style="max-width: 400px">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmDeleteModalTitle" style="max-width: 400px">
         <div class="modal-header">
-          <h2 class="modal-title">🗑️ Remove Server</h2>
-          <button class="modal-close" onclick="hideConfirmDeleteModal()">
+          <h2 class="modal-title" id="confirmDeleteModalTitle">🗑️ Remove Server</h2>
+          <button class="modal-close" onclick="hideConfirmDeleteModal()" aria-label="Close modal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -2092,7 +2307,6 @@ env:
     <script src="workflow.js"></script>
     <script src="brain.js"></script>
     <script src="advanced-features.js"></script>
-    <script src="onboarding.js"></script>
     <script src="floating-workspace.js"></script>
   </body>
 </html>

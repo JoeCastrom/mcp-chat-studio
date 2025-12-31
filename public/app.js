@@ -1,4 +1,15 @@
       // ==========================================
+      // DEVELOPMENT MODE LOGGER
+      // ==========================================
+      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const logger = {
+        log: (...args) => isDevelopment && console.log(...args),
+        warn: (...args) => console.warn(...args), // Always show warnings
+        error: (...args) => console.error(...args), // Always show errors
+        debug: (...args) => isDevelopment && console.log('[DEBUG]', ...args)
+      };
+
+      // ==========================================
       // SESSION MANAGER - Persist state to localStorage
       // ==========================================
       const sessionManager = {
@@ -445,6 +456,7 @@
       let isLoading = false;
       let isAuthenticated = false;
       let userInfo = null;
+      let currentSessionId = null;
       let currentAbortController = null;
       let currentLoadingEl = null;
       let selectedTool = null; // Track selected tool for force mode
@@ -531,6 +543,14 @@
         userInputEl.focus();
       }
 
+      function notifyUser(message, type = 'info') {
+        if (typeof showNotification === 'function') {
+          showNotification(message, type);
+          return;
+        }
+        appendMessage('system', message);
+      }
+
       // Cancel current request
       function cancelRequest() {
         if (currentAbortController) {
@@ -596,8 +616,11 @@
           }
         }
 
-        // Ctrl+K: Focus tool search
+        // Ctrl+K: Focus tool search (classic mode only)
         if (e.ctrlKey && e.key === 'k') {
+          if (document.body.classList.contains('workspace-mode')) {
+            return;
+          }
           e.preventDefault();
           const searchInput = document.getElementById('toolSearch');
           if (searchInput) {
@@ -606,8 +629,11 @@
           }
         }
 
-        // Ctrl+T: Quick tool search (same as Ctrl+K)
+        // Ctrl+T: Quick tool search (classic mode only)
         if (e.ctrlKey && e.key === 't') {
+          if (document.body.classList.contains('workspace-mode')) {
+            return;
+          }
           e.preventDefault();
           const searchInput = document.getElementById('toolSearch');
           if (searchInput) {
@@ -678,6 +704,7 @@
           const data = await response.json();
 
           isAuthenticated = data.authenticated;
+          currentSessionId = data.sessionId || null;
 
           if (isAuthenticated) {
             const userResponse = await fetch('/api/oauth/userinfo', {
@@ -703,12 +730,20 @@
             .join('')
             .toUpperCase()
             .slice(0, 2);
+          const sessionShort = currentSessionId
+            ? `${currentSessionId.slice(0, 4)}…${currentSessionId.slice(-4)}`
+            : 'Session';
 
           userSectionEl.innerHTML = `
           <div class="user-info">
             <div class="avatar">${initials}</div>
             <span class="user-name">${userInfo.name || userInfo.preferred_username || 'User'}</span>
           </div>
+          ${currentSessionId ? `
+          <button class="btn" onclick="copySessionId()" title="Copy session ID for CLI">
+            🔑 ${sessionShort}
+          </button>
+          ` : ''}
           <button class="btn" onclick="logout()">Logout</button>
         `;
         } else {
@@ -754,6 +789,7 @@
 
           isAuthenticated = false;
           userInfo = null;
+          currentSessionId = null;
           updateUserSection();
           loadMCPStatus();
 
@@ -765,6 +801,32 @@
         } catch (error) {
           appendMessage('error', `Logout failed: ${error.message}`);
         }
+      }
+
+      function copySessionId() {
+        if (!currentSessionId) {
+          notifyUser('No session ID available. Please login again.', 'warning');
+          return;
+        }
+        navigator.clipboard.writeText(currentSessionId).then(() => {
+          notifyUser('Session ID copied for CLI use.', 'success');
+        }).catch(() => {
+          notifyUser('Failed to copy session ID.', 'error');
+        });
+      }
+
+      function openWorkspaceTemplates() {
+        if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.showTemplatesModal === 'function') {
+          floatingWorkspace.showTemplatesModal();
+          return;
+        }
+        notifyUser('Workspace templates are available in Workspace mode.', 'info');
+      }
+
+      function maybeShowWorkspaceTemplateHint() {
+        if (localStorage.getItem('workspace_templates_hint') === 'shown') return;
+        localStorage.setItem('workspace_templates_hint', 'shown');
+        notifyUser('Tip: open Workspace Templates (🗂️) to load a layout fast.', 'info');
       }
 
       // Connect to MCP server
@@ -797,6 +859,9 @@
           }
 
           loadMCPStatus();
+          if (typeof loadInspectorServers === 'function') {
+            loadInspectorServers();
+          }
         } catch (error) {
           appendMessage('error', `Connection failed: ${error.message}`);
           loadMCPStatus();
@@ -830,6 +895,9 @@
           }
 
           loadMCPStatus();
+          if (typeof loadInspectorServers === 'function') {
+            loadInspectorServers();
+          }
         } catch (error) {
           appendMessage('error', `Disconnect failed: ${error.message}`);
           loadMCPStatus();
@@ -955,7 +1023,7 @@
       const CUSTOM_TEMPLATES_KEY = 'mcp_chat_custom_templates';
 
       // Save current form as custom template
-      function saveAsCustomTemplate() {
+      async function saveAsCustomTemplate() {
         const name = document.getElementById('serverName').value.trim();
         const type = document.getElementById('serverType').value;
         const description = document.getElementById('serverDescription').value.trim();
@@ -965,7 +1033,12 @@
           return;
         }
 
-        const templateName = prompt('Template name:', name);
+        const templateName = await appPrompt('Template name:', {
+          title: 'Save Template',
+          label: 'Template name',
+          defaultValue: name,
+          required: true
+        });
         if (!templateName) return;
 
         const template = {
@@ -1043,7 +1116,7 @@
       }
 
       // Manage (delete) custom templates
-      function manageCustomTemplates() {
+      async function manageCustomTemplates() {
         let customTemplates = {};
         try {
           customTemplates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '{}');
@@ -1056,22 +1129,36 @@
           return;
         }
 
-        const templateNames = templateIds.map(id => customTemplates[id].displayName || customTemplates[id].name);
-        const choice = prompt(`Delete a custom template:\n\n${templateNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nEnter number to delete (or cancel):`);
-
-        if (choice) {
-          const idx = parseInt(choice) - 1;
-          if (idx >= 0 && idx < templateIds.length) {
-            const templateId = templateIds[idx];
-            const templateName = templateNames[idx];
-            if (confirm(`Delete template "${templateName}"?`)) {
-              deleteCustomTemplate(templateId);
-              appendMessage('system', `🗑️ Deleted template "${templateName}"`);
+        const options = templateIds.map((id, index) => ({
+          value: id,
+          label: `${index + 1}. ${customTemplates[id].displayName || customTemplates[id].name}`
+        }));
+        const result = await appFormModal({
+          title: 'Delete Template',
+          message: 'Select a template to delete.',
+          confirmText: 'Delete',
+          confirmVariant: 'danger',
+          fields: [
+            {
+              id: 'templateId',
+              label: 'Template',
+              type: 'select',
+              options,
+              required: true
             }
-          } else {
-            appendMessage('error', 'Invalid selection');
-          }
-        }
+          ]
+        });
+        if (!result.confirmed) return;
+        const templateId = result.values.templateId;
+        const templateName = customTemplates[templateId]?.displayName || customTemplates[templateId]?.name || templateId;
+        const confirmed = await appConfirm(`Delete template "${templateName}"?`, {
+          title: 'Confirm Delete',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        deleteCustomTemplate(templateId);
+        appendMessage('system', `🗑️ Deleted template "${templateName}"`);
       }
 
       // Load custom templates on page init
@@ -1649,6 +1736,240 @@
       })();
 
       // ==========================================
+      // LAYOUT TOGGLE (Classic Grid vs Floating Workspace)
+      // ==========================================
+
+      function toggleLayout() {
+        const body = document.body;
+        const isWorkspaceMode = body.classList.contains('workspace-mode');
+
+        if (isWorkspaceMode) {
+          // Switch to Classic Grid layout
+          body.classList.remove('workspace-mode');
+          localStorage.setItem('layout', 'classic');
+
+          // Update button
+          document.getElementById('layoutIcon').textContent = '📋';
+          document.getElementById('layoutText').textContent = 'Classic';
+
+          // Cleanup workspace elements
+          if (typeof floatingWorkspace !== 'undefined') {
+            // Close all panels and restore content to original locations
+            if (typeof floatingWorkspace.closeAllPanels === 'function') {
+              floatingWorkspace.closeAllPanels({ skipSave: true });
+            }
+
+            // Call cleanup method to remove event listeners
+            if (typeof floatingWorkspace.cleanup === 'function') {
+              floatingWorkspace.cleanup();
+            }
+
+            // Remove workspace elements
+            const workspaceCanvas = document.getElementById('workspaceCanvas');
+            if (workspaceCanvas) workspaceCanvas.remove();
+
+            const quickAccessBar = document.getElementById('quickAccessBar');
+            if (quickAccessBar) quickAccessBar.remove();
+
+            const zoomControls = document.getElementById('zoomControls');
+            if (zoomControls) zoomControls.remove();
+
+            const minimap = document.getElementById('workspaceMinimap');
+            if (minimap) minimap.remove();
+
+            const sidebarOverlay = document.getElementById('workspaceSidebarOverlay');
+            if (sidebarOverlay) sidebarOverlay.remove();
+
+            const radialMenu = document.getElementById('radialMenu');
+            if (radialMenu) radialMenu.remove();
+
+            const commandPalette = document.getElementById('commandPalette');
+            if (commandPalette) commandPalette.remove();
+
+            // Mark as not initialized
+            floatingWorkspace.initialized = false;
+          }
+
+          // Show classic layout
+          restoreClassicShell();
+
+          // Restore last active panel in classic view
+          const savedPanel = localStorage.getItem('activeClassicPanel') || 'chatPanel';
+          if (typeof switchClassicPanel === 'function') {
+            switchClassicPanel(savedPanel);
+          } else {
+            const chatPanel = document.getElementById('chatPanel');
+            if (chatPanel) chatPanel.classList.add('active');
+          }
+
+        } else {
+          // Switch to Floating Workspace
+          body.classList.add('workspace-mode');
+          localStorage.setItem('layout', 'workspace');
+          setWorkflowsActive(false);
+
+          // Update button
+          document.getElementById('layoutIcon').textContent = '🎨';
+          document.getElementById('layoutText').textContent = 'Workspace';
+
+          // Initialize floating workspace
+          if (typeof floatingWorkspace !== 'undefined') {
+            if (!floatingWorkspace.initialized) {
+              console.log('Initializing workspace from toggle...');
+              floatingWorkspace.init();
+              floatingWorkspace.initialized = true;
+            } else {
+              console.log('Workspace already initialized');
+            }
+          } else {
+            console.error('floatingWorkspace not defined!');
+          }
+          maybeShowWorkspaceTemplateHint();
+        }
+      }
+
+      function setWorkflowsActive(isActive) {
+        document.body.classList.toggle('workflows-active', Boolean(isActive));
+      }
+
+      window.setWorkflowsActive = setWorkflowsActive;
+
+      // Switch between panels in classic view
+      window.switchClassicPanel = function(panelId) {
+        // Hide all panels
+        document.querySelectorAll('.content-panel').forEach(panel => {
+          panel.classList.remove('active');
+          panel.style.display = 'none';
+        });
+
+        // Show selected panel
+        const targetPanel = document.getElementById(panelId);
+        if (targetPanel) {
+          targetPanel.classList.add('active');
+          targetPanel.style.display = 'flex';
+          targetPanel.style.flexDirection = 'column';
+          if (panelId === 'brainPanel' && typeof initBrainView === 'function') {
+            initBrainView();
+          }
+        }
+
+        setWorkflowsActive(panelId === 'workflowsPanel');
+
+        if (panelId !== 'workflowsPanel') {
+          closeAIBuilderIfOpen();
+        }
+
+        if (panelId === 'inspectorPanel' && typeof loadInspectorServers === 'function') {
+          loadInspectorServers();
+        }
+        if (panelId === 'debuggerPanel' && typeof loadDebuggerWorkflows === 'function') {
+          loadDebuggerWorkflows();
+        }
+        if (panelId === 'workflowsPanel' && typeof loadWorkflowsList === 'function') {
+          loadWorkflowsList();
+        }
+
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        const targetBtn = document.querySelector(`[data-panel="${panelId}"]`);
+        if (targetBtn) {
+          targetBtn.classList.add('active');
+        }
+
+        // Save active panel to localStorage
+        localStorage.setItem('activeClassicPanel', panelId);
+      };
+
+      // Apply saved layout on load
+      (function initLayout() {
+        const savedLayout = localStorage.getItem('layout') || 'workspace';
+        const body = document.body;
+        const layoutIcon = document.getElementById('layoutIcon');
+        const layoutText = document.getElementById('layoutText');
+
+        if (savedLayout === 'workspace') {
+          body.classList.add('workspace-mode');
+          if (layoutIcon) layoutIcon.textContent = '🎨';
+          if (layoutText) layoutText.textContent = 'Workspace';
+          setWorkflowsActive(false);
+          maybeShowWorkspaceTemplateHint();
+        } else {
+          body.classList.remove('workspace-mode');
+          if (layoutIcon) layoutIcon.textContent = '📋';
+          if (layoutText) layoutText.textContent = 'Classic';
+          restoreClassicShell();
+
+          // Restore last active panel in classic view
+          const savedPanel = localStorage.getItem('activeClassicPanel') || 'chatPanel';
+          setTimeout(() => switchClassicPanel(savedPanel), 100);
+        }
+      })();
+
+      function closeAIBuilderIfOpen() {
+        const aiBuilder = document.getElementById('aiBuilderSidebar');
+        if (!aiBuilder) return;
+        aiBuilder.style.transform = 'translateX(100%)';
+      }
+
+      function restoreClassicShell() {
+        const main = document.querySelector('.main');
+        const sidebar = document.getElementById('sidebar');
+        const tabNav = document.getElementById('tabNav');
+        const chatContainer = document.querySelector('.chat-container');
+
+        if (main) main.style.display = '';
+        if (tabNav) tabNav.style.display = '';
+        if (sidebar) {
+          sidebar.style.display = '';
+          sidebar.style.height = '';
+          sidebar.classList.remove('collapsed');
+          if (main && sidebar.parentElement !== main) {
+            if (chatContainer && chatContainer.parentElement === main) {
+              main.insertBefore(sidebar, chatContainer);
+            } else {
+              main.insertBefore(sidebar, main.firstChild);
+            }
+          }
+        }
+
+        closeAIBuilderIfOpen();
+      }
+
+      // ==========================================
+      // CHAT BRAIN SPLIT VIEW
+      // ==========================================
+
+      function toggleBrainView() {
+        const panel = document.getElementById('chatBrainPanel');
+        const btn = document.getElementById('toggleBrainBtn');
+        if (!panel) return;
+
+        const isOpen = panel.dataset.open === 'true';
+        if (isOpen) {
+          panel.style.width = '0';
+          panel.style.minWidth = '0';
+          panel.dataset.open = 'false';
+          if (btn) btn.setAttribute('aria-pressed', 'false');
+        } else {
+          panel.style.width = '35%';
+          panel.style.minWidth = '280px';
+          panel.dataset.open = 'true';
+          if (btn) btn.setAttribute('aria-pressed', 'true');
+          if (typeof initBrainView === 'function') {
+            initBrainView();
+          }
+        }
+      }
+
+      function refreshBrainView() {
+        if (typeof updateBrainGraph !== 'function') return;
+        const messages = Array.from(document.querySelectorAll('#messages .message'));
+        updateBrainGraph(messages);
+      }
+
+      // ==========================================
       // MODEL BADGE UPDATE
       // ==========================================
 
@@ -1671,6 +1992,13 @@
           document.getElementById('modelProvider').textContent =
             providerEmojis[config.provider] || '🤖';
           document.getElementById('modelName').textContent = config.model || 'unknown';
+
+          const workflowIconEl = document.getElementById('workflowModelIcon');
+          const workflowNameEl = document.getElementById('workflowModelName');
+          if (workflowIconEl && workflowNameEl) {
+            workflowIconEl.textContent = providerEmojis[config.provider] || '🤖';
+            workflowNameEl.textContent = config.model || 'unknown';
+          }
         } catch (e) {
           console.error('Failed to update model badge:', e);
         }
@@ -1705,6 +2033,12 @@
           }
         } catch (e) {
           console.error('Failed to update workflow model badge:', e);
+          const iconEl = document.getElementById('workflowModelIcon');
+          const nameEl = document.getElementById('workflowModelName');
+          if (iconEl && nameEl) {
+            iconEl.textContent = '🤖';
+            nameEl.textContent = 'unknown';
+          }
         }
       }
 
@@ -1972,6 +2306,16 @@
 
       // Switch between tabs
       function switchTab(tabName) {
+        if (document.body.classList.contains('workspace-mode')) {
+          if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.togglePanel === 'function') {
+            floatingWorkspace.togglePanel(tabName);
+          }
+          return;
+        }
+        setWorkflowsActive(tabName === 'workflows');
+        if (tabName !== 'workflows') {
+          closeAIBuilderIfOpen();
+        }
         // Get all panels and buttons
         const panels = ['chatPanel', 'inspectorPanel', 'historyPanel', 'scenariosPanel',
                         'generatorPanel', 'workflowsPanel', 'collectionsPanel', 'monitorsPanel',
@@ -2014,6 +2358,7 @@
           document.getElementById('workflowsPanel').classList.add('active');
           document.getElementById('workflowsTabBtn').classList.add('active');
           updateWorkflowModelBadge();
+          if (typeof loadWorkflowsList === 'function') loadWorkflowsList();
         } else if (tabName === 'collections') {
           document.getElementById('collectionsPanel').classList.add('active');
           document.getElementById('collectionsTabBtn').classList.add('active');
@@ -2057,8 +2402,9 @@
           // API returns servers directly at root, not nested in .servers
           const servers = status.servers || status;
           for (const [name, info] of Object.entries(servers)) {
-            if (info.connected) {
-              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${info.toolCount} tools)</option>`;
+            if (info.connected || info.userConnected) {
+              const toolCount = typeof info.toolCount === 'number' ? info.toolCount : 0;
+              select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${toolCount} tools)</option>`;
             }
           }
 
@@ -2119,6 +2465,11 @@
           loadBulkTestServers();
         } else if (tabName === 'diff') {
           loadDiffServers();
+          loadSchemaDiffServers();
+        }
+
+        if (tabName !== 'workflowsPanel' && tabName !== 'workflows') {
+          closeAIBuilderIfOpen();
         }
       }
 
@@ -2326,6 +2677,141 @@
         }
       }
 
+      const INSPECTOR_VARIABLES_KEY = 'mcp_chat_studio_inspector_variables';
+
+      function updateInspectorVariablesStatus(message, isError = false) {
+        const statusEl = document.getElementById('inspectorVariablesStatus');
+        if (!statusEl) return;
+        statusEl.textContent = message;
+        statusEl.style.color = isError ? 'var(--error)' : 'var(--text-muted)';
+      }
+
+      function loadInspectorVariables() {
+        const input = document.getElementById('inspectorVariablesInput');
+        if (!input) return;
+        const stored = localStorage.getItem(INSPECTOR_VARIABLES_KEY);
+        if (stored) {
+          input.value = stored;
+          updateInspectorVariablesStatus('Loaded saved variables');
+        }
+      }
+
+      function saveInspectorVariables() {
+        const input = document.getElementById('inspectorVariablesInput');
+        if (!input) return;
+        const raw = input.value.trim();
+
+        if (!raw) {
+          localStorage.removeItem(INSPECTOR_VARIABLES_KEY);
+          updateInspectorVariablesStatus('Cleared variables');
+          return;
+        }
+
+        try {
+          JSON.parse(raw);
+          localStorage.setItem(INSPECTOR_VARIABLES_KEY, raw);
+          updateInspectorVariablesStatus('Variables saved');
+        } catch (error) {
+          updateInspectorVariablesStatus('Invalid JSON: ' + error.message, true);
+        }
+      }
+
+      function clearInspectorVariables() {
+        const input = document.getElementById('inspectorVariablesInput');
+        if (!input) return;
+        input.value = '';
+        localStorage.removeItem(INSPECTOR_VARIABLES_KEY);
+        updateInspectorVariablesStatus('Cleared variables');
+      }
+
+      function getInspectorVariables() {
+        const input = document.getElementById('inspectorVariablesInput');
+        const raw = (input?.value || localStorage.getItem(INSPECTOR_VARIABLES_KEY) || '').trim();
+        if (!raw) return {};
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          updateInspectorVariablesStatus('Invalid JSON: ' + error.message, true);
+          return null;
+        }
+      }
+
+      function resolveVariablePath(path, variables) {
+        return path.split('.').reduce((value, key) => {
+          if (value && Object.prototype.hasOwnProperty.call(value, key)) {
+            return value[key];
+          }
+          return undefined;
+        }, variables);
+      }
+
+      function applyTemplateVariables(value, variables) {
+        if (Array.isArray(value)) {
+          return value.map(item => applyTemplateVariables(item, variables));
+        }
+        if (value && typeof value === 'object') {
+          const result = {};
+          Object.entries(value).forEach(([key, val]) => {
+            result[key] = applyTemplateVariables(val, variables);
+          });
+          return result;
+        }
+        if (typeof value === 'string') {
+          const exactMatch = value.match(/^{{\s*([^}]+)\s*}}$/);
+          if (exactMatch) {
+            const resolved = resolveVariablePath(exactMatch[1].trim(), variables);
+            if (resolved !== undefined) return resolved;
+          }
+
+          return value.replace(/{{\s*([^}]+)\s*}}/g, (match, key) => {
+            const resolved = resolveVariablePath(key.trim(), variables);
+            if (resolved === undefined || resolved === null) return match;
+            return typeof resolved === 'string' ? resolved : JSON.stringify(resolved);
+          });
+        }
+        return value;
+      }
+
+      function buildDefaultArgs(schema) {
+        const defaults = {};
+        if (!schema || !schema.properties) return defaults;
+        Object.entries(schema.properties).forEach(([paramName, paramDef]) => {
+          if (paramDef.default !== undefined) {
+            defaults[paramName] = paramDef.default;
+          } else if ((schema.required || []).includes(paramName)) {
+            defaults[paramName] = paramDef.type === 'array' ? [] : '';
+          }
+        });
+        return defaults;
+      }
+
+      function toggleInspectorInputMode(isRaw) {
+        const formEl = document.getElementById('inspectorForm');
+        const rawEl = document.getElementById('inspectorRawInput');
+        if (!formEl || !rawEl) return;
+
+        if (isRaw) {
+          rawEl.style.display = 'block';
+          formEl.style.display = 'none';
+        } else {
+          rawEl.style.display = 'none';
+          formEl.style.display = 'block';
+        }
+      }
+
+      function fillInspectorDefaults() {
+        if (!selectedInspectorTool) return;
+        const rawEl = document.getElementById('inspectorRawInput');
+        const rawToggle = document.getElementById('inspectorRawMode');
+        if (!rawEl) return;
+        const defaults = buildDefaultArgs(selectedInspectorTool.inputSchema);
+        rawEl.value = JSON.stringify(defaults, null, 2);
+        if (rawToggle && !rawToggle.checked) {
+          rawToggle.checked = true;
+          toggleInspectorInputMode(true);
+        }
+      }
+
       // Generate input form based on tool schema
       function generateInspectorForm() {
         const toolName = document.getElementById('inspectorToolSelect').value;
@@ -2348,6 +2834,9 @@
         const schema = selectedInspectorTool.inputSchema;
         if (!schema || !schema.properties || Object.keys(schema.properties).length === 0) {
           formEl.innerHTML = '<em style="color: var(--text-muted);">No parameters required</em>';
+          const rawEl = document.getElementById('inspectorRawInput');
+          if (rawEl) rawEl.value = '{}';
+          toggleInspectorInputMode(document.getElementById('inspectorRawMode')?.checked);
           return;
         }
 
@@ -2401,11 +2890,18 @@
         }
 
         formEl.innerHTML = html;
+
+        const rawEl = document.getElementById('inspectorRawInput');
+        if (rawEl) {
+          rawEl.value = JSON.stringify(buildDefaultArgs(schema), null, 2);
+        }
+        toggleInspectorInputMode(document.getElementById('inspectorRawMode')?.checked);
       }
 
       // Clear inspector form
       function clearInspectorForm() {
         const formEl = document.getElementById('inspectorForm');
+        const rawEl = document.getElementById('inspectorRawInput');
         formEl.querySelectorAll('input, textarea, select').forEach(el => {
           if (el.tagName === 'SELECT') {
             el.selectedIndex = 0;
@@ -2413,6 +2909,7 @@
             el.value = '';
           }
         });
+        if (rawEl) rawEl.value = '';
         document.getElementById('inspectorResponseSection').style.display = 'none';
       }
 
@@ -2422,39 +2919,68 @@
 
         const serverName = document.getElementById('inspectorServerSelect').value;
         const formEl = document.getElementById('inspectorForm');
+        const rawMode = document.getElementById('inspectorRawMode')?.checked;
+        const rawEl = document.getElementById('inspectorRawInput');
         const executeBtn = document.getElementById('inspectorExecuteBtn');
         const responseSection = document.getElementById('inspectorResponseSection');
         const responseStatus = document.getElementById('inspectorResponseStatus');
         const responseBody = document.getElementById('inspectorResponseBody');
 
         // Collect form values
-        const args = {};
-        formEl.querySelectorAll('[data-param]').forEach(el => {
-          const param = el.dataset.param;
-          let value = el.value.trim();
-
-          if (!value) return;
-
-          // Parse based on expected type
-          const schema = selectedInspectorTool.inputSchema?.properties?.[param];
-          if (schema) {
-            if (schema.type === 'number') {
-              value = parseFloat(value);
-            } else if (schema.type === 'integer') {
-              value = parseInt(value, 10);
-            } else if (schema.type === 'boolean') {
-              value = value === 'true';
-            } else if (schema.type === 'array' || schema.type === 'object') {
-              try {
-                value = JSON.parse(value);
-              } catch {
-                // Keep as string if parse fails
-              }
+        let args = {};
+        if (rawMode) {
+          const rawValue = rawEl?.value.trim() || '';
+          if (rawValue) {
+            try {
+              args = JSON.parse(rawValue);
+            } catch (error) {
+              responseSection.style.display = 'block';
+              responseStatus.textContent = '❌ Invalid JSON input';
+              responseStatus.className = 'inspector-status error';
+              responseBody.className = 'inspector-response error';
+              responseBody.textContent = error.message;
+              return;
             }
           }
+        } else {
+          formEl.querySelectorAll('[data-param]').forEach(el => {
+            const param = el.dataset.param;
+            let value = el.value.trim();
 
-          args[param] = value;
-        });
+            if (!value) return;
+
+            const schema = selectedInspectorTool.inputSchema?.properties?.[param];
+            if (schema) {
+              if (schema.type === 'number') {
+                value = parseFloat(value);
+              } else if (schema.type === 'integer') {
+                value = parseInt(value, 10);
+              } else if (schema.type === 'boolean') {
+                value = value === 'true';
+              } else if (schema.type === 'array' || schema.type === 'object') {
+                try {
+                  value = JSON.parse(value);
+                } catch {
+                  // Keep as string if parse fails
+                }
+              }
+            }
+
+            args[param] = value;
+          });
+        }
+
+        const variables = getInspectorVariables();
+        if (variables === null) {
+          responseSection.style.display = 'block';
+          responseStatus.textContent = '❌ Invalid variables JSON';
+          responseStatus.className = 'inspector-status error';
+          responseBody.className = 'inspector-response error';
+          responseBody.textContent = 'Fix the Variables JSON before executing.';
+          return;
+        }
+
+        args = applyTemplateVariables(args, variables);
 
         // Execute
         executeBtn.disabled = true;
@@ -2500,6 +3026,7 @@
             success: !data.error && data.result?.isError !== true,
           });
           toolExecutionHistory = sessionManager.getToolHistory();
+          refreshBrainView();
 
           // Record step for scenarios (if recording is active)
           recordStep({
@@ -2541,6 +3068,7 @@
             success: false,
           });
           toolExecutionHistory = sessionManager.getToolHistory();
+          refreshBrainView();
 
           // Record step for scenarios (if recording is active)
           recordStep({
@@ -3348,13 +3876,28 @@
         return div;
       }
 
+      function sanitizeErrorMessage(message) {
+        if (typeof message !== 'string') return message;
+        const lines = message.split('\n');
+        const filtered = lines.filter((line, index) => {
+          if (index === 0) return true;
+          const trimmed = line.trim();
+          if (trimmed.startsWith('at ')) return false;
+          if (trimmed.startsWith('node:') || trimmed.startsWith('file:')) return false;
+          if (trimmed.includes('/node_modules/') || trimmed.includes('\\node_modules\\')) return false;
+          return true;
+        });
+        return filtered.join('\n');
+      }
+
       // Append message to UI
       function appendMessage(role, content, save = true) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
 
         // Simple markdown-like formatting
-        let formatted = escapeHtml(content);
+        const safeContent = role === 'error' ? sanitizeErrorMessage(content) : content;
+        let formatted = escapeHtml(safeContent);
         formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
         formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
         formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -3369,6 +3912,7 @@
           sessionManager.saveMessages(messages);
         }
 
+        refreshBrainView();
         return div;
       }
 
@@ -3403,6 +3947,10 @@
         messagesEl.innerHTML = '';
         appendMessage('assistant', messages[0].content, false);
         resetLoadingState();
+        if (typeof resetBrainTimeline === 'function') {
+          resetBrainTimeline();
+        }
+        refreshBrainView();
 
         console.log('[Session] Cleared');
       }
@@ -3412,6 +3960,225 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+      }
+
+      function formatModalMessage(message) {
+        if (!message) return '';
+        return escapeHtml(message).replace(/\n/g, '<br>');
+      }
+
+      function showAppModal(options = {}) {
+        const {
+          title = 'Confirm',
+          message = '',
+          bodyHtml = '',
+          fields = [],
+          confirmText = 'OK',
+          cancelText = 'Cancel',
+          showCancel = true,
+          confirmVariant = 'primary',
+          maxWidth = '520px'
+        } = options;
+
+        return new Promise(resolve => {
+          const overlay = document.createElement('div');
+          overlay.className = 'modal-overlay active';
+          overlay.dataset.appModal = 'true';
+
+          const messageHtml = formatModalMessage(message);
+          const fieldHtml = fields.map((field, index) => {
+            const fieldId = field.id || `field_${index}`;
+            const label = field.label ? `<label class="form-label" for="${fieldId}">${escapeHtml(field.label)}</label>` : '';
+            const hint = field.hint ? `<div class="form-hint">${escapeHtml(field.hint)}</div>` : '';
+            const requiredAttr = field.required ? 'required' : '';
+            const placeholder = field.placeholder ? escapeHtml(field.placeholder) : '';
+            const value = field.value ?? '';
+            const inputStyle = field.monospace ? 'font-family: "JetBrains Mono", monospace;' : '';
+
+            let inputHtml = '';
+            if (field.type === 'textarea') {
+              const rows = field.rows || 5;
+              inputHtml = `<textarea class="form-input" id="${fieldId}" ${requiredAttr} placeholder="${placeholder}" rows="${rows}" style="${inputStyle}">${escapeHtml(String(value))}</textarea>`;
+            } else if (field.type === 'select') {
+              const optionsHtml = (field.options || []).map(opt => {
+                const optValue = opt.value ?? opt;
+                const optLabel = opt.label ?? optValue;
+                const selected = optValue === value ? 'selected' : '';
+                return `<option value="${escapeHtml(String(optValue))}" ${selected}>${escapeHtml(String(optLabel))}</option>`;
+              }).join('');
+              inputHtml = `<select class="form-select" id="${fieldId}" ${requiredAttr}>${optionsHtml}</select>`;
+            } else {
+              const type = field.type || 'text';
+              inputHtml = `<input class="form-input" id="${fieldId}" type="${type}" ${requiredAttr} placeholder="${placeholder}" value="${escapeHtml(String(value))}" style="${inputStyle}" />`;
+            }
+
+            return `
+              <div class="form-group" data-field-group="${fieldId}">
+                ${label}
+                ${inputHtml}
+                <div class="form-error">Required</div>
+                ${hint}
+              </div>
+            `;
+          }).join('');
+
+          const confirmClass = confirmVariant === 'danger' ? 'btn danger' : 'btn primary';
+          overlay.innerHTML = `
+            <div class="modal" style="max-width: ${maxWidth}">
+              <div class="modal-header">
+                <h2 class="modal-title">${escapeHtml(title)}</h2>
+                <button class="modal-close" data-action="cancel" aria-label="Close">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+              ${messageHtml ? `<div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-secondary)">${messageHtml}</div>` : ''}
+              ${bodyHtml ? `<div style="margin-bottom: 12px">${bodyHtml}</div>` : ''}
+              ${fieldHtml ? `<div>${fieldHtml}</div>` : ''}
+              <div class="modal-actions">
+                ${showCancel ? `<button class="btn" data-action="cancel">${escapeHtml(cancelText)}</button>` : ''}
+                <button class="${confirmClass}" data-action="confirm">${escapeHtml(confirmText)}</button>
+              </div>
+            </div>
+          `;
+
+          document.body.appendChild(overlay);
+
+          const cleanup = (result) => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKeyDown);
+            resolve(result);
+          };
+
+          const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              cleanup({ confirmed: false, values: {} });
+            }
+          };
+
+          const validateFields = () => {
+            let valid = true;
+            const values = {};
+            fields.forEach((field, index) => {
+              const fieldId = field.id || `field_${index}`;
+              const input = overlay.querySelector(`#${fieldId}`);
+              const group = overlay.querySelector(`[data-field-group="${fieldId}"]`);
+              const errorEl = group?.querySelector('.form-error');
+              let value = input?.value ?? '';
+              if (field.type === 'number') {
+                value = value === '' ? '' : Number(value);
+              }
+
+              const isEmpty = value === '' || value === null || value === undefined;
+              if (field.required && isEmpty) {
+                valid = false;
+                if (errorEl) {
+                  errorEl.textContent = 'Required';
+                  errorEl.style.display = 'block';
+                }
+                if (group) group.classList.add('has-error');
+              } else if (field.validate) {
+                const error = field.validate(value);
+                if (error) {
+                  valid = false;
+                  if (errorEl) {
+                    errorEl.textContent = error;
+                    errorEl.style.display = 'block';
+                  }
+                  if (group) group.classList.add('has-error');
+                } else if (group) {
+                  group.classList.remove('has-error');
+                  if (errorEl) errorEl.style.display = 'none';
+                }
+              } else if (group) {
+                group.classList.remove('has-error');
+                if (errorEl) errorEl.style.display = 'none';
+              }
+
+              values[field.name || field.id || `field_${index}`] = value;
+            });
+            return { valid, values };
+          };
+
+          overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+              cleanup({ confirmed: false, values: {} });
+            }
+          });
+
+          overlay.querySelectorAll('[data-action="cancel"]').forEach(btn => {
+            btn.addEventListener('click', () => cleanup({ confirmed: false, values: {} }));
+          });
+
+          const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+          if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+              const { valid, values } = validateFields();
+              if (!valid) return;
+              cleanup({ confirmed: true, values });
+            });
+          }
+
+          document.addEventListener('keydown', onKeyDown);
+
+          const firstInput = overlay.querySelector('input, textarea, select');
+          if (firstInput) {
+            setTimeout(() => firstInput.focus(), 50);
+          }
+        });
+      }
+
+      async function appConfirm(message, options = {}) {
+        const result = await showAppModal({
+          title: options.title || 'Confirm',
+          message,
+          confirmText: options.confirmText || 'Confirm',
+          cancelText: options.cancelText || 'Cancel',
+          confirmVariant: options.confirmVariant || 'primary',
+          showCancel: true
+        });
+        return result.confirmed;
+      }
+
+      async function appAlert(message, options = {}) {
+        await showAppModal({
+          title: options.title || 'Notice',
+          message,
+          bodyHtml: options.bodyHtml || '',
+          confirmText: options.confirmText || 'OK',
+          showCancel: false
+        });
+      }
+
+      async function appPrompt(message, options = {}) {
+        const result = await showAppModal({
+          title: options.title || 'Input',
+          message,
+          confirmText: options.confirmText || 'Save',
+          cancelText: options.cancelText || 'Cancel',
+          fields: [
+            {
+              id: 'value',
+              label: options.label || 'Value',
+              type: options.multiline ? 'textarea' : (options.type || 'text'),
+              value: options.defaultValue ?? '',
+              placeholder: options.placeholder || '',
+              required: options.required || false,
+              rows: options.rows,
+              monospace: options.monospace || false,
+              hint: options.hint
+            }
+          ]
+        });
+        if (!result.confirmed) return null;
+        return result.values.value;
+      }
+
+      async function appFormModal(options = {}) {
+        return showAppModal(options);
       }
 
       // Load MCP status
@@ -3723,15 +4490,19 @@
       }
 
       // Clear tool history
-      function clearToolHistory() {
-        if (confirm('Clear all tool execution history?')) {
-          const session = sessionManager.load() || {};
-          session.toolHistory = [];
-          sessionManager.save(session);
-          toolExecutionHistory = [];
-          refreshHistoryPanel();
-          appendMessage('system', '🗑️ Tool history cleared');
-        }
+      async function clearToolHistory() {
+        const confirmed = await appConfirm('Clear all tool execution history?', {
+          title: 'Clear History',
+          confirmText: 'Clear',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        const session = sessionManager.load() || {};
+        session.toolHistory = [];
+        sessionManager.save(session);
+        toolExecutionHistory = [];
+        refreshHistoryPanel();
+        appendMessage('system', '🗑️ Tool history cleared');
       }
 
       // ==========================================
@@ -3821,13 +4592,18 @@
       }
 
       // Save recorded scenario
-      function saveRecordedScenario() {
+      async function saveRecordedScenario() {
         if (recordedSteps.length === 0) {
           appendMessage('error', 'No steps to save');
           return;
         }
 
-        const name = prompt('Scenario name:', `Test ${new Date().toLocaleTimeString()}`);
+        const name = await appPrompt('Scenario name:', {
+          title: 'Save Scenario',
+          label: 'Scenario name',
+          defaultValue: `Test ${new Date().toLocaleTimeString()}`,
+          required: true
+        });
         if (!name) return;
 
         const scenario = {
@@ -3903,6 +4679,13 @@
           return;
         }
 
+        const variables = getInspectorVariables();
+        if (variables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before replaying.');
+          return;
+        }
+        const runtimeVariables = { ...(variables || {}) };
+
         const resultsEl = document.getElementById(`scenarioResults_${id}`);
         resultsEl.style.display = 'block';
         resultsEl.innerHTML = '<div style="color: var(--text-muted)">🔄 Replaying...</div>';
@@ -3916,6 +4699,9 @@
 
           try {
             const startTime = performance.now();
+            const args = Object.keys(runtimeVariables).length > 0
+              ? applyTemplateVariables(step.args, runtimeVariables)
+              : step.args;
             const response = await fetch('/api/mcp/call', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -3923,7 +4709,7 @@
               body: JSON.stringify({
                 serverName: step.server,
                 toolName: step.tool,
-                args: step.args,
+                args,
               }),
             });
 
@@ -3969,6 +4755,13 @@
             } else {
               passed++;
               results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations, assertionResults });
+            }
+
+            if (!isError) {
+              const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
+              if (Object.keys(extracted).length > 0) {
+                Object.assign(runtimeVariables, extracted);
+              }
             }
           } catch (err) {
             failed++;
@@ -4020,6 +4813,63 @@
         `;
 
         appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
+      }
+
+      function normalizeExtractList(extractConfig) {
+        if (!extractConfig) return [];
+        if (Array.isArray(extractConfig)) {
+          return extractConfig.filter(item => item && item.name);
+        }
+        if (typeof extractConfig === 'object') {
+          return Object.entries(extractConfig).map(([name, value]) => {
+            if (typeof value === 'string' && value.trim().startsWith('$')) {
+              return { name, path: value };
+            }
+            return { name, value };
+          });
+        }
+        return [];
+      }
+
+      function renderExtractSection(step, scenarioId, stepIndex) {
+        const extracts = normalizeExtractList(step.extract || step.variables);
+        return `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border)">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+              <span style="font-size: 0.75rem; font-weight: 500; color: var(--primary)">🧩 Variables</span>
+              <button class="btn" onclick="addExtractToStep('${scenarioId}', ${stepIndex})" style="font-size: 0.6rem; padding: 2px 6px">➕ Add</button>
+            </div>
+            ${extracts.length === 0 ? `
+              <div style="font-size: 0.7rem; color: var(--text-muted); font-style: italic">No variables set</div>
+            ` : extracts.map((extract, ei) => `
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.7rem; padding: 4px; background: var(--bg-surface); border-radius: 4px; margin-bottom: 2px">
+                <code style="color: var(--primary)">${escapeHtml(extract.name)}</code>
+                <span style="color: var(--text-muted)">←</span>
+                ${extract.path
+                  ? `<code>${escapeHtml(extract.path)}</code>`
+                  : `<code>${escapeHtml(extract.value === undefined ? '(empty)' : typeof extract.value === 'string' ? extract.value : JSON.stringify(extract.value))}</code>`}
+                <button onclick="removeExtractFromStep('${scenarioId}', ${stepIndex}, ${ei})" style="font-size: 0.6rem; padding: 1px 4px; background: none; border: none; cursor: pointer; color: var(--error)">✕</button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      function extractScenarioVariables(response, extractConfig) {
+        const extracts = normalizeExtractList(extractConfig);
+        if (!extracts.length) return {};
+        const vars = {};
+        extracts.forEach(item => {
+          if (!item.name) return;
+          if (Object.prototype.hasOwnProperty.call(item, 'value')) {
+            vars[item.name] = item.value;
+            return;
+          }
+          if (item.path) {
+            vars[item.name] = getValueAtPath(response, item.path);
+          }
+        });
+        return vars;
       }
 
       // View scenario details - Full modal
@@ -4102,6 +4952,7 @@
                         </div>
                       `).join('')}
                     </div>
+                    ${renderExtractSection(step, scenario.id, i)}
                   </div>
                 `).join('')}
               </div>
@@ -4200,13 +5051,13 @@
       }
 
       // Save assertion to scenario step
-      function saveAssertion(scenarioId, stepIndex) {
+      async function saveAssertion(scenarioId, stepIndex) {
         const path = document.getElementById('assertionPath').value.trim();
         const operator = document.getElementById('assertionOperator').value;
         let value = document.getElementById('assertionValue').value;
         
         if (!path) {
-          alert('Please enter a JSONPath');
+          await appAlert('Please enter a JSONPath', { title: 'Missing JSONPath' });
           return;
         }
         
@@ -4248,6 +5099,113 @@
         viewScenarioDetails(scenarioId); // Refresh modal
         
         appendMessage('system', '🗑️ Assertion removed');
+      }
+
+      function addExtractToStep(scenarioId, stepIndex) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'addExtractModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 450px">
+            <div class="modal-header">
+              <h2 class="modal-title">🧩 Set Variable</h2>
+              <button class="modal-close" onclick="closeAddExtractModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 500;">Variable name</label>
+                <input type="text" id="extractName" class="form-input" placeholder="token" style="width: 100%;">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 500;">JSONPath (optional)</label>
+                <input type="text" id="extractPath" class="form-input" placeholder="$.data.id" style="width: 100%;">
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 500;">Value (optional)</label>
+                <input type="text" id="extractValue" class="form-input" placeholder="literal value or JSON" style="width: 100%;">
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted)">
+                If JSONPath is provided, it extracts from the response. Otherwise the Value is used.
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeAddExtractModal()">Cancel</button>
+              <button class="btn primary" onclick="saveExtract('${scenarioId}', ${stepIndex})">Save</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+      }
+
+      function closeAddExtractModal() {
+        const modal = document.getElementById('addExtractModal');
+        if (modal) modal.remove();
+      }
+
+      function parseExtractValue(raw) {
+        if (raw === undefined || raw === null) return undefined;
+        const trimmed = String(raw).trim();
+        if (!trimmed) return undefined;
+        try {
+          return JSON.parse(trimmed);
+        } catch (error) {
+          return trimmed;
+        }
+      }
+
+      async function saveExtract(scenarioId, stepIndex) {
+        const name = document.getElementById('extractName')?.value?.trim();
+        const path = document.getElementById('extractPath')?.value?.trim();
+        const rawValue = document.getElementById('extractValue')?.value;
+        const value = parseExtractValue(rawValue);
+
+        if (!name) {
+          await appAlert('Variable name is required.', { title: 'Missing Variable' });
+          return;
+        }
+
+        if (!path && value === undefined) {
+          await appAlert('Provide a JSONPath or a value.', { title: 'Missing Value' });
+          return;
+        }
+
+        const scenario = sessionManager.getScenario(scenarioId);
+        if (!scenario || !scenario.steps[stepIndex]) return;
+
+        const extracts = normalizeExtractList(scenario.steps[stepIndex].extract || scenario.steps[stepIndex].variables);
+        const entry = { name };
+        if (path) {
+          entry.path = path;
+        } else {
+          entry.value = value;
+        }
+        extracts.push(entry);
+        scenario.steps[stepIndex].extract = extracts;
+
+        sessionManager.updateScenario(scenarioId, { steps: scenario.steps });
+        closeAddExtractModal();
+        closeScenarioDetailsModal();
+        viewScenarioDetails(scenarioId);
+      }
+
+      function removeExtractFromStep(scenarioId, stepIndex, extractIndex) {
+        const scenario = sessionManager.getScenario(scenarioId);
+        if (!scenario || !scenario.steps[stepIndex]) return;
+
+        const extracts = normalizeExtractList(scenario.steps[stepIndex].extract || scenario.steps[stepIndex].variables);
+        extracts.splice(extractIndex, 1);
+        scenario.steps[stepIndex].extract = extracts;
+        sessionManager.updateScenario(scenarioId, { steps: scenario.steps });
+
+        closeScenarioDetailsModal();
+        viewScenarioDetails(scenarioId);
       }
 
       // Show assertion results modal
@@ -4340,12 +5298,16 @@
       }
 
       // Delete scenario
-      function deleteScenario(id) {
-        if (confirm('Delete this scenario?')) {
-          sessionManager.deleteScenario(id);
-          refreshScenariosPanel();
-          appendMessage('system', '🗑️ Scenario deleted');
-        }
+      async function deleteScenario(id) {
+        const confirmed = await appConfirm('Delete this scenario?', {
+          title: 'Delete Scenario',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        sessionManager.deleteScenario(id);
+        refreshScenariosPanel();
+        appendMessage('system', '🗑️ Scenario deleted');
       }
 
       // ==========================================
@@ -4449,18 +5411,18 @@
       }
 
       // Save suite
-      function saveSuite(editId) {
+      async function saveSuite(editId) {
         const name = document.getElementById('suiteName').value.trim();
         const checkboxes = document.querySelectorAll('.suite-scenario-checkbox:checked');
         const scenarioIds = Array.from(checkboxes).map(cb => cb.value);
         
         if (!name) {
-          alert('Please enter a suite name');
+          await appAlert('Please enter a suite name', { title: 'Missing Name' });
           return;
         }
         
         if (scenarioIds.length === 0) {
-          alert('Please select at least one scenario');
+          await appAlert('Please select at least one scenario', { title: 'No Scenarios Selected' });
           return;
         }
         
@@ -4489,12 +5451,16 @@
       }
 
       // Delete suite
-      function deleteSuite(id) {
-        if (confirm('Delete this test suite?')) {
-          sessionManager.deleteSuite(id);
-          refreshSuitesList();
-          appendMessage('system', '🗑️ Suite deleted');
-        }
+      async function deleteSuite(id) {
+        const confirmed = await appConfirm('Delete this test suite?', {
+          title: 'Delete Suite',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        sessionManager.deleteSuite(id);
+        refreshSuitesList();
+        appendMessage('system', '🗑️ Suite deleted');
       }
 
       // Run entire suite
@@ -4888,23 +5854,147 @@
         }
       }
 
-      // Simple JSONPath implementation (supports $.path.to.value and $[0].item)
+      function parseFilterValue(raw) {
+        const trimmed = raw.trim();
+        if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+          return trimmed.slice(1, -1);
+        }
+        if (trimmed === 'true') return true;
+        if (trimmed === 'false') return false;
+        if (trimmed === 'null') return null;
+        const num = Number(trimmed);
+        if (!Number.isNaN(num)) return num;
+        return trimmed;
+      }
+
+      function parseFilterToken(token) {
+        const raw = token.slice(3, -2).trim();
+        let match = raw.match(/^@\.([^\s]+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);
+        if (match) {
+          return {
+            type: 'filter',
+            path: match[1].trim(),
+            operator: match[2],
+            value: parseFilterValue(match[3])
+          };
+        }
+        match = raw.match(/^@\.([^\s]+)\s*$/);
+        if (match) {
+          return {
+            type: 'filter',
+            path: match[1].trim(),
+            operator: 'truthy',
+            value: true
+          };
+        }
+        return {
+          type: 'filter',
+          path: raw,
+          operator: 'truthy',
+          value: true
+        };
+      }
+
+      function tokenizePath(path) {
+        const cleanPath = path.replace(/^\$\.?/, '');
+        if (!cleanPath) return [];
+        const tokens = [];
+        const regex = /(\[\?\([^\]]+\)\])|(?:\[(?:'([^']+)'|"([^"]+)"|(\d+|\*))\])|([^.[]+)/g;
+        let match;
+        while ((match = regex.exec(cleanPath)) !== null) {
+          if (match[1]) {
+            tokens.push(parseFilterToken(match[1]));
+            continue;
+          }
+          tokens.push(match[2] || match[3] || match[4] || match[5]);
+        }
+        return tokens;
+      }
+
+      function resolveFilterPath(obj, path) {
+        if (!path) return obj;
+        const parts = path.split('.').filter(Boolean);
+        return parts.reduce((value, key) => {
+          if (value === undefined || value === null) return undefined;
+          if (Array.isArray(value) && Number.isFinite(Number(key))) {
+            return value[Number(key)];
+          }
+          return value[key];
+        }, obj);
+      }
+
+      function matchesFilter(item, filter) {
+        const actual = resolveFilterPath(item, filter.path);
+        switch (filter.operator) {
+          case '==':
+            return actual == filter.value;
+          case '!=':
+            return actual != filter.value;
+          case '>':
+            return Number(actual) > Number(filter.value);
+          case '>=':
+            return Number(actual) >= Number(filter.value);
+          case '<':
+            return Number(actual) < Number(filter.value);
+          case '<=':
+            return Number(actual) <= Number(filter.value);
+          case 'truthy':
+            return Boolean(actual);
+          default:
+            return Boolean(actual);
+        }
+      }
+
+      // JSONPath-ish implementation with support for $.*, array indices, and wildcards
       function getValueAtPath(obj, path) {
         if (!path || path === '$') return obj;
-        
-        // Remove leading $. or $
-        const cleanPath = path.replace(/^\$\.?/, '');
-        if (!cleanPath) return obj;
-        
-        const parts = cleanPath.split(/\.|\[|\]/).filter(p => p !== '');
-        let current = obj;
-        
-        for (const part of parts) {
-          if (current === undefined || current === null) return undefined;
-          current = current[part];
-        }
-        
-        return current;
+        const tokens = tokenizePath(path);
+        if (tokens.length === 0) return obj;
+
+        let results = [obj];
+        tokens.forEach(token => {
+          const next = [];
+          results.forEach(value => {
+            if (value === undefined || value === null) return;
+            if (token && typeof token === 'object' && token.type === 'filter') {
+              const candidates = Array.isArray(value)
+                ? value
+                : typeof value === 'object'
+                  ? Object.values(value)
+                  : [];
+              candidates.forEach(item => {
+                if (matchesFilter(item, token)) next.push(item);
+              });
+              return;
+            }
+            if (token === '*') {
+              if (Array.isArray(value)) {
+                next.push(...value);
+              } else if (typeof value === 'object') {
+                next.push(...Object.values(value));
+              }
+              return;
+            }
+
+            const numeric = Number.isFinite(Number(token)) ? Number(token) : null;
+            if (Array.isArray(value)) {
+              if (numeric !== null) {
+                if (value[numeric] !== undefined) next.push(value[numeric]);
+              } else if (Object.prototype.hasOwnProperty.call(value, token)) {
+                next.push(value[token]);
+              }
+              return;
+            }
+
+            if (typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, token)) {
+              next.push(value[token]);
+            }
+          });
+          results = next;
+        });
+
+        if (results.length === 0) return undefined;
+        return results.length === 1 ? results[0] : results;
       }
 
       // Available assertion operators for UI
@@ -5146,19 +6236,24 @@
       }
       
       // Delete custom prompt
-      function deleteSystemPrompt(id) {
+      async function deleteSystemPrompt(id) {
         const prompts = sessionManager.getPrompts();
         const prompt = prompts[id];
-        if (prompt && confirm(`Delete "${prompt.name}"?`)) {
-          sessionManager.deletePrompt(id);
-          if (sessionManager.getActivePromptId() === id) {
-            sessionManager.setActivePromptId('default');
-          }
-          populateSystemPrompts();
-          closePromptManager();
-          showPromptManager();
-          appendMessage('system', `🗑️ Deleted prompt "${prompt.name}"`);
+        if (!prompt) return;
+        const confirmed = await appConfirm(`Delete "${prompt.name}"?`, {
+          title: 'Delete Prompt',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        sessionManager.deletePrompt(id);
+        if (sessionManager.getActivePromptId() === id) {
+          sessionManager.setActivePromptId('default');
         }
+        populateSystemPrompts();
+        closePromptManager();
+        showPromptManager();
+        appendMessage('system', `🗑️ Deleted prompt "${prompt.name}"`);
       }
 
       // Restore session - render saved messages
@@ -5260,13 +6355,17 @@
       }
       
       // Reset token usage
-      function resetTokenUsage() {
-        if (confirm('Reset token usage for this session?')) {
-          sessionManager.resetTokens();
-          updateTokenDisplay();
-          closeTokenUsageModal();
-          appendMessage('system', '🔄 Token usage reset');
-        }
+      async function resetTokenUsage() {
+        const confirmed = await appConfirm('Reset token usage for this session?', {
+          title: 'Reset Tokens',
+          confirmText: 'Reset',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        sessionManager.resetTokens();
+        updateTokenDisplay();
+        closeTokenUsageModal();
+        appendMessage('system', '🔄 Token usage reset');
       }
 
       // ==========================================
@@ -5530,16 +6629,20 @@ main().catch(console.error);
       }
 
       // Clear generator
-      function clearGenerator() {
-        if (confirm('Clear all tools and settings?')) {
-          generatorTools = [];
-          generatedCode = '';
-          document.getElementById('genServerName').value = '';
-          document.getElementById('genServerDesc').value = '';
-          document.getElementById('generatorPreviewSection').style.display = 'none';
-          renderGeneratorTools();
-          appendMessage('system', '🗑️ Generator cleared');
-        }
+      async function clearGenerator() {
+        const confirmed = await appConfirm('Clear all tools and settings?', {
+          title: 'Clear Generator',
+          confirmText: 'Clear',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        generatorTools = [];
+        generatedCode = '';
+        document.getElementById('genServerName').value = '';
+        document.getElementById('genServerDesc').value = '';
+        document.getElementById('generatorPreviewSection').style.display = 'none';
+        renderGeneratorTools();
+        appendMessage('system', '🗑️ Generator cleared');
       }
 
       // ==========================================
@@ -5547,8 +6650,13 @@ main().catch(console.error);
       // ==========================================
 
       // Fork conversation at a specific message index
-      function forkAtMessage(messageIndex) {
-        const name = prompt('Enter a name for this branch:', `Branch at message ${messageIndex + 1}`);
+      async function forkAtMessage(messageIndex) {
+        const name = await appPrompt('Enter a name for this branch:', {
+          title: 'Create Branch',
+          label: 'Branch name',
+          defaultValue: `Branch at message ${messageIndex + 1}`,
+          required: true
+        });
         if (!name) return;
         
         const branch = sessionManager.createBranch(name, messages, messageIndex);
@@ -5626,18 +6734,27 @@ main().catch(console.error);
       }
 
       // Delete branch and refresh modal
-      function deleteBranchAndRefresh(branchId) {
-        if (confirm('Delete this branch?')) {
-          sessionManager.deleteBranch(branchId);
-          closeBranchesModal();
-          showBranchesModal();
-          appendMessage('system', '🗑️ Branch deleted');
-        }
+      async function deleteBranchAndRefresh(branchId) {
+        const confirmed = await appConfirm('Delete this branch?', {
+          title: 'Delete Branch',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        sessionManager.deleteBranch(branchId);
+        closeBranchesModal();
+        showBranchesModal();
+        appendMessage('system', '🗑️ Branch deleted');
       }
 
       // Save current conversation as a branch
-      function saveCurrentAsBranch() {
-        const name = prompt('Enter a name for this branch:', `Snapshot ${new Date().toLocaleString()}`);
+      async function saveCurrentAsBranch() {
+        const name = await appPrompt('Enter a name for this branch:', {
+          title: 'Save Branch',
+          label: 'Branch name',
+          defaultValue: `Snapshot ${new Date().toLocaleString()}`,
+          required: true
+        });
         if (!name) return;
         
         const branch = sessionManager.createBranch(name, messages, messages.length - 1);
@@ -5845,8 +6962,13 @@ main().catch(console.error);
       }
 
       // Fork conversation at a specific message index
-      function forkAtMessage(messageIndex) {
-        const name = prompt('Enter a name for this branch:', `Branch at message ${messageIndex + 1}`);
+      async function forkAtMessage(messageIndex) {
+        const name = await appPrompt('Enter a name for this branch:', {
+          title: 'Create Branch',
+          label: 'Branch name',
+          defaultValue: `Branch at message ${messageIndex + 1}`,
+          required: true
+        });
         if (!name) return;
         
         const branch = createBranch(name, messages, messageIndex);
@@ -5921,17 +7043,26 @@ main().catch(console.error);
       }
 
       // Delete branch and refresh modal
-      function deleteBranchAndRefresh(id) {
-        if (confirm('Delete this branch?')) {
-          deleteBranch(id);
-          closeBranchesModal();
-          showBranchesModal();
-        }
+      async function deleteBranchAndRefresh(id) {
+        const confirmed = await appConfirm('Delete this branch?', {
+          title: 'Delete Branch',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        deleteBranch(id);
+        closeBranchesModal();
+        showBranchesModal();
       }
 
       // Save current conversation as a branch
-      function saveCurrentAsBranch() {
-        const name = prompt('Enter a name for this branch:', `Snapshot ${new Date().toLocaleString()}`);
+      async function saveCurrentAsBranch() {
+        const name = await appPrompt('Enter a name for this branch:', {
+          title: 'Save Branch',
+          label: 'Branch name',
+          defaultValue: `Snapshot ${new Date().toLocaleString()}`,
+          required: true
+        });
         if (!name) return;
         
         const branch = createBranch(name, messages, messages.length - 1);
@@ -6153,6 +7284,15 @@ main().catch(console.error);
           return;
         }
 
+        const variables = getInspectorVariables();
+        if (variables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before running bulk tests.');
+          return;
+        }
+        if (variables && Object.keys(variables).length > 0) {
+          inputs = inputs.map(input => applyTemplateVariables(input, variables));
+        }
+
         const btn = document.getElementById('bulkTestRunBtn');
         btn.disabled = true;
         btn.textContent = '⏳ Running...';
@@ -6303,6 +7443,16 @@ main().catch(console.error);
           return;
         }
 
+        const variables = getInspectorVariables();
+        if (variables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before running diff.');
+          return;
+        }
+        if (variables && Object.keys(variables).length > 0) {
+          args1 = applyTemplateVariables(args1, variables);
+          args2 = applyTemplateVariables(args2, variables);
+        }
+
         const btn = document.getElementById('diffRunBtn');
         btn.disabled = true;
         btn.textContent = '⏳ Comparing...';
@@ -6374,6 +7524,223 @@ main().catch(console.error);
         }
       }
 
+      // ==========================================
+      // TOOL SCHEMA DIFF
+      // ==========================================
+      const SCHEMA_BASELINE_KEY = 'mcp_tool_schema_baselines';
+      let schemaToolsCache = null;
+
+      async function loadSchemaDiffServers() {
+        const selectA = document.getElementById('schemaServerSelect');
+        const selectB = document.getElementById('schemaServerSelectB');
+        if (!selectA || !selectB) return;
+
+        try {
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+          const servers = status.servers || status;
+
+          const options = Object.entries(servers)
+            .filter(([, info]) => info.connected)
+            .map(([name]) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+            .join('');
+
+          selectA.innerHTML = '<option value="">-- Baseline Server --</option>' + options;
+          selectB.innerHTML = '<option value="">-- Compare Server --</option>' + options;
+        } catch (error) {
+          console.error('Failed to load schema diff servers:', error);
+        }
+      }
+
+      async function ensureSchemaToolsCache() {
+        if (schemaToolsCache) return schemaToolsCache;
+        const response = await fetch('/api/mcp/tools', { credentials: 'include' });
+        const data = await response.json();
+        schemaToolsCache = data.tools || [];
+        return schemaToolsCache;
+      }
+
+      async function loadSchemaDiffTools(side) {
+        const serverSelect = side === 'current'
+          ? document.getElementById('schemaServerSelectB')
+          : document.getElementById('schemaServerSelect');
+        const toolSelect = side === 'current'
+          ? document.getElementById('schemaToolSelectB')
+          : document.getElementById('schemaToolSelect');
+
+        if (!serverSelect || !toolSelect) return;
+        const serverName = serverSelect.value;
+
+        if (!serverName) {
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          return;
+        }
+
+        try {
+          const tools = await ensureSchemaToolsCache();
+          const filtered = tools.filter(t => t.serverName === serverName);
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          filtered.forEach(tool => {
+            toolSelect.innerHTML += `<option value="${escapeHtml(tool.name)}">${escapeHtml(tool.name)}</option>`;
+          });
+        } catch (error) {
+          console.error('Failed to load schema diff tools:', error);
+        }
+      }
+
+      async function getSchemaFor(serverName, toolName) {
+        if (!serverName || !toolName) return null;
+        const tools = await ensureSchemaToolsCache();
+        const tool = tools.find(t => t.serverName === serverName && t.name === toolName);
+        return tool?.inputSchema || null;
+      }
+
+      function updateSchemaBaselineStatus(message, isError = false) {
+        const statusEl = document.getElementById('schemaBaselineStatus');
+        if (!statusEl) return;
+        statusEl.textContent = message;
+        statusEl.style.color = isError ? 'var(--error)' : 'var(--text-muted)';
+      }
+
+      function saveSchemaBaseline() {
+        const serverName = document.getElementById('schemaServerSelect').value;
+        const toolName = document.getElementById('schemaToolSelect').value;
+        if (!serverName || !toolName) {
+          updateSchemaBaselineStatus('Select a server and tool to save a baseline.', true);
+          return;
+        }
+
+        getSchemaFor(serverName, toolName).then(schema => {
+          if (!schema) {
+            updateSchemaBaselineStatus('Schema not found for selected tool.', true);
+            return;
+          }
+          const baselines = JSON.parse(localStorage.getItem(SCHEMA_BASELINE_KEY) || '{}');
+          const key = `${serverName}::${toolName}`;
+          baselines[key] = { schema, savedAt: new Date().toISOString() };
+          localStorage.setItem(SCHEMA_BASELINE_KEY, JSON.stringify(baselines));
+          updateSchemaBaselineStatus(`Baseline saved for ${toolName} (${serverName}).`);
+        }).catch(error => {
+          updateSchemaBaselineStatus('Failed to save baseline: ' + error.message, true);
+        });
+      }
+
+      async function compareSchemaBaseline() {
+        const serverName = document.getElementById('schemaServerSelect').value;
+        const toolName = document.getElementById('schemaToolSelect').value;
+        if (!serverName || !toolName) {
+          updateSchemaBaselineStatus('Select a server and tool to compare.', true);
+          return;
+        }
+
+        const baselines = JSON.parse(localStorage.getItem(SCHEMA_BASELINE_KEY) || '{}');
+        const key = `${serverName}::${toolName}`;
+        const baseline = baselines[key];
+        if (!baseline) {
+          updateSchemaBaselineStatus('No baseline saved for this tool.', true);
+          return;
+        }
+
+        const schema = await getSchemaFor(serverName, toolName);
+        if (!schema) {
+          updateSchemaBaselineStatus('Schema not found for selected tool.', true);
+          return;
+        }
+
+        await renderSchemaDiff(baseline.schema, schema, 'Baseline', 'Current');
+      }
+
+      async function runSchemaDiff() {
+        const serverA = document.getElementById('schemaServerSelect').value;
+        const toolA = document.getElementById('schemaToolSelect').value;
+        const serverB = document.getElementById('schemaServerSelectB').value;
+        const toolB = document.getElementById('schemaToolSelectB').value;
+
+        if (!serverA || !toolA || !serverB || !toolB) {
+          updateSchemaBaselineStatus('Select both tools to compare.', true);
+          return;
+        }
+
+        const schemaA = await getSchemaFor(serverA, toolA);
+        const schemaB = await getSchemaFor(serverB, toolB);
+        if (!schemaA || !schemaB) {
+          updateSchemaBaselineStatus('Schema not found for one or both tools.', true);
+          return;
+        }
+
+        await renderSchemaDiff(schemaA, schemaB, `${toolA} (${serverA})`, `${toolB} (${serverB})`);
+      }
+
+      async function renderSchemaDiff(schemaA, schemaB, labelA, labelB) {
+        const btn = document.getElementById('schemaDiffRunBtn');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = '⏳ Comparing...';
+        }
+
+        try {
+          const response = await fetch('/api/inspector/diff-existing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              result1: schemaA,
+              result2: schemaB,
+              label1: labelA,
+              label2: labelB
+            })
+          });
+          const diffResult = await response.json();
+
+          const resultsSection = document.getElementById('schemaDiffResultsSection');
+          const similarityEl = document.getElementById('schemaDiffSimilarity');
+          const resultsEl = document.getElementById('schemaDiffResults');
+
+          if (resultsSection) resultsSection.style.display = 'block';
+
+          const similarity = (diffResult.similarity * 100).toFixed(1);
+          if (similarityEl) {
+            similarityEl.innerHTML = `<strong>Similarity:</strong> ${similarity}% ${diffResult.identical ? '(Identical)' : ''}`;
+            similarityEl.style.color = diffResult.identical ? 'var(--success)' : 'var(--warning)';
+          }
+
+          let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">';
+          html += `
+            <div>
+              <h4 style="margin: 0 0 8px 0; font-size: 0.85rem">${diffResult.label1}</h4>
+              <pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; margin: 0; font-size: 0.7rem">${escapeHtml(diffResult.text1)}</pre>
+            </div>
+          `;
+          html += `
+            <div>
+              <h4 style="margin: 0 0 8px 0; font-size: 0.85rem">${diffResult.label2}</h4>
+              <pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; margin: 0; font-size: 0.7rem">${escapeHtml(diffResult.text2)}</pre>
+            </div>
+          `;
+          html += '</div>';
+
+          if (diffResult.diff) {
+            const changes = diffResult.diff.filter(d => d.type !== 'unchanged').length;
+            html += `<div style="margin-top: 12px; padding: 8px; background: var(--bg-card); border-radius: 8px; font-size: 0.75rem">
+              <strong>Changes:</strong> ${changes} line(s) different
+            </div>`;
+          }
+
+          if (resultsEl) resultsEl.innerHTML = html;
+
+          updateSchemaBaselineStatus(
+            diffResult.identical ? '✅ Schema matches baseline.' : '⚠️ Schema differs from baseline.'
+          );
+        } catch (error) {
+          updateSchemaBaselineStatus('Schema diff failed: ' + error.message, true);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🧬 Compare Schemas';
+          }
+        }
+      }
+
       // Initialize
       restoreSession();
       checkAuthStatus();
@@ -6381,7 +7748,57 @@ main().catch(console.error);
       populateSystemPrompts();
       updateTokenDisplay();
       initEnvProfile();
+      loadInspectorVariables();
 
       // Refresh MCP status periodically
-      setInterval(loadMCPStatus, 30000);
+      const mcpStatusInterval = setInterval(loadMCPStatus, 30000);
+
+      // Cleanup on page unload
+      window.addEventListener('beforeunload', () => {
+        if (mcpStatusInterval) {
+          clearInterval(mcpStatusInterval);
+        }
+      });
+
+      // ==========================================
+      // EXPOSE FUNCTIONS TO WINDOW FOR FLOATING WORKSPACE
+      // ==========================================
+      window.showAddServerModal = showAddServerModal;
+      window.hideAddServerModal = hideAddServerModal;
+      window.applyServerTemplate = applyServerTemplate;
+      window.saveAsCustomTemplate = saveAsCustomTemplate;
+      window.manageCustomTemplates = manageCustomTemplates;
+      window.showImportConfigModal = showImportConfigModal;
+      window.hideImportConfigModal = hideImportConfigModal;
+      window.parseAndImportConfig = parseAndImportConfig;
+      window.confirmDeleteServer = confirmDeleteServer;
+      window.hideConfirmDeleteModal = hideConfirmDeleteModal;
+      window.submitAddServer = submitAddServer;
+      window.addEnvVarRow = addEnvVarRow;
+      window.updateConfigPreview = updateConfigPreview;
+      window.copyConfigToClipboard = copyConfigToClipboard;
+      window.toggleServerTypeFields = toggleServerTypeFields;
+      window.loadCustomTemplates = loadCustomTemplates;
+      window.switchEnvironment = switchEnvironment;
+      window.filterTools = filterTools;
+      window.testAllTools = testAllTools;
+      window.exportConfig = exportConfig;
+      window.importConfigFile = importConfigFile;
+      window.handleConfigFileImport = handleConfigFileImport;
+      window.toggleInspectorInputMode = toggleInspectorInputMode;
+      window.fillInspectorDefaults = fillInspectorDefaults;
+      window.saveInspectorVariables = saveInspectorVariables;
+      window.clearInspectorVariables = clearInspectorVariables;
+      window.loadInspectorServers = loadInspectorServers;
+      window.appConfirm = appConfirm;
+      window.appAlert = appAlert;
+      window.appPrompt = appPrompt;
+      window.appFormModal = appFormModal;
+      window.loadSchemaDiffServers = loadSchemaDiffServers;
+      window.loadSchemaDiffTools = loadSchemaDiffTools;
+      window.saveSchemaBaseline = saveSchemaBaseline;
+      window.compareSchemaBaseline = compareSchemaBaseline;
+      window.runSchemaDiff = runSchemaDiff;
+      window.getToolExecutionHistory = () => toolExecutionHistory;
+      window.getLocalScenarios = () => sessionManager.getScenarios();
 

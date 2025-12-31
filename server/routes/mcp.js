@@ -192,30 +192,37 @@ router.post('/disconnect/:serverName', async (req, res) => {
  */
 router.post('/add', async (req, res) => {
   try {
-    const { name, type, command, args, url, env, description, requiresAuth, timeout } = req.body;
+    const { name, type, command, args, url, env, description, requiresAuth, timeout, mockId } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Server name is required' });
     }
 
-    if (!command && !url) {
+    const resolvedType = type || (mockId ? 'mock' : command ? 'stdio' : 'sse');
+
+    if (resolvedType !== 'mock' && !command && !url) {
       return res
         .status(400)
         .json({ error: 'Either command (for stdio) or url (for SSE) is required' });
+    }
+    if (resolvedType === 'mock' && !mockId) {
+      return res.status(400).json({ error: 'mockId is required for mock servers' });
     }
 
     const mcpManager = getMCPManager();
 
     // Build config object
     const config = {
-      type: type || (command ? 'stdio' : 'sse'),
+      type: resolvedType,
       description: description || `Dynamic MCP server: ${name}`,
       requiresAuth: requiresAuth || false,
       timeout: timeout || 60000,
       startup: false, // Don't auto-start dynamic servers
     };
 
-    if (command) {
+    if (resolvedType === 'mock') {
+      config.mockId = mockId;
+    } else if (command) {
       config.command = command;
       config.args = args || [];
       if (env) config.env = env;
@@ -246,7 +253,7 @@ router.post('/add', async (req, res) => {
 router.put('/update/:serverName', async (req, res) => {
   try {
     const { serverName } = req.params;
-    const { type, command, args, url, env, description, requiresAuth, timeout } = req.body;
+    const { type, command, args, url, env, description, requiresAuth, timeout, mockId } = req.body;
 
     const mcpManager = getMCPManager();
 
@@ -256,15 +263,21 @@ router.put('/update/:serverName', async (req, res) => {
     }
 
     // Build updated config
+    const resolvedType = type || (mockId ? 'mock' : command ? 'stdio' : 'sse');
     const config = {
-      type: type || (command ? 'stdio' : 'sse'),
+      type: resolvedType,
       description: description || `MCP server: ${serverName}`,
       requiresAuth: requiresAuth || false,
       timeout: timeout || 60000,
       startup: false,
     };
 
-    if (command) {
+    if (resolvedType === 'mock') {
+      if (!mockId) {
+        return res.status(400).json({ error: 'mockId is required for mock servers' });
+      }
+      config.mockId = mockId;
+    } else if (command) {
       config.command = command;
       config.args = args || [];
       if (env) config.env = env;

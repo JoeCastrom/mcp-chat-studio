@@ -1,0 +1,33 @@
+{
+  "server": "windows",
+  "toolName": "Wait-Tool",
+  "version": "1.0.0",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean"
+      },
+      "duration": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "success"
+    ]
+  },
+  "sampleArgs": {
+    "duration": 1
+  },
+  "createdAt": "2025-12-31T12:09:45.491Z",
+  "updatedAt": "2025-12-31T12:09:45.491Z",
+  "id": "windows.Wait-Tool",
+  "name": "windows.Wait-Tool",
+  "baselineResponse": null,
+  "breakingChanges": [],
+  "lastValidation": null,
+  "validationCount": 0,
+  "successCount": 0,
+  "failureCount": 0,
+  "tests": []
+}

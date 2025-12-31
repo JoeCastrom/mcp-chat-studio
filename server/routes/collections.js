@@ -8,6 +8,10 @@ import { getCollectionManager } from '../services/CollectionManager.js';
 
 const router = Router();
 
+function getSessionId(req) {
+  return req.headers['x-session-id'] || req.cookies?.sessionId || req.sessionID || null;
+}
+
 /**
  * @swagger
  * /api/collections:
@@ -269,7 +273,11 @@ router.delete('/:id/scenarios/:scenarioId', (req, res) => {
 router.post('/:id/run', async (req, res) => {
   try {
     const manager = getCollectionManager();
-    const results = await manager.runCollection(req.params.id, req.body);
+    const sessionId = getSessionId(req);
+    const results = await manager.runCollection(req.params.id, {
+      ...req.body,
+      sessionId
+    });
 
     res.json(results);
   } catch (error) {

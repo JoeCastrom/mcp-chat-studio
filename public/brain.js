@@ -1,205 +1,288 @@
-// Agent Brain Visualization Logic
+/**
+ * Brain View - Timeline Trace
+ * Renders a readable execution timeline with timestamps and tool badges.
+ */
 
-// Local escapeHtml to avoid dependency on app.js load order
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text || '';
   return div.innerHTML;
 }
 
-let isBrainOpen = false;
-let brainNodes = [];
-let brainEdges = [];
+const brainState = {
+  messages: [],
+  context: {
+    totalTokens: 0,
+    systemTokens: 0,
+    userTokens: 0,
+    assistantTokens: 0,
+    toolTokens: 0
+  },
+  timeline: [],
+  messageTimestamps: new Map(),
+  baseTime: null
+};
 
-function toggleBrainView() {
-  const panel = document.getElementById('brainPanel');
-  const btn = document.getElementById('toggleBrainBtn');
-
-  if (!isBrainOpen) {
-    panel.style.width = '50%'; // Split view
-    btn.classList.add('active');
-    isBrainOpen = true;
-    updateBrainGraph();
-  } else {
-    panel.style.width = '0';
-    btn.classList.remove('active');
-    isBrainOpen = false;
-  }
+function getTimelineContainers() {
+  return Array.from(document.querySelectorAll('.brain-timeline'));
 }
 
-// Hook into message updates
-// We'll poll or hook into the appendMessage function in app.js
-// Since we can't easily modify app.js closure scope without extensive edits,
-// we'll observe the DOM 'messages' container for changes.
+function initBrainView() {
+  const timelines = getTimelineContainers();
+  if (timelines.length === 0) return;
 
-document.addEventListener('DOMContentLoaded', () => {
   const messagesContainer = document.getElementById('messages');
-  if (messagesContainer) {
+  if (messagesContainer && !messagesContainer.dataset.brainObserver) {
     const observer = new MutationObserver(() => {
-      if (isBrainOpen) {
-        updateBrainGraph();
-      }
+      const messages = Array.from(document.querySelectorAll('#messages .message'));
+      updateBrainGraph(messages);
     });
     observer.observe(messagesContainer, { childList: true, subtree: true });
+    messagesContainer.dataset.brainObserver = 'true';
   }
-});
 
-function updateBrainGraph() {
-  const messages = document.querySelectorAll('#messages .message');
-  brainNodes = [];
-  brainEdges = [];
+  const messages = Array.from(document.querySelectorAll('#messages .message'));
+  updateBrainGraph(messages);
+}
 
-  let y = 50;
-  let prevId = null;
+function getToolHistoryMessages() {
+  if (typeof window.getToolExecutionHistory !== 'function') return [];
+  const history = window.getToolExecutionHistory() || [];
+  return history.map(entry => ({
+    role: 'tool',
+    content: entry.response ? JSON.stringify(entry.response) : '',
+    tool: entry.tool,
+    server: entry.server,
+    success: entry.success !== false,
+    timestamp: entry.timestamp
+  }));
+}
 
-  messages.forEach((msg, index) => {
-    // Determine type based on class or content
-    let type = 'unknown';
-    let label = '...';
-    let color = '#666';
-    let icon = '❓';
+function getMessagePreview(text, maxLength) {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'No content';
+  return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength)}...` : cleaned;
+}
 
-    if (msg.classList.contains('user')) {
-      type = 'user';
-      label = msg.textContent.substring(0, 30) + '...';
-      color = 'var(--bg-surface)';
-      icon = '👤';
-    } else if (msg.classList.contains('assistant')) {
-      type = 'assistant';
-      label = 'Response';
-      color = 'var(--bg-card)';
-      icon = '🤖';
+function getMessageKey(role, content, index) {
+  const seed = String(content || '').slice(0, 40);
+  return `${role}:${index}:${seed}`;
+}
 
-      // Check for tool usage content inside
-      if (
-        msg.innerHTML.includes('✅') ||
-        msg.innerHTML.includes('⚠️') ||
-        msg.innerHTML.includes('❌')
-      ) {
-        type = 'tool-result';
-        label = 'Tool Result';
-        icon = '⚙️';
-        color = 'var(--bg-surface)';
-      }
-    } else if (msg.classList.contains('system')) {
-      type = 'system';
-      label = 'System';
-      color = 'var(--warning)';
-      icon = '🖥️';
+function ensureBaseTime(count) {
+  if (!brainState.baseTime) {
+    const now = Date.now();
+    brainState.baseTime = now - count * 1200;
+  }
+}
+
+function updateBrainGraph(messageDomElements = []) {
+  const domMessages = messageDomElements.map(msgEl => {
+    let role = 'unknown';
+    if (msgEl.classList.contains('user')) role = 'user';
+    else if (msgEl.classList.contains('assistant')) role = 'assistant';
+    else if (msgEl.classList.contains('system')) role = 'system';
+
+    if (msgEl.innerHTML.includes('✅') || msgEl.innerHTML.includes('⚠️') || msgEl.innerHTML.includes('❌')) {
+      role = 'tool';
     }
 
-    // Attempt to extract tool name if it's a tool-result
-    const toolMatch = msg.innerText.match(/(?:✅|⚠️|❌)\s+([a-zA-Z0-9_]+)/);
-    if (toolMatch) {
-      label = toolMatch[1];
-      type = 'tool-result';
+    return {
+      role,
+      content: msgEl.innerText || ''
+    };
+  });
+
+  const toolMessages = getToolHistoryMessages();
+  brainState.messages = domMessages.concat(toolMessages);
+
+  // Calculate context breakdown
+  brainState.context = {
+    totalTokens: 0,
+    systemTokens: 0,
+    userTokens: 0,
+    assistantTokens: 0,
+    toolTokens: 0
+  };
+
+  brainState.messages.forEach(msg => {
+    const tokens = estimateTokens(msg.content);
+    brainState.context.totalTokens += tokens;
+
+    if (msg.role === 'system') {
+      brainState.context.systemTokens += tokens;
+    } else if (msg.role === 'user') {
+      brainState.context.userTokens += tokens;
+    } else if (msg.role === 'assistant') {
+      brainState.context.assistantTokens += tokens;
+    } else if (msg.role === 'tool') {
+      brainState.context.toolTokens += tokens;
     }
+  });
 
-    const id = `node_${index}`;
-    const x = 150; // Center
+  buildTimeline(domMessages, toolMessages);
+  renderTimeline();
+  renderContextStats();
+}
 
-    brainNodes.push({
-      id,
-      type,
-      label,
-      icon,
-      color,
-      x,
-      y,
-      fullText: msg.innerText,
+function buildTimeline(domMessages, toolMessages) {
+  ensureBaseTime(domMessages.length);
+  const entries = [];
+
+  domMessages.forEach((msg, index) => {
+    const key = getMessageKey(msg.role, msg.content, index);
+    let timestamp = brainState.messageTimestamps.get(key);
+    if (!timestamp) {
+      timestamp = brainState.baseTime + index * 1200;
+      if (timestamp > Date.now()) timestamp = Date.now();
+      brainState.messageTimestamps.set(key, timestamp);
+    }
+    entries.push({
+      kind: 'message',
+      role: msg.role || 'unknown',
+      content: msg.content,
+      timestamp
     });
-
-    if (prevId) {
-      brainEdges.push({ from: prevId, to: id });
-    }
-
-    prevId = id;
-    y += 100; // Spacing
   });
 
-  renderBrain();
+  toolMessages.forEach(msg => {
+    const timestamp = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
+    entries.push({
+      kind: 'tool',
+      role: 'tool',
+      content: msg.content,
+      tool: msg.tool,
+      server: msg.server,
+      success: msg.success !== false,
+      timestamp
+    });
+  });
+
+  entries.sort((a, b) => a.timestamp - b.timestamp);
+  brainState.timeline = entries;
 }
 
-function renderBrain() {
-  const container = document.getElementById('brainNodesContainer');
-  const svg = document.getElementById('brainConnections');
+function formatTime(timestamp) {
+  if (!timestamp) return '--:--:--';
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
 
-  container.innerHTML = '';
-  svg.innerHTML = '';
+function renderTimeline() {
+  const containers = getTimelineContainers();
+  if (containers.length === 0) return;
 
-  // Resize container to fit content
-  const maxY = brainNodes.length > 0 ? brainNodes[brainNodes.length - 1].y + 100 : 500;
+  const iconMap = {
+    system: '🖥️',
+    user: '👤',
+    assistant: '🤖',
+    tool: '⚙️',
+    unknown: '❓'
+  };
 
-  // Render Nodes
-  brainNodes.forEach(node => {
-    const el = document.createElement('div');
-    el.style.position = 'absolute';
-    el.style.left = `${node.x}px`;
-    el.style.top = `${node.y}px`;
-    el.style.transform = 'translate(-50%, -50%)'; // Center anchor
-    el.style.width = '200px';
-    el.style.background = node.color;
-    el.style.border = '1px solid var(--border)';
-    el.style.borderRadius = '8px';
-    el.style.padding = '8px 12px';
-    el.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-    el.style.fontSize = '0.8rem';
-    el.style.zIndex = '10';
-    el.style.display = 'flex';
-    el.style.alignItems = 'center';
-    el.style.gap = '8px';
-    el.style.transition = 'all 0.3s ease';
+  containers.forEach(container => {
+    const list = container.querySelector('.brain-timeline-list');
+    if (!list) return;
 
-    el.innerHTML = `
-      <span style="font-size: 1.2rem;">${node.icon}</span>
-      <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-        <div style="font-weight:600; font-size:0.7rem; color:var(--text-muted); text-transform:uppercase;">${node.type}</div>
-        <div>${escapeHtml(node.label)}</div>
-      </div>
-    `;
-
-    // Hover effect
-    el.onmouseenter = () => {
-      el.style.transform = 'translate(-50%, -50%) scale(1.05)';
-      el.style.zIndex = '20';
-      el.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
-    };
-    el.onmouseleave = () => {
-      el.style.transform = 'translate(-50%, -50%) scale(1)';
-      el.style.zIndex = '10';
-      el.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-    };
-
-    container.appendChild(el);
-  });
-
-  // Render Edges
-  brainEdges.forEach(edge => {
-    const from = brainNodes.find(n => n.id === edge.from);
-    const to = brainNodes.find(n => n.id === edge.to);
-
-    if (from && to) {
-      // Draw straight lines for simplicity in tree
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const d = `M ${from.x} ${from.y + 25} L ${to.x} ${to.y - 25}`; // +25/-25 offsets to touch box edges approx
-
-      path.setAttribute('d', d);
-      path.setAttribute('stroke', 'var(--text-muted)');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute('marker-end', 'url(#arrowhead)');
-
-      svg.appendChild(path);
+    if (brainState.timeline.length === 0) {
+      list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.8rem;">No activity yet.</div>';
+      return;
     }
-  });
 
-  // Add Arrowhead definition if missing
-  if (!document.getElementById('arrowhead')) {
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    defs.innerHTML = `
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-muted)" />
-        </marker>
+    list.innerHTML = brainState.timeline.map((entry, index) => {
+      const timeLabel = formatTime(entry.timestamp);
+      const role = entry.role || 'unknown';
+      const icon = iconMap[role] || '❓';
+      const isTool = entry.kind === 'tool';
+      const status = isTool ? (entry.success ? 'success' : 'error') : 'neutral';
+      const title = isTool
+        ? `${entry.server ? `${entry.server}.` : ''}${entry.tool || 'Tool'}`
+        : getMessagePreview(entry.content, 52);
+      const preview = isTool
+        ? entry.success ? 'Tool call completed' : 'Tool call failed'
+        : getMessagePreview(entry.content, 120);
+
+      const badges = isTool
+        ? `<span class="brain-badge tool">Tool</span><span class="brain-badge ${entry.success ? '' : 'error'}">${entry.success ? 'Success' : 'Error'}</span>`
+        : `<span class="brain-badge ${role}">${role}</span>`;
+
+      return `
+        <div class="brain-timeline-item" data-role="${role}" data-status="${status}">
+          <span class="brain-timeline-dot"></span>
+          <div class="brain-timeline-card">
+            <div class="brain-timeline-meta">
+              <span>#${index + 1}</span>
+              <span>${timeLabel}</span>
+            </div>
+            <div class="brain-timeline-title">
+              <span>${icon}</span>
+              <span>${escapeHtml(title)}</span>
+            </div>
+            <div class="brain-timeline-preview">${escapeHtml(preview)}</div>
+            <div class="brain-timeline-badges">${badges}</div>
+          </div>
+        </div>
       `;
-    svg.appendChild(defs);
-  }
+    }).join('');
+  });
 }
+
+function renderContextStats() {
+  const statsEls = [
+    document.getElementById('contextStats'),
+    document.getElementById('chatContextStats')
+  ].filter(Boolean);
+  if (statsEls.length === 0) return;
+
+  const { totalTokens, systemTokens, userTokens, assistantTokens, toolTokens } = brainState.context;
+
+  const html = `
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: var(--text-secondary);">Total Tokens:</span>
+        <span style="font-weight: 600; color: var(--accent);">${totalTokens.toLocaleString()}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #8b5cf6;">● System:</span>
+        <span>${systemTokens.toLocaleString()} (${((systemTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #3b82f6;">● User:</span>
+        <span>${userTokens.toLocaleString()} (${((userTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #10b981;">● Assistant:</span>
+        <span>${assistantTokens.toLocaleString()} (${((assistantTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
+      </div>
+      ${toolTokens > 0 ? `
+      <div style="display: flex; justify-content: space-between;">
+        <span style="color: #f59e0b;">● Tools:</span>
+        <span>${toolTokens.toLocaleString()} (${((toolTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
+      </div>
+      ` : ''}
+      <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-secondary);">Messages:</span>
+          <span style="font-weight: 600;">${brainState.messages.length}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  statsEls.forEach(statsEl => {
+    statsEl.innerHTML = html;
+  });
+}
+
+function estimateTokens(content) {
+  if (!content) return 0;
+  const str = typeof content === 'string' ? content : JSON.stringify(content);
+  return Math.ceil(str.length / 4);
+}
+
+window.initBrainView = initBrainView;
+window.updateBrainGraph = updateBrainGraph;
+window.resetBrainTimeline = () => {
+  brainState.messageTimestamps.clear();
+  brainState.baseTime = null;
+  brainState.timeline = [];
+};

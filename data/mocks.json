@@ -16,7 +16,7 @@
     "prompts": [],
     "delay": 0,
     "errorRate": 0,
-    "callCount": 0,
+    "callCount": 1,
     "createdAt": "2025-12-29T00:48:53.990Z",
     "updatedAt": "2025-12-29T00:48:53.990Z"
   }

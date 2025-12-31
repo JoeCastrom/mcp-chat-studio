@@ -14,6 +14,7 @@ import {
   getDefaultEnvironment,
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { getMockServerManager } from './MockServerManager.js';
 
 console.log('[MCP] Loading MCPManager with raw transport tool calls (bypasses SDK validation)');
 
@@ -304,6 +305,81 @@ class MCPConnection {
   }
 }
 
+class MockConnection {
+  constructor(serverName, config) {
+    this.serverName = serverName;
+    this.config = config;
+    this.mockId = config.mockId;
+    this.mockManager = getMockServerManager();
+    this.connected = false;
+    this.tools = [];
+    this.requiresAuth = false;
+  }
+
+  async connect() {
+    if (!this.mockId) {
+      throw new Error(`Mock connection missing mockId for ${this.serverName}`);
+    }
+
+    // Ensure mock exists before marking connected
+    this.mockManager.getMock(this.mockId);
+    this.connected = true;
+    await this.refreshTools();
+    console.log(`[MCP][${this.serverName}] Connected to mock ${this.mockId}`);
+    return true;
+  }
+
+  async refreshTools() {
+    if (!this.connected) return [];
+    const { tools } = this.mockManager.listTools(this.mockId);
+    this.tools = tools || [];
+    return this.tools;
+  }
+
+  async callTool(toolName, args = {}) {
+    if (!this.connected) {
+      throw new Error(`Not connected to ${this.serverName}`);
+    }
+    return this.mockManager.callTool(this.mockId, toolName, args);
+  }
+
+  async listResources() {
+    if (!this.connected) return [];
+    const { resources } = this.mockManager.listResources(this.mockId);
+    return resources || [];
+  }
+
+  async readResource(uri) {
+    if (!this.connected) {
+      throw new Error(`Not connected to ${this.serverName}`);
+    }
+    return this.mockManager.getResource(this.mockId, uri);
+  }
+
+  async listPrompts() {
+    if (!this.connected) return [];
+    const { prompts } = this.mockManager.listPrompts(this.mockId);
+    return prompts || [];
+  }
+
+  async getPrompt(name, args = {}) {
+    if (!this.connected) {
+      throw new Error(`Not connected to ${this.serverName}`);
+    }
+    return this.mockManager.getPrompt(this.mockId, name, args);
+  }
+
+  async disconnect() {
+    this.connected = false;
+    this.tools = [];
+    console.log(`[MCP][${this.serverName}] Disconnected`);
+  }
+
+  isConnected() {
+    return this.connected;
+  }
+}
+
 export class MCPManager {
   constructor() {
     this.connections = new Map();
@@ -354,13 +430,18 @@ export class MCPManager {
 
     // Validate config
     if (!config.type) {
-      if (config.command) {
+      if (config.mockId) {
+        config.type = 'mock';
+      } else if (config.command) {
         config.type = 'stdio';
       } else if (config.url) {
         config.type = 'sse';
       } else {
         throw new Error('Server config must have either command (stdio) or url (sse)');
       }
+    }
+    if (config.type === 'mock' && !config.mockId) {
+      throw new Error('Mock server config must include mockId');
     }
 
     this.configs.set(serverName, config);
@@ -420,7 +501,10 @@ export class MCPManager {
       await this.disconnectServer(serverName);
     }
 
-    const connection = new MCPConnection(serverName, config);
+    const connection =
+      config.type === 'mock'
+        ? new MockConnection(serverName, config)
+        : new MCPConnection(serverName, config);
     await connection.connect(userToken);
     this.connections.set(serverName, connection);
 

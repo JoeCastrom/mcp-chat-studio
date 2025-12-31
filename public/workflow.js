@@ -122,6 +122,7 @@ async function updateAIBuilderModelBadge() {
 
 function setupCanvasInteractions() {
   const canvas = document.getElementById('workflowCanvas');
+  if (!canvas) return;
   
   // Dragging Nodes
   canvas.addEventListener('mousedown', e => {
@@ -260,13 +261,61 @@ function renderWorkflow() {
   renderEdges();
 }
 
+function centerWorkflowView() {
+  const canvas = document.getElementById('workflowCanvas');
+  if (!canvas || workflowState.nodes.length === 0) return;
+
+  const canvasRect = canvas.getBoundingClientRect();
+  const nodeEls = canvas.querySelectorAll('.workflow-node');
+  if (nodeEls.length === 0) return;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  nodeEls.forEach(nodeEl => {
+    const rect = nodeEl.getBoundingClientRect();
+    const x = rect.left - canvasRect.left + canvas.scrollLeft;
+    const y = rect.top - canvasRect.top + canvas.scrollTop;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + rect.width);
+    maxY = Math.max(maxY, y + rect.height);
+  });
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return;
+
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const targetLeft = Math.max(0, centerX - canvas.clientWidth / 2);
+  const targetTop = Math.max(0, centerY - canvas.clientHeight / 2);
+
+  canvas.scrollTo({ left: targetLeft, top: targetTop, behavior: 'smooth' });
+}
+
 // Async helper to populate server select
 async function populateServerSelect(nodeId, selectedServer = null) {
   try {
-    const res = await fetch('/api/mcp/status');
+    const res = await fetch('/api/mcp/status', { credentials: 'include' });
     const status = await res.json();
     const servers = status.servers || status;
-    const serverNames = Object.keys(servers).filter(name => servers[name].connected);
+    let serverNames = Object.keys(servers).filter(name => {
+      const info = servers[name];
+      return info?.connected || info?.userConnected;
+    });
+
+    if (serverNames.length === 0) {
+      const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
+      const toolsData = await toolsRes.json();
+      const tools = toolsData.tools || [];
+      serverNames = Array.from(new Set(
+        tools
+          .filter(tool => !tool.notConnected)
+          .map(tool => tool.serverName)
+          .filter(Boolean)
+      ));
+    }
     
     const select = document.getElementById(`server_select_${nodeId}`);
     if (select) {
@@ -310,13 +359,13 @@ function createNodeElement(node) {
       <div class="workflow-node-content" style="display: flex; flex-direction: column; gap: 8px;">
         <div>
           <label>Server</label>
-          <select class="form-select" id="server_select_${node.id}" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)">
+          <select class="form-select" id="server_select_${node.id}" onmousedown="event.stopPropagation()" onchange="updateNodeData('${node.id}', 'server', this.value); populateToolSelect('${node.id}', this.value)">
             <option value="">Loading...</option>
           </select>
         </div>
         <div>
           <label>Tool</label>
-          <select class="form-select node-tool-select" id="tool_select_${node.id}" onchange="updateNodeData('${node.id}', 'tool', this.value)">
+          <select class="form-select node-tool-select" id="tool_select_${node.id}" onmousedown="event.stopPropagation()" onfocus="refreshToolSelect('${node.id}')" onchange="updateNodeData('${node.id}', 'tool', this.value)">
             <option value="">Select Server First</option>
           </select>
         </div>
@@ -556,12 +605,47 @@ function updateNodeData(nodeId, key, value) {
   }
 }
 
+function refreshToolSelect(nodeId) {
+  const node = workflowState.nodes.find(n => n.id === nodeId);
+  const serverSelect = document.getElementById(`server_select_${nodeId}`);
+  const serverName = serverSelect?.value || node?.data?.server;
+  if (serverName) {
+    populateToolSelect(nodeId, serverName, node?.data?.tool || null);
+  }
+}
+
 function createNewWorkflow() {
   workflowState.currentId = null;
   workflowState.nodes = [{ id: 'start', type: 'trigger', position: { x: 50, y: 50 }, data: {} }];
   workflowState.edges = [];
   document.getElementById('workflowName').value = 'New Workflow';
   renderWorkflow();
+  centerWorkflowView();
+}
+
+function normalizeWorkflowState() {
+  workflowState.nodes = (workflowState.nodes || []).map((node, index) => {
+    const normalized = { ...node, data: node.data || {} };
+    const rawX = normalized.position?.x;
+    const rawY = normalized.position?.y;
+    const x = Number(rawX);
+    const y = Number(rawY);
+    normalized.position = {
+      x: Number.isFinite(x) ? x : 50 + (index * 300),
+      y: Number.isFinite(y) ? y : 50
+    };
+    if (normalized.data && typeof normalized.data.args === 'object') {
+      normalized.data.args = JSON.stringify(normalized.data.args, null, 2);
+    }
+    return normalized;
+  });
+  workflowState.edges = Array.isArray(workflowState.edges) ? workflowState.edges : [];
+}
+
+function normalizeWorkflowId() {
+  if (workflowState.currentId === 'null' || workflowState.currentId === 'undefined') {
+    workflowState.currentId = null;
+  }
 }
 
 // ==========================================
@@ -570,10 +654,14 @@ function createNewWorkflow() {
 
 async function loadWorkflowsList() {
   try {
+    if (typeof updateWorkflowModelBadge === 'function') {
+      updateWorkflowModelBadge();
+    }
     const res = await fetch('/api/workflows');
     const workflows = await res.json();
     
     const listEl = document.getElementById('workflowList');
+    if (!listEl) return;
     if (workflows.length === 0) {
       listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem; padding: 4px;">No workflows found</div>';
       return;
@@ -592,11 +680,20 @@ async function loadWorkflowsList() {
     `).join('');
   } catch (error) {
     console.error('Failed to load workflows:', error);
+    const listEl = document.getElementById('workflowList');
+    if (listEl) {
+      listEl.innerHTML = '<div style="color: var(--error); font-size: 0.75rem; padding: 4px;">Failed to load workflows</div>';
+    }
   }
 }
 
 async function deleteWorkflow(id) {
-  if (!confirm('Delete this workflow?')) return;
+  const confirmed = await appConfirm('Delete this workflow?', {
+    title: 'Delete Workflow',
+    confirmText: 'Delete',
+    confirmVariant: 'danger'
+  });
+  if (!confirmed) return;
   
   try {
     const res = await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
@@ -621,11 +718,14 @@ async function loadWorkflow(id) {
     const workflow = await res.json();
     
     workflowState.currentId = workflow.id;
+    normalizeWorkflowId();
     workflowState.nodes = workflow.nodes || [];
     workflowState.edges = workflow.edges || [];
     document.getElementById('workflowName').value = workflow.name || 'Untitled';
     
+    normalizeWorkflowState();
     renderWorkflow();
+    centerWorkflowView();
   } catch (error) {
     console.error('Failed to load workflow:', error);
   }
@@ -633,12 +733,16 @@ async function loadWorkflow(id) {
 
 async function saveWorkflow() {
   const name = document.getElementById('workflowName').value;
+  normalizeWorkflowId();
+  normalizeWorkflowState();
   const workflow = {
-    id: workflowState.currentId,
     name,
     nodes: workflowState.nodes,
     edges: workflowState.edges
   };
+  if (workflowState.currentId) {
+    workflow.id = workflowState.currentId;
+  }
   
   try {
     const res = await fetch('/api/workflows', {
@@ -646,23 +750,34 @@ async function saveWorkflow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(workflow)
     });
-    const result = await res.json();
+    const result = await res.json().catch(() => ({}));
     
     if (result.success) {
       workflowState.currentId = result.id;
       loadWorkflowsList();
+      if (typeof loadDebuggerWorkflows === 'function') {
+        loadDebuggerWorkflows();
+      }
       showToast('Workflow saved!', 'success');
+      return true;
     }
+    const message = result.error || `Failed to save workflow (${res.status})`;
+    showToast(message, 'error');
+    return false;
   } catch (error) {
     showToast('Failed to save: ' + error.message, 'error');
+    return false;
   }
 }
 
 async function runWorkflow() {
+  normalizeWorkflowId();
   if (!workflowState.currentId) {
     // Auto-save first
-    await saveWorkflow();
+    const saved = await saveWorkflow();
+    if (!saved) return;
   }
+  if (!workflowState.currentId) return;
   
   const logsPanel = document.getElementById('workflowLogs');
   const logContent = document.getElementById('workflowLogContent');
@@ -1080,16 +1195,36 @@ function escapeHtml(text) {
 
 async function toggleAIBuilder() {
   const sidebar = document.getElementById('aiBuilderSidebar');
-  
-  if (sidebar.style.transform === 'translateX(0%)') {
+  if (!sidebar) return;
+
+  const isOpen = sidebar.style.transform === 'translateX(0%)';
+  if (isOpen) {
     sidebar.style.transform = 'translateX(100%)';
-  } else {
-    sidebar.style.transform = 'translateX(0%)';
-    document.getElementById('aiBuilderPrompt').focus();
-    
-    // Refresh the model badge when opening
-    updateAIBuilderModelBadge();
+    return;
   }
+
+  const isWorkspace = document.body.classList.contains('workspace-mode');
+  if (isWorkspace && typeof floatingWorkspace !== 'undefined') {
+    const activePanel = document.querySelector('.floating-panel.active');
+    const activeId = activePanel?.id;
+    const activeMeta = floatingWorkspace.panels?.find(panel => panel.id === activeId);
+    if (!activeMeta || activeMeta.type !== 'workflows') {
+      if (typeof floatingWorkspace.focusPanelByType === 'function') {
+        floatingWorkspace.focusPanelByType('workflows');
+      }
+    }
+  } else {
+    const workflowsPanel = document.getElementById('workflowsPanel');
+    if (!workflowsPanel?.classList.contains('active') && typeof switchClassicPanel === 'function') {
+      switchClassicPanel('workflowsPanel');
+    }
+  }
+  
+  sidebar.style.transform = 'translateX(0%)';
+  document.getElementById('aiBuilderPrompt').focus();
+  
+  // Refresh the model badge when opening
+  updateAIBuilderModelBadge();
 }
 
 async function generateWorkflow() {
@@ -1213,8 +1348,10 @@ NODE TYPES:
              n.position = { x: 50 + (i * 300), y: 50 };
          });
       }
+      normalizeWorkflowState();
       
       renderWorkflow();
+      centerWorkflowView();
       statusEl.innerHTML = '<span style="color: var(--success)">✨ Done! Workflow generated.</span>';
       
     } catch (parseError) {
@@ -1262,11 +1399,11 @@ async function generateExportCode() {
   }
 }
 
-function copyExportCode() {
+async function copyExportCode() {
   const textarea = document.getElementById('exportCodePreview');
   textarea.select();
   document.execCommand('copy');
-  alert('Code copied to clipboard!');
+  await appAlert('Code copied to clipboard!', { title: 'Copied' });
 }
 
 function downloadExportCode() {

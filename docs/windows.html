@@ -110,17 +110,400 @@
   <div class="container">
     <header>
       <h1>windows</h1>
-      <p>Generated: 29.12.2025, 02:23:51</p>
+      <p>Generated: 30.12.2025, 19:05:10</p>
     </header>
 
     <div class="toc card">
       <h2>Table of Contents</h2>
       <ul>
-        
+        <li><a href="#tools">Tools (14)</a></li>
         
         
       </ul>
     </div>
+    <div class="card">
+      <h2 id="tools">Tools</h2>
+      <p class="description">This server provides 14 tool(s).</p>
+      <h3>Launch-Tool</h3>
+      <p class="description">Launch an application from the Windows Start Menu by name (e.g., "notepad", "calculator", "chrome")</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>name</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Launch-Tool",
+  "arguments": {
+    "name": "example string"
+  }
+}</code></pre>
+      <h3>Powershell-Tool</h3>
+      <p class="description">Execute PowerShell commands and return the output with status code</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>command</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Powershell-Tool",
+  "arguments": {
+    "command": "example string"
+  }
+}</code></pre>
+      <h3>State-Tool</h3>
+      <p class="description">Capture comprehensive desktop state including focused/opened applications, interactive UI elements (buttons, text fields, menus), informative content (text, labels, status), and scrollable areas. Optionally includes visual screenshot when use_vision=True. Essential for understanding current desktop context and available UI interactions.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>use_vision</code></td>
+            <td>boolean</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "State-Tool",
+  "arguments": {
+    "use_vision": true
+  }
+}</code></pre>
+      <h3>Clipboard-Tool</h3>
+      <p class="description">Copy text to clipboard or retrieve current clipboard content. Use "copy" mode with text parameter to copy, "paste" mode to retrieve.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>mode</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>text</code></td>
+            <td>string</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Clipboard-Tool",
+  "arguments": {
+    "mode": "example string",
+    "text": "example string"
+  }
+}</code></pre>
+      <h3>Click-Tool</h3>
+      <p class="description">Click on UI elements at specific coordinates. Supports left/right/middle mouse buttons and single/double/triple clicks. Use coordinates from State-Tool output.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>button</code></td>
+            <td>string</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>clicks</code></td>
+            <td>integer</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Click-Tool",
+  "arguments": {
+    "loc": [
+      "item1",
+      "item2"
+    ],
+    "button": "left",
+    "clicks": 1
+  }
+}</code></pre>
+      <h3>Type-Tool</h3>
+      <p class="description">Type text into input fields, text areas, or focused elements. Set clear=True to replace existing text, False to append. Click on target element coordinates first.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>text</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>clear</code></td>
+            <td>boolean</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Type-Tool",
+  "arguments": {
+    "loc": [
+      "item1",
+      "item2"
+    ],
+    "text": "example string",
+    "clear": true
+  }
+}</code></pre>
+      <h3>Switch-Tool</h3>
+      <p class="description">Switch to a specific application window (e.g., "notepad", "calculator", "chrome", etc.) and bring to foreground.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>name</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Switch-Tool",
+  "arguments": {
+    "name": "example string"
+  }
+}</code></pre>
+      <h3>Scroll-Tool</h3>
+      <p class="description">Scroll at specific coordinates or current mouse position. Use wheel_times to control scroll amount (1 wheel = ~3-5 lines). Essential for navigating lists, web pages, and long content.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>type</code></td>
+            <td>string</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>direction</code></td>
+            <td>string</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>wheel_times</code></td>
+            <td>integer</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Scroll-Tool",
+  "arguments": {
+    "loc": [
+      "item1",
+      "item2"
+    ],
+    "type": "vertical",
+    "direction": "down",
+    "wheel_times": 1
+  }
+}</code></pre>
+      <h3>Drag-Tool</h3>
+      <p class="description">Drag and drop operation from source coordinates to destination coordinates. Useful for moving files, resizing windows, or drag-and-drop interactions.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>from_loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td><code>to_loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Drag-Tool",
+  "arguments": {
+    "from_loc": [
+      "item1",
+      "item2"
+    ],
+    "to_loc": [
+      "item1",
+      "item2"
+    ]
+  }
+}</code></pre>
+      <h3>Move-Tool</h3>
+      <p class="description">Move mouse cursor to specific coordinates without clicking. Useful for hovering over elements or positioning cursor before other actions.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>to_loc</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Move-Tool",
+  "arguments": {
+    "to_loc": [
+      "item1",
+      "item2"
+    ]
+  }
+}</code></pre>
+      <h3>Shortcut-Tool</h3>
+      <p class="description">Execute keyboard shortcuts using key combinations. Pass keys as list (e.g., ["ctrl", "c"] for copy, ["alt", "tab"] for app switching, ["win", "r"] for Run dialog).</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>shortcut</code></td>
+            <td>array</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Shortcut-Tool",
+  "arguments": {
+    "shortcut": [
+      "item1",
+      "item2"
+    ]
+  }
+}</code></pre>
+      <h3>Key-Tool</h3>
+      <p class="description">Press individual keyboard keys. Supports special keys like "enter", "escape", "tab", "space", "backspace", "delete", arrow keys ("up", "down", "left", "right"), function keys ("f1"-"f12").</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>key</code></td>
+            <td>string</td>
+            <td><span class="badge badge-no">No</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Key-Tool",
+  "arguments": {
+    "key": "example string"
+  }
+}</code></pre>
+      <h3>Wait-Tool</h3>
+      <p class="description">Pause execution for specified duration in seconds. Useful for waiting for applications to load, animations to complete, or adding delays between actions.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>duration</code></td>
+            <td>integer</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Wait-Tool",
+  "arguments": {
+    "duration": 10
+  }
+}</code></pre>
+      <h3>Scrape-Tool</h3>
+      <p class="description">Fetch and convert webpage content to markdown format. Provide full URL including protocol (http/https). Returns structured text content suitable for analysis.</p>
+      <h4>Parameters:</h4>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>url</code></td>
+            <td>string</td>
+            <td><span class="badge badge-yes">Yes</span></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>Example:</h4>
+      <pre><code>{
+  "tool": "Scrape-Tool",
+  "arguments": {
+    "url": "example string"
+  }
+}</code></pre>
+    </div>
+
     <footer>
       <p>Documentation generated by MCP Chat Studio</p>
     </footer>

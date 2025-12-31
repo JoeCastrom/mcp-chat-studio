@@ -2,8 +2,8 @@
 
 **The Ultimate Testing Platform for MCP Servers**
 
-Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI.  
-**Record scenarios** • **Compare LLM responses** • **Generate mock servers** • **Zero config with Ollama**
+Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI and a powerful Workspace mode.  
+**Record scenarios** • **Workspace canvas** • **Compare LLM responses** • **Generate mock servers** • **Zero config with Ollama**
 
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square)
@@ -30,6 +30,7 @@ npm run dev
 ```
 
 **That's it!** You now have a complete MCP testing platform running locally.
+Toggle **Classic / Workspace** in the header to pick your workflow.
 
 ---
 
@@ -54,7 +55,20 @@ npm run dev
 
 ---
 
-## 🎨 NEW in v1.3: Advanced Testing & Debugging Suite
+## 🧭 Two Layouts: Classic + Workspace
+
+**Classic Mode** keeps the familiar sidebar + tabs for focused work.  
+**Workspace Mode** turns every tool into a draggable panel on an infinite canvas:
+
+- **Radial menu** to add panels (right-click)
+- **Quick access bar** for fast panel focus
+- **Zoom, pan, mini-map, fit-all**
+- **Command palette** (Ctrl+K / Ctrl+Shift+P)
+- **Workspace sessions** + **export/import** bundles
+
+---
+
+## 🎨 Highlights: Advanced Testing & Debugging Suite
 
 ### 🐛 Workflow Debugger
 Debug complex workflows with professional debugging tools:
@@ -62,6 +76,12 @@ Debug complex workflows with professional debugging tools:
 - **Step-through mode** - Execute one node at a time
 - **Variable inspection** - View inputs, outputs, and context
 - **Session management** - Pause, resume, step, or abort
+
+### ✨ AI Workflow Builder
+Generate workflows from a natural-language goal:
+- **Tool-aware prompts** - Uses connected MCP tools as context
+- **One-click generate** - Creates a workflow you can edit and run
+- **Works with Workspace and Classic modes**
 
 ### 🔍 Advanced Inspector
 Three powerful new testing tools:
@@ -83,6 +103,14 @@ Real-time usage statistics and performance metrics:
 - **Error monitoring** - Recent errors per tool
 - **Leaderboards** - Most-used tools across servers
 - **Health dashboard** - System-wide health overview
+
+### 🧭 Workspace Mode
+Build your own testing cockpit with floating panels:
+- **Add panels fast** - Radial menu + quick-access bar
+- **Canvas controls** - Zoom, pan, mini-map, fit-all
+- **Command palette** - Ctrl+K / Ctrl+Shift+P
+- **Sessions + bundles** - Save/restore layouts, export/import JSON
+- **Templates** - Save and reuse workspace presets
 
 ---
 
@@ -112,6 +140,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🎯 Built for MCP Development** - Test and debug MCP servers without writing code
 - **🔧 8 LLM Providers** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
+- **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
 - **🔍 Custom Assertions** - 14 operators with JSONPath support
@@ -267,14 +296,22 @@ Create production-ready MCP servers without writing boilerplate code!
 
 ### ⌨️ Keyboard Shortcuts
 
-| Shortcut       | Action               |
-| -------------- | -------------------- |
-| `Enter`        | Send message         |
-| `Shift+Enter`  | New line             |
-| `Escape`       | Cancel / Close modal |
-| `Ctrl+K`       | Focus tool search    |
-| `Ctrl+Shift+E` | Export chat          |
-| `Ctrl+/`       | Show shortcuts help  |
+| Shortcut             | Context            | Action                      |
+| -------------------- | ------------------ | --------------------------- |
+| `Enter`              | Chat               | Send message                |
+| `Shift+Enter`        | Chat               | New line                    |
+| `Escape`             | Global             | Cancel / Close modal        |
+| `Ctrl+K`             | Classic            | Focus tool search           |
+| `Ctrl+K`             | Workspace          | Command palette             |
+| `Ctrl+Shift+P`       | Workspace          | Command palette             |
+| `Ctrl+S`             | Workspace          | Save layout                 |
+| `Ctrl+L`             | Workspace          | Load preset                 |
+| `Ctrl+=` / `Ctrl+-`  | Workspace          | Zoom in / out               |
+| `Ctrl+0`             | Workspace          | Reset zoom                  |
+| `Alt+M`              | Workspace          | Toggle mini-map             |
+| `G`                  | Workspace          | Toggle grid snapping        |
+| `Ctrl+Shift+E`       | Chat               | Export chat                 |
+| `Ctrl+/`             | Workspace          | Show shortcuts help         |
 
 ### 📊 Token Usage Display
 
@@ -282,6 +319,12 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Cost estimation** - Supports 8 LLM providers
 - **Header badge** - Click for detailed breakdown
 - **Reset option** - Start fresh anytime
+
+### 🧠 Brain View
+
+- **Execution timeline** - See user/assistant/tool events in order
+- **Token breakdown** - System/User/Assistant/Tools at a glance
+- **Clear resets state** - Timeline and stats reset with chat
 
 ### 🎭 System Prompt Library
 
@@ -305,20 +348,32 @@ Create production-ready MCP servers without writing boilerplate code!
 
 ### 💻 CLI Test Runner
 
-Run scenarios from command line for CI/CD integration:
+Run collections from the command line for CI/CD integration:
 
 ```bash
-# Run tests
-mcp-cli test scenarios.json
+# Run a collection
+mcp-test run ./collections/my-collection.json --server http://localhost:3082
+
+# Run with iteration data
+mcp-test run ./collections/my-collection.json --data ./datasets/users.json
 
 # JUnit output for CI
-mcp-cli test scenarios.json --output junit
+mcp-test run ./collections/my-collection.json --reporters junit --export ./reports/junit.xml
 
-# Fail on any diff
-mcp-cli test scenarios.json --fail-on-diff
+# Authenticated run (OAuth/session-based)
+mcp-test run ./collections/my-collection.json --session <session-id>
+```
 
-# Custom server URL
-mcp-cli test scenarios.json --server http://staging:3082
+### 🧬 Schema Regression CI
+
+Capture tool schemas and gate changes in CI:
+
+```bash
+# Snapshot current tool schemas
+mcp-test schema snapshot --out ./schema-baseline.json
+
+# Compare snapshots and fail on change
+mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate
 ```
 
 ### ⚙️ Mock MCP Server Generator
@@ -805,6 +860,12 @@ Results show as **📋 Schema OK** or **📋 N issues**.
 - **Single**: Click **📦 Export** on a scenario
 - **All**: Click **📦 Export All**
 - Format: JSON (version-controllable in Git)
+
+### 🧩 Pre/Post Scripts
+
+- **Pre-request hooks** - Modify inputs before execution
+- **Post-request hooks** - Validate or transform outputs
+- **Reusable scripts** - Create, enable/disable, and test scripts
 
 ## 💬 Using the Chat
 

@@ -5,6 +5,9 @@
 const floatingWorkspace = {
   // Active panels
   panels: [],
+
+  // Panel id counter for uniqueness
+  panelIdCounter: 0,
   
   // Drag state
   dragState: null,
@@ -37,58 +40,84 @@ const floatingWorkspace = {
   // Panel groups
   groups: {},
 
+  // Workspace templates synced to disk
+  workspaceTemplates: [],
+
   // Command palette state
   commandPaletteOpen: false,
 
   // Current theme
   workspaceTheme: 'default',
 
+  // Minimap visibility
+  minimapVisible: true,
+
+  // Sidebar restore bookkeeping
+  sidebarOriginalParent: null,
+  sidebarOriginalNextSibling: null,
+  sidebarOriginalDisplay: '',
+
+  // Bound event handlers for cleanup
+  handlers: null,
+
   // Panel definitions with connection hints and data loaders
   panelDefs: {
     chat: { icon: '💬', title: 'Chat', width: 500, height: 600, connects: ['inspector', 'history'], loader: null },
     inspector: { icon: '🔧', title: 'Inspector', width: 450, height: 500, connects: ['workflows'], loader: 'loadInspectorServers' },
-    workflows: { icon: '⛓️', title: 'Workflows', width: 700, height: 500, connects: ['scenarios'], loader: 'loadWorkflowsList' },
+    workflows: { icon: '⛓️', title: 'Workflows', width: 800, height: 600, connects: ['scenarios'], loader: 'loadWorkflowsList' },
     scenarios: { icon: '🧪', title: 'Scenarios', width: 400, height: 450, connects: ['collections'], loader: 'refreshScenariosPanel' },
-    collections: { icon: '📚', title: 'Collections', width: 400, height: 400, connects: [], loader: 'loadCollections' },
+    collections: { icon: '📚', title: 'Collections', width: 400, height: 400, connects: ['monitors'], loader: 'loadCollections' },
     history: { icon: '📜', title: 'History', width: 400, height: 500, connects: ['toolexplorer'], loader: 'refreshHistoryPanel' },
-    toolexplorer: { icon: '📊', title: 'Analytics', width: 500, height: 450, connects: [], loader: 'loadToolExplorer' },
-    monitors: { icon: '⏰', title: 'Monitors', width: 450, height: 400, connects: [], loader: 'loadMonitors' },
+    toolexplorer: { icon: '📊', title: 'Tool Explorer', width: 500, height: 450, connects: ['performance'], loader: 'loadToolExplorer' },
+    monitors: { icon: '⏰', title: 'Monitors', width: 450, height: 400, connects: ['scenarios'], loader: 'loadMonitors' },
     generator: { icon: '⚙️', title: 'Generator', width: 450, height: 500, connects: ['mocks'], loader: null },
-    mocks: { icon: '🎭', title: 'Mocks', width: 400, height: 400, connects: [], loader: 'loadMockServers' },
-    scripts: { icon: '📝', title: 'Scripts', width: 450, height: 450, connects: [], loader: 'loadScripts' },
-    docs: { icon: '📖', title: 'Documentation', width: 500, height: 500, connects: [], loader: null },
-    contracts: { icon: '📋', title: 'Contracts', width: 450, height: 400, connects: [], loader: 'loadContracts' },
-    performance: { icon: '⚡', title: 'Performance', width: 500, height: 450, connects: ['toolexplorer'], loader: 'loadPerformanceMetrics' },
-    debugger: { icon: '🐛', title: 'Debugger', width: 600, height: 500, connects: ['workflows'], loader: 'updateDebuggerTimeline' },
-    brain: { icon: '🧠', title: 'Brain View', width: 450, height: 500, connects: ['chat'], loader: 'updateBrainGraph' }
+    mocks: { icon: '🎭', title: 'Mocks', width: 400, height: 400, connects: ['inspector'], loader: 'loadMockServers' },
+    scripts: { icon: '📝', title: 'Scripts', width: 450, height: 450, connects: ['scenarios'], loader: 'loadScripts' },
+    docs: { icon: '📖', title: 'Documentation', width: 500, height: 500, connects: ['inspector'], loader: null },
+    contracts: { icon: '📋', title: 'Contracts', width: 450, height: 400, connects: ['scenarios'], loader: 'loadContracts' },
+    performance: { icon: '⚡', title: 'Performance', width: 500, height: 450, connects: ['toolexplorer', 'debugger'], loader: 'loadPerformanceMetrics' },
+    debugger: { icon: '🐛', title: 'Debugger', width: 600, height: 500, connects: ['workflows'], loader: 'loadDebuggerWorkflows' },
+    brain: { icon: '🧠', title: 'Brain View', width: 450, height: 500, connects: ['chat'], loader: 'initBrainView' }
+  },
+
+  // Generate unique panel ids across fast adds
+  generatePanelId() {
+    this.panelIdCounter += 1;
+    return `panel_${Date.now()}_${this.panelIdCounter}`;
   },
 
   // Initialize workspace
   init() {
+    console.log('🎨 Initializing floating workspace...');
+
     this.createWorkspace();
     this.createConnectionsSvg();
     this.createQuickAccessBar();
     this.createZoomControls();
+    this.createMiniMap();
     this.createRadialMenu();
     this.setupEventListeners();
     this.loadLayout();
-    
-    // Enable workspace mode
-    document.body.classList.add('workspace-mode');
-    
+
     // Set initial pan to center the workspace
-    this.panX = 3000;
-    this.panY = 2000;
+    this.panX = 0;
+    this.panY = 0;
     this.applyTransform();
-    
+
     // Add default panels if none saved
     if (this.panels.length === 0) {
-      this.addPanel('chat', 3100, 2050);
-      this.addPanel('inspector', 3650, 2050);
+      console.log('No saved layout, adding default panels');
+      this.addPanel('chat', -250, -300);
+      this.addPanel('inspector', 300, -250);
+    } else {
+      console.log(`Loaded ${this.panels.length} panels from saved layout`);
     }
-    
+
     // Update connections
     this.updateConnections();
+    this.updateMiniMap();
+
+    console.log('✅ Workspace initialization complete');
   },
 
   // Create workspace canvas with zoom container
@@ -102,7 +131,7 @@ const floatingWorkspace = {
     inner.className = 'workspace-inner';
     inner.id = 'workspaceInner';
     canvas.appendChild(inner);
-    
+
     document.body.appendChild(canvas);
     this.canvas = inner;
     this.canvasOuter = canvas;
@@ -117,46 +146,51 @@ const floatingWorkspace = {
       <button class="zoom-btn" onclick="floatingWorkspace.zoomIn()" title="Zoom In">+</button>
       <span class="zoom-level" id="zoomLevel">100%</span>
       <button class="zoom-btn" onclick="floatingWorkspace.zoomOut()" title="Zoom Out">−</button>
-      <button class="zoom-btn" onclick="floatingWorkspace.resetZoom()" title="Reset">⟲</button>
+      <button class="zoom-btn" onclick="floatingWorkspace.resetZoom()" title="Reset to Center">⟲</button>
       <button class="zoom-btn" onclick="floatingWorkspace.fitAll()" title="Fit All Panels">⤢</button>
     `;
     document.body.appendChild(controls);
   },
 
-  // Create radial menu for adding panels (replaces dropdown)
+  // Create radial menu
   createRadialMenu() {
     const menu = document.createElement('div');
-    menu.className = 'radial-menu';
     menu.id = 'radialMenu';
-    
-    // Center button
-    menu.innerHTML = `<div class="radial-center">✕</div>`;
-    
-    // Create items in a circle
-    const items = Object.entries(this.panelDefs);
-    const angleStep = 360 / items.length;
-    
-    items.forEach(([id, def], i) => {
-      const angle = (i * angleStep - 90) * (Math.PI / 180);
-      const radius = 120;
+    menu.className = 'radial-menu';
+
+    menu.innerHTML = `
+      <div class="radial-center">➕</div>
+    `;
+
+    // Add radial items for ALL panels in a circular layout
+    const allPanels = Object.keys(this.panelDefs);
+    const numPanels = allPanels.length;
+
+    allPanels.forEach((type, index) => {
+      const def = this.panelDefs[type];
+      if (!def) return;
+
+      // Create two concentric circles for better organization
+      const isOuterCircle = index >= 8;
+      const circleIndex = isOuterCircle ? index - 8 : index;
+      const circleSize = isOuterCircle ? numPanels - 8 : Math.min(8, numPanels);
+
+      const angle = (circleIndex / circleSize) * Math.PI * 2 - Math.PI / 2;
+      const radius = isOuterCircle ? 160 : 100;
       const x = Math.cos(angle) * radius;
       const y = Math.sin(angle) * radius;
-      
+
       const item = document.createElement('div');
       item.className = 'radial-item';
-      item.setAttribute('data-panel', id);
       item.style.setProperty('--x', `${x}px`);
       item.style.setProperty('--y', `${y}px`);
       item.innerHTML = `<span class="radial-item-icon">${def.icon}</span>`;
       item.title = def.title;
-      item.onclick = (e) => {
-        e.stopPropagation();
-        this.addPanelAtCursor(id);
-        this.closeRadialMenu();
-      };
+      item.onclick = () => this.addPanelAtCursor(type);
+
       menu.appendChild(item);
     });
-    
+
     document.body.appendChild(menu);
   },
 
@@ -180,50 +214,56 @@ const floatingWorkspace = {
     const menu = document.getElementById('radialMenu');
     if (menu) {
       const rect = this.canvasOuter.getBoundingClientRect();
-      const x = (parseFloat(menu.style.left) - rect.left - this.panX) / this.zoom;
-      const y = (parseFloat(menu.style.top) - rect.top - this.panY) / this.zoom;
+      // Calculate world coordinates from viewport coordinates
+      const x = (parseFloat(menu.style.left) - rect.left - rect.width/2 - this.panX) / this.zoom;
+      const y = (parseFloat(menu.style.top) - rect.top - rect.height/2 - this.panY) / this.zoom;
       this.addPanel(type, x - 150, y - 100);
     }
   },
 
-  // Zoom functions
-  setZoom(level) {
+  // Zoom functions (Refined for mouse centering)
+  setZoom(level, center) {
+    const oldZoom = this.zoom;
     this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, level));
+    
+    if (center && this.canvasOuter) {
+      const rect = this.canvasOuter.getBoundingClientRect();
+      
+      // Mouse position relative to viewport center (0,0 in our transform logic)
+      const mouseX = center.x - rect.left - rect.width / 2;
+      const mouseY = center.y - rect.top - rect.height / 2;
+      
+      // Logic: newPan = mouse + (pan - mouse) * (newZoom / oldZoom)
+      this.panX = mouseX + (this.panX - mouseX) * (this.zoom / oldZoom);
+      this.panY = mouseY + (this.panY - mouseY) * (this.zoom / oldZoom);
+    }
+    
     this.applyTransform();
     document.getElementById('zoomLevel').textContent = `${Math.round(this.zoom * 100)}%`;
   },
 
   zoomIn() {
-    this.setZoom(this.zoom + 0.1);
+    this.setZoom(this.zoom * 1.2);
   },
 
   zoomOut() {
-    this.setZoom(this.zoom - 0.1);
+    this.setZoom(this.zoom / 1.2);
   },
 
-  // Reset zoom and center on panels (Issue #7)
+  // Reset zoom and fit everything in view
   resetZoom() {
-    this.zoom = 1;
-    
-    // Center on panels instead of origin
-    if (this.panels.length > 0 && this.canvasOuter) {
-      const avgX = this.panels.reduce((sum, p) => sum + p.x + p.width/2, 0) / this.panels.length;
-      const avgY = this.panels.reduce((sum, p) => sum + p.y + p.height/2, 0) / this.panels.length;
-      const rect = this.canvasOuter.getBoundingClientRect();
-      this.panX = rect.width/2 - avgX * this.zoom;
-      this.panY = rect.height/2 - avgY * this.zoom;
-    } else {
-      this.panX = 0;
-      this.panY = 0;
-    }
-    
-    this.applyTransform();
-    document.getElementById('zoomLevel').textContent = '100%';
+    this.fitAll();
   },
 
-  // Fit all panels in view (Issue #11)
+  // Fit all panels in view (Truly centered find-all)
   fitAll() {
-    if (this.panels.length === 0 || !this.canvasOuter) return;
+    if (this.panels.length === 0 || !this.canvasOuter) {
+       this.panX = 0;
+       this.panY = 0;
+       this.zoom = 1;
+       this.applyTransform();
+       return;
+    }
     
     // Find bounding box of all panels
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -234,22 +274,121 @@ const floatingWorkspace = {
       maxY = Math.max(maxY, p.y + p.height);
     });
     
-    const bboxWidth = maxX - minX + 100;
-    const bboxHeight = maxY - minY + 100;
+    const bboxWidth = maxX - minX;
+    const bboxHeight = maxY - minY;
+    
+    const padding = 150;
+    const targetWidth = bboxWidth + padding * 2;
+    const targetHeight = bboxHeight + padding * 2;
+    
     const rect = this.canvasOuter.getBoundingClientRect();
     
-    // Calculate zoom to fit with some padding
-    this.zoom = Math.min(rect.width / bboxWidth, rect.height / bboxHeight, 1.5);
-    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom));
+    // Calculate zoom to fit
+    const zoomX = rect.width / targetWidth;
+    const zoomY = rect.height / targetHeight;
+    let newZoom = Math.min(zoomX, zoomY, 1.2); 
+    newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
     
-    // Center on bounding box
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    this.panX = rect.width / 2 - centerX * this.zoom;
-    this.panY = rect.height / 2 - centerY * this.zoom;
-    
+    this.zoom = newZoom;
+
+    const centerWorldX = (minX + maxX) / 2;
+    const centerWorldY = (minY + maxY) / 2;
+
+    // Center logic: Position the center of the bounding box at the center of the viewport
+    this.panX = (rect.width / 2) - (centerWorldX * this.zoom);
+    this.panY = (rect.height / 2) - (centerWorldY * this.zoom);
+
     this.applyTransform();
+    this.updateMiniMap();
     document.getElementById('zoomLevel').textContent = `${Math.round(this.zoom * 100)}%`;
+  },
+
+  // Create MiniMap element
+  createMiniMap() {
+    const minimap = document.createElement('div');
+    minimap.className = 'workspace-minimap';
+    minimap.id = 'workspaceMinimap';
+    minimap.innerHTML = `
+      <div class="minimap-container" id="minimapContainer">
+        <div class="minimap-viewport" id="minimapViewport"></div>
+      </div>
+    `;
+    
+    // Clicking minimap to pan
+    minimap.onclick = (e) => {
+      const rect = minimap.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      
+      // Calculate world coordinates from map percentage
+      // We assume the map shows a large area, e.g. -5000 to 5000
+      const range = 10000;
+      const targetWorldX = (x - 0.5) * range;
+      const targetWorldY = (y - 0.5) * range;
+      
+      this.panX = -targetWorldX * this.zoom;
+      this.panY = -targetWorldY * this.zoom;
+      this.applyTransform();
+    };
+    
+    document.body.appendChild(minimap);
+    this.minimapVisible = true;
+  },
+
+  // Update MiniMap visuals
+  updateMiniMap() {
+    const minimap = document.getElementById('workspaceMinimap');
+    if (!minimap || !this.canvasOuter) return;
+    if (minimap.classList.contains('hidden')) return;
+    
+    const container = document.getElementById('minimapContainer');
+    const viewportBox = document.getElementById('minimapViewport');
+    const rect = this.canvasOuter.getBoundingClientRect();
+    
+    // Configuration for map world range
+    const range = 10000; // Total world units visible in map
+    const scale = minimap.offsetWidth / range;
+    
+    // Update viewport box
+    // Viewport shows: panX/zoom to rect.width/zoom
+    const viewWidth = rect.width / this.zoom;
+    const viewHeight = rect.height / this.zoom;
+    const viewX = -this.panX / this.zoom + range/2 - viewWidth/2;
+    const viewY = -this.panY / this.zoom + range/2 - viewHeight/2;
+    
+    viewportBox.style.width = `${viewWidth * scale}px`;
+    viewportBox.style.height = `${viewHeight * scale}px`;
+    viewportBox.style.left = `${(range/2 - this.panX/this.zoom - viewWidth/2) * scale}px`;
+    viewportBox.style.top = `${(range/2 - this.panY/this.zoom - viewHeight/2) * scale}px`;
+    
+    // Update panel dots
+    // Remove old dots
+    container.querySelectorAll('.minimap-panel-rect').forEach(d => d.remove());
+    
+    this.panels.forEach(p => {
+      const dot = document.createElement('div');
+      dot.className = 'minimap-panel-rect';
+      dot.style.left = `${(p.x + range/2) * scale}px`;
+      dot.style.top = `${(p.y + range/2) * scale}px`;
+      dot.style.width = `${p.width * scale}px`;
+      dot.style.height = `${p.height * scale}px`;
+      container.appendChild(dot);
+    });
+  },
+
+  // Toggle MiniMap visibility
+  toggleMiniMap() {
+    const minimap = document.getElementById('workspaceMinimap');
+    if (!minimap) {
+      this.createMiniMap();
+      return;
+    }
+
+    this.minimapVisible = !this.minimapVisible;
+    minimap.classList.toggle('hidden', !this.minimapVisible);
+    if (this.minimapVisible) {
+      this.updateMiniMap();
+    }
   },
 
   applyTransform() {
@@ -257,7 +396,20 @@ const floatingWorkspace = {
     if (inner) {
       inner.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
     }
+    
+    // Update grid background for infinite effect
+    const canvas = document.getElementById('workspaceCanvas');
+    if (canvas) {
+      const gridSize = 60 * this.zoom;
+      const posX = this.panX;
+      const posY = this.panY;
+      
+      canvas.style.backgroundSize = `${gridSize}px ${gridSize}px, ${gridSize}px ${gridSize}px, 100% 100%, 100% 100%, 100% 100%`;
+      canvas.style.backgroundPosition = `${posX}px ${posY}px, ${posX}px ${posY}px, 0 0, 0 0, 0 0`;
+    }
+    
     this.updateConnections();
+    this.updateMiniMap();
   },
 
   // Create SVG layer for connection lines
@@ -265,59 +417,70 @@ const floatingWorkspace = {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'connections-svg');
     svg.setAttribute('id', 'connectionsSvg');
+
     svg.innerHTML = `
       <defs>
         <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:rgba(99, 102, 241, 0.8)" />
-          <stop offset="50%" style="stop-color:rgba(139, 92, 246, 0.9)" />
-          <stop offset="100%" style="stop-color:rgba(168, 85, 247, 0.8)" />
+          <stop offset="0%" style="stop-color:rgba(106, 167, 255, 0.9)" />
+          <stop offset="50%" style="stop-color:rgba(143, 107, 255, 1)" />
+          <stop offset="100%" style="stop-color:rgba(180, 125, 255, 0.9)" />
         </linearGradient>
         <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
           <feMerge>
             <feMergeNode in="coloredBlur"/>
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
         </filter>
-        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-          <polygon points="0 0, 10 3.5, 0 7" fill="rgba(139, 92, 246, 0.9)" />
-        </marker>
-        <marker id="arrowhead-active" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
-          <polygon points="0 0, 12 4, 0 8" fill="rgba(168, 85, 247, 1)" />
-        </marker>
       </defs>
     `;
+
+    // Append SVG to workspace-inner so it gets transformed with panels
     this.canvas.appendChild(svg);
     this.connectionsSvg = svg;
+
+    console.log('✅ SVG connections layer created');
   },
 
   // Update connection lines between panels
   updateConnections() {
-    if (!this.connectionsSvg) return;
-    
+    if (!this.connectionsSvg) {
+      console.warn('⚠️ SVG connections layer not initialized');
+      return;
+    }
+
     // Remove existing lines (keep defs)
-    const existingLines = this.connectionsSvg.querySelectorAll('.connection-line');
+    const existingLines = this.connectionsSvg.querySelectorAll('.connection-line, .connection-endpoint');
     existingLines.forEach(line => line.remove());
-    
+
+    let connectionCount = 0;
+
     // Draw connections
     this.panels.forEach(panel => {
       const def = this.panelDefs[panel.type];
       if (!def.connects) return;
-      
+
       def.connects.forEach(targetType => {
         const targetPanel = this.panels.find(p => p.type === targetType);
         if (targetPanel) {
           this.drawConnection(panel, targetPanel);
+          connectionCount++;
         }
       });
     });
+
+    console.log(`🔗 Drew ${connectionCount} connections between ${this.panels.length} panels`);
   },
 
   // Draw a curved connection between two panels
   drawConnection(from, to) {
     const fromEl = document.getElementById(from.id);
     const toEl = document.getElementById(to.id);
-    if (!fromEl || !toEl) return;
+
+    if (!fromEl || !toEl) {
+      console.warn(`Cannot draw connection: missing element (from: ${!!fromEl}, to: ${!!toEl})`);
+      return;
+    }
 
     // Use stored panel positions (zoom-independent)
     const x1 = from.x + from.width;
@@ -325,36 +488,28 @@ const floatingWorkspace = {
     const x2 = to.x;
     const y2 = to.y + to.height / 2;
 
-    // Create curved path
-    const midX = (x1 + x2) / 2;
+    console.log(`Drawing connection from ${from.type}(${x1},${y1}) to ${to.type}(${x2},${y2})`);
+
+    // Create curved path with more pronounced curve
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const curveStrength = Math.min(Math.abs(dx) * 0.5, 200);
+    const controlX1 = x1 + curveStrength;
+    const controlX2 = x2 - curveStrength;
+
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const d = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+    const d = `M ${x1} ${y1} C ${controlX1} ${y1}, ${controlX2} ${y2}, ${x2} ${y2}`;
 
     path.setAttribute('d', d);
     path.setAttribute('class', 'connection-line');
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', 'url(#connectionGradient)');
-    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('stroke-width', '5');
     path.setAttribute('filter', 'url(#glow)');
-    path.setAttribute('marker-end', 'url(#arrowhead)');
-    path.setAttribute('opacity', '0.8');
+    path.setAttribute('opacity', '0.9');
+    path.setAttribute('stroke-linecap', 'round');
 
-    // Flowing animation with dashed line
-    path.style.strokeDasharray = '12 6';
-    path.style.animation = 'flowLine 2s linear infinite';
-
-    // Add hover effect
-    path.style.cursor = 'pointer';
-    path.addEventListener('mouseenter', () => {
-      path.setAttribute('stroke-width', '3.5');
-      path.setAttribute('opacity', '1');
-      path.setAttribute('marker-end', 'url(#arrowhead-active)');
-    });
-    path.addEventListener('mouseleave', () => {
-      path.setAttribute('stroke-width', '2.5');
-      path.setAttribute('opacity', '0.8');
-      path.setAttribute('marker-end', 'url(#arrowhead)');
-    });
+    path.style.pointerEvents = 'none';
 
     this.connectionsSvg.appendChild(path);
   },
@@ -374,6 +529,46 @@ const floatingWorkspace = {
     mcpBtn.onclick = () => this.toggleMCPSidebar();
     bar.appendChild(mcpBtn);
 
+    const templatesBtn = document.createElement('button');
+    templatesBtn.className = 'quick-access-btn';
+    templatesBtn.setAttribute('data-tooltip', 'Workspace Templates');
+    templatesBtn.setAttribute('data-action', 'workspace-templates');
+    templatesBtn.innerHTML = '🗂️';
+    templatesBtn.onclick = () => this.showTemplatesModal();
+    bar.appendChild(templatesBtn);
+
+    const sessionsBtn = document.createElement('button');
+    sessionsBtn.className = 'quick-access-btn';
+    sessionsBtn.setAttribute('data-tooltip', 'Workspace Sessions');
+    sessionsBtn.setAttribute('data-action', 'workspace-sessions');
+    sessionsBtn.innerHTML = '💾';
+    sessionsBtn.onclick = () => this.showSessionsModal();
+    bar.appendChild(sessionsBtn);
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'quick-access-btn';
+    exportBtn.setAttribute('data-tooltip', 'Export Workspace');
+    exportBtn.setAttribute('data-action', 'workspace-export');
+    exportBtn.innerHTML = '📤';
+    exportBtn.onclick = () => this.exportWorkspace();
+    bar.appendChild(exportBtn);
+
+    const importBtn = document.createElement('button');
+    importBtn.className = 'quick-access-btn';
+    importBtn.setAttribute('data-tooltip', 'Import Workspace');
+    importBtn.setAttribute('data-action', 'workspace-import');
+    importBtn.innerHTML = '📥';
+    importBtn.onclick = () => this.importWorkspace();
+    bar.appendChild(importBtn);
+
+    const paletteBtn = document.createElement('button');
+    paletteBtn.className = 'quick-access-btn';
+    paletteBtn.setAttribute('data-tooltip', 'Command Palette (Ctrl+K / Ctrl+Shift+P)');
+    paletteBtn.setAttribute('data-action', 'command-palette');
+    paletteBtn.innerHTML = '⌘';
+    paletteBtn.onclick = () => this.showCommandPalette();
+    bar.appendChild(paletteBtn);
+
     // Divider
     const divider = document.createElement('div');
     divider.style.cssText = 'width: 24px; height: 1px; background: rgba(99, 102, 241, 0.3); margin: 4px 0;';
@@ -387,9 +582,20 @@ const floatingWorkspace = {
       btn.setAttribute('data-tooltip', def.title);
       btn.setAttribute('data-panel', id);
       btn.innerHTML = def.icon;
-      btn.onclick = () => this.togglePanel(id);
+      btn.onclick = () => this.focusPanelByType(id);
       bar.appendChild(btn);
     });
+
+    // Divider for active panels list
+    const activeDivider = document.createElement('div');
+    activeDivider.className = 'quick-access-divider';
+    bar.appendChild(activeDivider);
+
+    // Active panels list (non-main panels)
+    const activeList = document.createElement('div');
+    activeList.className = 'quick-access-active';
+    activeList.id = 'quickAccessActive';
+    bar.appendChild(activeList);
 
     document.body.appendChild(bar);
   },
@@ -398,26 +604,35 @@ const floatingWorkspace = {
   toggleMCPSidebar() {
     let overlay = document.getElementById('workspaceSidebarOverlay');
     const mcpBtn = document.querySelector('[data-panel="mcp-servers"]');
-    
+
     // If overlay exists and is visible, hide it
     if (overlay && overlay.classList.contains('visible')) {
-      overlay.classList.remove('visible');
+      this.restoreSidebar();
+      overlay.remove();
       mcpBtn?.classList.remove('has-panel');
+      this.updateQuickAccess();
       return;
     }
-    
-    // Create or update the overlay
+
+    // Create overlay
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'workspaceSidebarOverlay';
       overlay.className = 'workspace-sidebar-overlay';
       document.body.appendChild(overlay);
     }
-    
-    // Always refresh content from the original sidebar (to show newly added servers)
+
+    // Move the actual sidebar into overlay so IDs and handlers stay intact
     const originalSidebar = document.getElementById('sidebar');
     if (originalSidebar) {
-      overlay.innerHTML = originalSidebar.innerHTML;
+      if (!this.sidebarOriginalParent) {
+        this.sidebarOriginalParent = originalSidebar.parentElement;
+        this.sidebarOriginalNextSibling = originalSidebar.nextElementSibling;
+        this.sidebarOriginalDisplay = originalSidebar.style.display || '';
+      }
+      overlay.appendChild(originalSidebar);
+      originalSidebar.style.display = 'flex';
+      originalSidebar.style.height = '100%';
     } else {
       overlay.innerHTML = `
         <div class="sidebar-header">
@@ -429,7 +644,7 @@ const floatingWorkspace = {
         </div>
       `;
     }
-    
+
     // Add close button
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn';
@@ -437,10 +652,45 @@ const floatingWorkspace = {
     closeBtn.innerHTML = '✕';
     closeBtn.onclick = () => this.toggleMCPSidebar();
     overlay.insertBefore(closeBtn, overlay.firstChild);
-    
+
     // Show the overlay
     overlay.classList.add('visible');
     mcpBtn?.classList.add('has-panel');
+    this.updateQuickAccess();
+  },
+
+  restoreSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    const main = document.querySelector('.main');
+    const chatContainer = document.querySelector('.chat-container');
+
+    sidebar.style.display = this.sidebarOriginalDisplay || '';
+    sidebar.style.height = '';
+    sidebar.classList.remove('collapsed');
+
+    if (this.sidebarOriginalParent && this.sidebarOriginalParent.isConnected) {
+      if (this.sidebarOriginalNextSibling && this.sidebarOriginalNextSibling.parentElement === this.sidebarOriginalParent) {
+        this.sidebarOriginalParent.insertBefore(sidebar, this.sidebarOriginalNextSibling);
+      } else {
+        this.sidebarOriginalParent.appendChild(sidebar);
+      }
+      return;
+    }
+
+    if (main && sidebar.parentElement !== main) {
+      if (chatContainer && chatContainer.parentElement === main) {
+        main.insertBefore(sidebar, chatContainer);
+      } else {
+        main.insertBefore(sidebar, main.firstChild);
+      }
+    }
+  },
+
+  // Auto-refresh MCP server status
+  startMCPAutoRefresh() {
+    // no-op; sidebar is now moved into overlay so updates are live
   },
 
   // Create add panel button
@@ -487,7 +737,7 @@ const floatingWorkspace = {
   },
 
   // Add a panel
-  addPanel(type, x, y) {
+  addPanel(type, x, y, options = {}) {
     const def = this.panelDefs[type];
     if (!def) return;
     
@@ -516,7 +766,7 @@ const floatingWorkspace = {
       }
     }
     
-    const id = `panel_${Date.now()}`;
+    const id = this.generatePanelId();
     const panel = {
       id,
       type,
@@ -530,8 +780,10 @@ const floatingWorkspace = {
     this.panels.push(panel);
     this.renderPanel(panel);
     this.updateQuickAccess();
-    this.saveLayout();
-    
+    if (!options.skipConnections) this.updateConnections();
+    if (!options.skipMiniMap) this.updateMiniMap();
+    if (!options.skipSave) this.saveLayout();
+
     return panel;
   },
 
@@ -589,45 +841,52 @@ const floatingWorkspace = {
   // Load panel content
   loadPanelContent(panel) {
     const contentEl = document.getElementById(`${panel.id}_content`);
-    if (!contentEl) return;
+    if (!contentEl) {
+      console.warn(`❌ Content element not found for panel ${panel.id}`);
+      return;
+    }
 
-    // Get content from existing panel - MOVE instead of clone to preserve event listeners
+    // Move the real panel DOM into the floating panel (no cloning)
     const sourcePanel = document.getElementById(`${panel.type}Panel`);
-    if (sourcePanel) {
-      // Store original parent so we can move it back when panel closes
-      if (!sourcePanel.dataset.originalParent) {
-        sourcePanel.dataset.originalParent = sourcePanel.parentElement.id;
-        sourcePanel.dataset.originalDisplay = sourcePanel.style.display || '';
-      }
 
-      // Move the original panel (preserves all event listeners and IDs)
-      sourcePanel.style.display = 'block';
-      sourcePanel.classList.remove('content-panel');
-      contentEl.innerHTML = '';
-      contentEl.appendChild(sourcePanel);
-
-      // Mark panel as being used in workspace
-      panel.originalPanelId = `${panel.type}Panel`;
-    } else {
+    if (!sourcePanel) {
+      console.warn(`⚠️ Source panel not found: ${panel.type}Panel`);
       contentEl.innerHTML = `
         <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
-          <div style="font-size: 2rem; margin-bottom: 12px;">${this.panelDefs[panel.type].icon}</div>
-          <div>${this.panelDefs[panel.type].title} Panel</div>
+          <div style="font-size: 2rem; margin-bottom: 12px;">${this.panelDefs[panel.type]?.icon || '📦'}</div>
+          <div>${this.panelDefs[panel.type]?.title || 'Unknown'} Panel</div>
+          <div style="margin-top: 8px; font-size: 0.9em; opacity: 0.7;">Content not available</div>
         </div>
       `;
+      return;
     }
+
+    if (!panel.originalParent) {
+      panel.originalParent = sourcePanel.parentElement;
+      panel.originalNextSibling = sourcePanel.nextElementSibling;
+      panel.originalDisplay = sourcePanel.style.display || '';
+    }
+
+    contentEl.innerHTML = '';
+    contentEl.appendChild(sourcePanel);
+
+    sourcePanel.classList.remove('content-panel', 'active');
+    sourcePanel.classList.add('workspace-panel-content');
+    sourcePanel.style.display = 'flex';
+    sourcePanel.style.flexDirection = 'column';
+    sourcePanel.style.height = '100%';
+    sourcePanel.style.width = '100%';
 
     // Call loader function if defined
     const def = this.panelDefs[panel.type];
     if (def && def.loader && typeof window[def.loader] === 'function') {
-      // Defer to let DOM update
       setTimeout(() => {
         try {
           window[def.loader]();
         } catch (error) {
-          console.error(`Failed to load ${panel.type} data:`, error);
+          console.error(`❌ Failed to load ${panel.type} data:`, error);
         }
-      }, 100);
+      }, 200);
     }
   },
 
@@ -678,10 +937,13 @@ const floatingWorkspace = {
     
     panel.x = newX;
     panel.y = newY;
-    
+
+    // Show snap guidelines when close to other panels
+    ws.showSnapGuidelines(panel);
+
     el.style.left = `${panel.x}px`;
     el.style.top = `${panel.y}px`;
-    
+
     // Update connection lines
     ws.updateConnections();
   },
@@ -702,6 +964,9 @@ const floatingWorkspace = {
       el.style.top = `${panel.y}px`;
       ws.updateConnections();
     }
+
+    // Clear snap guidelines
+    ws.clearSnapGuidelines();
 
     ws.dragState = null;
     document.removeEventListener('mousemove', ws.onDrag);
@@ -769,16 +1034,27 @@ const floatingWorkspace = {
     ws.resizeState = null;
     document.removeEventListener('mousemove', ws.onResize);
     document.removeEventListener('mouseup', ws.endResize);
+    // Update connections after resize
+    ws.updateConnections();
     ws.saveLayout();
   },
 
   // Bring panel to front
   bringToFront(panelId) {
+    const panel = this.panels.find(p => p.id === panelId);
     const el = document.getElementById(panelId);
     if (el) {
       el.style.zIndex = this.zIndex++;
       document.querySelectorAll('.floating-panel').forEach(p => p.classList.remove('active'));
       el.classList.add('active');
+    }
+
+    if (panel && panel.type !== 'workflows' && typeof closeAIBuilderIfOpen === 'function') {
+      closeAIBuilderIfOpen();
+    }
+
+    if (typeof setWorkflowsActive === 'function') {
+      setWorkflowsActive(panel?.type === 'workflows');
     }
   },
 
@@ -802,20 +1078,22 @@ const floatingWorkspace = {
   },
 
   // Close panel
-  closePanel(panelId) {
+  closePanel(panelId, options = {}) {
     const panel = this.panels.find(p => p.id === panelId);
 
-    // Move original panel back to its original location before closing
-    if (panel && panel.originalPanelId) {
-      const originalPanel = document.getElementById(panel.originalPanelId);
-      if (originalPanel && originalPanel.dataset.originalParent) {
-        const originalParent = document.getElementById(originalPanel.dataset.originalParent);
-        if (originalParent) {
-          originalPanel.classList.add('content-panel');
-          originalPanel.style.display = originalPanel.dataset.originalDisplay || 'none';
-          originalParent.appendChild(originalPanel);
-          delete originalPanel.dataset.originalParent;
-          delete originalPanel.dataset.originalDisplay;
+    if (panel) {
+      const sourcePanel = document.getElementById(`${panel.type}Panel`);
+      if (sourcePanel && panel.originalParent) {
+        // Restore panel back to its original container
+        sourcePanel.classList.remove('workspace-panel-content');
+        sourcePanel.classList.add('content-panel');
+        sourcePanel.classList.remove('active');
+        sourcePanel.style.display = panel.originalDisplay || '';
+
+        if (panel.originalNextSibling && panel.originalNextSibling.parentElement === panel.originalParent) {
+          panel.originalParent.insertBefore(sourcePanel, panel.originalNextSibling);
+        } else {
+          panel.originalParent.appendChild(sourcePanel);
         }
       }
     }
@@ -827,7 +1105,25 @@ const floatingWorkspace = {
 
     document.getElementById(panelId)?.remove();
     this.updateQuickAccess();
-    this.saveLayout();
+
+    if (panel?.type === 'workflows' && typeof closeAIBuilderIfOpen === 'function') {
+      closeAIBuilderIfOpen();
+    }
+    if (panel?.type === 'workflows' && typeof setWorkflowsActive === 'function') {
+      setWorkflowsActive(false);
+    }
+
+    if (!options.skipConnections) this.updateConnections();
+    if (!options.skipMiniMap) this.updateMiniMap();
+    if (!options.skipSave) this.saveLayout();
+  },
+
+  closeAllPanels(options = {}) {
+    const ids = this.panels.map(p => p.id);
+    ids.forEach(id => this.closePanel(id, { skipSave: true, skipConnections: true, skipMiniMap: true }));
+    this.updateConnections();
+    this.updateMiniMap();
+    if (!options.skipSave) this.saveLayout();
   },
 
   // Toggle panel
@@ -841,12 +1137,78 @@ const floatingWorkspace = {
     this.closePanelPicker();
   },
 
+  focusPanel(panelId) {
+    const panel = this.panels.find(p => p.id === panelId);
+    if (!panel || !this.canvasOuter) return;
+
+    const centerX = panel.x + panel.width / 2;
+    const centerY = panel.y + panel.height / 2;
+    this.panX = -(centerX * this.zoom);
+    this.panY = -(centerY * this.zoom);
+    this.applyTransform();
+    this.bringToFront(panel.id);
+    if (panel.minimized) this.toggleMinimize(panel.id);
+  },
+
+  focusPanelByType(type) {
+    const existing = this.panels.find(p => p.type === type);
+    if (existing) {
+      this.focusPanel(existing.id);
+      return;
+    }
+    const panel = this.addPanel(type);
+    if (panel) {
+      this.focusPanel(panel.id);
+    }
+  },
+
   // Update quick access indicators
   updateQuickAccess() {
-    document.querySelectorAll('.quick-access-btn').forEach(btn => {
+    const buttons = document.querySelectorAll('#quickAccessBar > .quick-access-btn');
+    const existingPanels = new Set();
+
+    buttons.forEach(btn => {
       const type = btn.getAttribute('data-panel');
+      if (type) existingPanels.add(type);
+      if (type === 'mcp-servers') {
+        const overlayVisible = document.getElementById('workspaceSidebarOverlay')?.classList.contains('visible');
+        btn.classList.toggle('has-panel', overlayVisible);
+        return;
+      }
       const hasPanel = this.panels.some(p => p.type === type);
       btn.classList.toggle('has-panel', hasPanel);
+    });
+
+    const activeList = document.getElementById('quickAccessActive');
+    if (!activeList) return;
+    activeList.innerHTML = '';
+
+    const typeCounts = {};
+    this.panels.forEach(panel => {
+      typeCounts[panel.type] = (typeCounts[panel.type] || 0) + 1;
+    });
+
+    const typeIndex = {};
+    this.panels.forEach(panel => {
+      const def = this.panelDefs[panel.type];
+      if (!def) return;
+      const total = typeCounts[panel.type] || 1;
+      const ordinal = (typeIndex[panel.type] || 0) + 1;
+      typeIndex[panel.type] = ordinal;
+
+      const needsListEntry = !existingPanels.has(panel.type) || total > 1;
+      if (!needsListEntry) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'quick-access-btn has-panel';
+      const suffix = total > 1 ? ` #${ordinal}` : '';
+      btn.setAttribute('data-tooltip', `Focus ${def.title}${suffix}`);
+      btn.setAttribute('data-panel', panel.type);
+      btn.innerHTML = def.icon;
+      btn.onclick = () => {
+        this.focusPanel(panel.id);
+      };
+      activeList.appendChild(btn);
     });
   },
 
@@ -874,20 +1236,31 @@ const floatingWorkspace = {
       if (saved) {
         const layout = JSON.parse(saved);
         layout.forEach(p => {
-          const panel = this.addPanel(p.type, p.x, p.y);
+          const panel = this.addPanel(p.type, p.x, p.y, {
+            skipSave: true,
+            skipConnections: true,
+            skipMiniMap: true
+          });
           if (panel) {
             panel.width = p.width;
             panel.height = p.height;
             panel.minimized = p.minimized;
-            
+
             const el = document.getElementById(panel.id);
             if (el) {
               el.style.width = `${p.width}px`;
               el.style.height = p.minimized ? 'auto' : `${p.height}px`;
-              if (p.minimized) el.classList.add('minimized');
+              if (p.minimized) {
+                el.classList.add('minimized');
+              }
+              const btn = el.querySelector('.panel-action-btn');
+              if (btn) btn.innerHTML = panel.minimized ? '🔼' : '🔽';
             }
           }
         });
+        this.updateConnections();
+        this.updateMiniMap();
+        this.saveLayout();
       }
     } catch (e) {
       console.warn('Failed to load layout:', e);
@@ -896,12 +1269,72 @@ const floatingWorkspace = {
 
   // Reset layout
   resetLayout() {
-    this.panels.forEach(p => document.getElementById(p.id)?.remove());
-    this.panels = [];
+    this.closeAllPanels({ skipSave: true });
     localStorage.removeItem('mcp_workspace_layout');
     this.addPanel('chat', 100, 80);
     this.addPanel('inspector', 650, 80);
     this.updateQuickAccess();
+    this.updateConnections();
+    this.updateMiniMap();
+    this.saveLayout();
+  },
+
+  // Cleanup method to remove all event listeners and elements
+  cleanup() {
+    if (this.handlers) {
+      if (this.canvasOuter) {
+        if (this.handlers.canvasContextMenu) {
+          this.canvasOuter.removeEventListener('contextmenu', this.handlers.canvasContextMenu);
+        }
+        if (this.handlers.canvasWheel) {
+          this.canvasOuter.removeEventListener('wheel', this.handlers.canvasWheel, { passive: false });
+        }
+        if (this.handlers.canvasMouseDown) {
+          this.canvasOuter.removeEventListener('mousedown', this.handlers.canvasMouseDown);
+        }
+        if (this.handlers.canvasAuxClick) {
+          this.canvasOuter.removeEventListener('auxclick', this.handlers.canvasAuxClick);
+        }
+      }
+
+      if (this.handlers.documentClick) {
+        document.removeEventListener('click', this.handlers.documentClick);
+      }
+      if (this.handlers.documentMouseMove) {
+        document.removeEventListener('mousemove', this.handlers.documentMouseMove);
+      }
+      if (this.handlers.documentMouseUp) {
+        document.removeEventListener('mouseup', this.handlers.documentMouseUp);
+      }
+      if (this.handlers.documentKeyDown) {
+        document.removeEventListener('keydown', this.handlers.documentKeyDown, true);
+      }
+      if (this.handlers.documentKeyUp) {
+        document.removeEventListener('keyup', this.handlers.documentKeyUp, true);
+      }
+    }
+
+    document.removeEventListener('mousemove', this.onDrag);
+    document.removeEventListener('mouseup', this.endDrag);
+    document.removeEventListener('mousemove', this.onResize);
+    document.removeEventListener('mouseup', this.endResize);
+
+    this.restoreSidebar();
+    document.getElementById('workspaceSidebarOverlay')?.remove();
+
+    // Clear intervals
+    if (this.mcpRefreshInterval) {
+      clearInterval(this.mcpRefreshInterval);
+      this.mcpRefreshInterval = null;
+    }
+
+    // Reset state
+    this.dragState = null;
+    this.resizeState = null;
+    this.isPanning = false;
+    this.spaceDown = false;
+    this.commandPaletteOpen = false;
+    this.handlers = null;
   },
 
   // ==========================================
@@ -926,7 +1359,7 @@ const floatingWorkspace = {
               <div><kbd>Space + Drag</kbd> Pan canvas</div>
               <div><kbd>Ctrl + Scroll</kbd> Zoom in/out</div>
               <div><kbd>Ctrl + 0</kbd> Reset zoom</div>
-              <div><kbd>Ctrl + K</kbd> Command palette</div>
+              <div><kbd>Ctrl + K</kbd> / <kbd>Ctrl + Shift + P</kbd> Command palette</div>
               <div><kbd>Escape</kbd> Close menus</div>
             </div>
           </div>
@@ -1011,9 +1444,13 @@ const floatingWorkspace = {
         action: () => { this.addPanel(id); this.closeCommandPalette(); }
       })),
       { type: 'action', icon: '💾', title: 'Save Layout', action: () => { this.saveLayout(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '💾', title: 'Workspace Sessions', action: () => { this.showSessionsModal(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '🗂️', title: 'Workspace Templates', action: () => { this.showTemplatesModal(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📥', title: 'Load Preset', action: () => { this.showPresetsModal(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📤', title: 'Export Workspace', action: () => { this.exportWorkspace(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '📥', title: 'Import Workspace', action: () => { this.importWorkspace(); this.closeCommandPalette(); } },
       { type: 'action', icon: '🗺️', title: 'Toggle Mini-map', action: () => { this.toggleMiniMap(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '⤢', title: 'Fit All Panels', action: () => { this.fitAll(); this.closeCommandPalette(); } },
       { type: 'action', icon: '🎨', title: 'Change Theme', action: () => { this.showThemeSelector(); this.closeCommandPalette(); } },
       { type: 'action', icon: '⌨️', title: 'Keyboard Shortcuts', action: () => { this.showKeyboardShortcuts(); this.closeCommandPalette(); } },
       { type: 'action', icon: '🔄', title: 'Reset Layout', action: () => { this.resetLayout(); this.closeCommandPalette(); } }
@@ -1112,8 +1549,12 @@ const floatingWorkspace = {
     }
   },
 
-  saveCurrentPreset() {
-    const name = prompt('Enter preset name:');
+  async saveCurrentPreset() {
+    const name = await appPrompt('Enter preset name:', {
+      title: 'Save Preset',
+      label: 'Preset name',
+      required: true
+    });
     if (!name) return;
 
     const presets = this.getPresets();
@@ -1149,144 +1590,163 @@ const floatingWorkspace = {
       preset = builtIn[presetId];
       if (preset) {
         // Auto-arrange panels
-        this.panels.forEach(p => document.getElementById(p.id)?.remove());
-        this.panels = [];
+        this.closeAllPanels({ skipSave: true });
         preset.panels.forEach((type, i) => {
-          this.addPanel(type, 100 + (i % 3) * 400, 80 + Math.floor(i / 3) * 300);
+          this.addPanel(type, 100 + (i % 3) * 400, 80 + Math.floor(i / 3) * 300, {
+            skipSave: true,
+            skipConnections: true,
+            skipMiniMap: true
+          });
         });
       }
     } else if (preset.layout) {
       // Custom preset with saved positions
-      this.panels.forEach(p => document.getElementById(p.id)?.remove());
-      this.panels = [];
+      this.closeAllPanels({ skipSave: true });
       preset.layout.forEach(p => {
-        this.addPanel(p.type, p.x, p.y);
+        this.addPanel(p.type, p.x, p.y, { skipSave: true, skipConnections: true, skipMiniMap: true });
       });
     }
 
     document.getElementById('presetsModal')?.classList.remove('active');
     this.updateQuickAccess();
-  },
-
-  // ==========================================
-  // MINI-MAP
-  // ==========================================
-  createMiniMap() {
-    const minimap = document.createElement('div');
-    minimap.id = 'miniMap';
-    minimap.className = 'mini-map';
-    minimap.innerHTML = `
-      <canvas id="miniMapCanvas" width="200" height="150"></canvas>
-    `;
-    document.body.appendChild(minimap);
-
-    const canvas = document.getElementById('miniMapCanvas');
-    canvas.addEventListener('click', (e) => this.miniMapClick(e));
-
-    this.miniMapCanvas = canvas;
-    this.miniMapCtx = canvas.getContext('2d');
+    this.updateConnections();
     this.updateMiniMap();
-
-    return minimap;
-  },
-
-  toggleMiniMap() {
-    let minimap = document.getElementById('miniMap');
-    if (minimap) {
-      minimap.remove();
-      this.miniMapCanvas = null;
-      this.miniMapCtx = null;
-    } else {
-      this.createMiniMap();
-    }
-  },
-
-  updateMiniMap() {
-    if (!this.miniMapCtx || !this.miniMapCanvas) return;
-
-    const ctx = this.miniMapCtx;
-    const canvas = this.miniMapCanvas;
-
-    // Clear
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (this.panels.length === 0) return;
-
-    // Find bounds
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    this.panels.forEach(p => {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x + p.width);
-      maxY = Math.max(maxY, p.y + p.height);
-    });
-
-    const worldWidth = maxX - minX + 200;
-    const worldHeight = maxY - minY + 200;
-    const scale = Math.min(canvas.width / worldWidth, canvas.height / worldHeight);
-
-    // Draw panels
-    this.panels.forEach(p => {
-      const x = (p.x - minX + 100) * scale;
-      const y = (p.y - minY + 100) * scale;
-      const w = p.width * scale;
-      const h = p.height * scale;
-
-      ctx.fillStyle = 'rgba(99, 102, 241, 0.6)';
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = 'rgba(99, 102, 241, 1)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, w, h);
-    });
-
-    // Draw viewport
-    if (this.canvasOuter) {
-      const rect = this.canvasOuter.getBoundingClientRect();
-      const vpX = (-this.panX / this.zoom - minX + 100) * scale;
-      const vpY = (-this.panY / this.zoom - minY + 100) * scale;
-      const vpW = (rect.width / this.zoom) * scale;
-      const vpH = (rect.height / this.zoom) * scale;
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(vpX, vpY, vpW, vpH);
-    }
-  },
-
-  miniMapClick(e) {
-    // TODO: Implement click-to-navigate on minimap
-    console.log('Minimap navigation - TODO');
+    this.saveLayout();
   },
 
   // ==========================================
   // WORKSPACE EXPORT/IMPORT
   // ==========================================
-  exportWorkspace() {
-    const data = {
-      version: '1.0',
-      panels: this.panels.map(p => ({
-        type: p.type,
-        x: p.x,
-        y: p.y,
-        width: p.width,
-        height: p.height,
-        minimized: p.minimized,
-        group: p.group
-      })),
-      groups: this.groups,
-      theme: this.workspaceTheme,
-      zoom: this.zoom,
-      pan: { x: this.panX, y: this.panY }
-    };
+  async buildWorkspaceBundle() {
+    const ENV_PROFILES_KEY = 'mcp_chat_studio_env_profiles';
+    const CURRENT_ENV_KEY = 'mcp_chat_studio_current_env';
 
+    let collections = [];
+    try {
+      const listRes = await fetch('/api/collections', { credentials: 'include' });
+      const listData = await listRes.json();
+      const collectionIds = (listData.collections || []).map(c => c.id);
+      collections = await Promise.all(
+        collectionIds.map(async id => {
+          const res = await fetch(`/api/collections/${id}`, { credentials: 'include' });
+          if (!res.ok) return null;
+          return res.json();
+        })
+      );
+      collections = collections.filter(Boolean);
+    } catch (error) {
+      console.warn('Failed to export collections:', error);
+    }
+
+    return {
+      version: '1.1',
+      workspace: {
+        panels: this.panels.map(p => ({
+          type: p.type,
+          x: p.x,
+          y: p.y,
+          width: p.width,
+          height: p.height,
+          minimized: p.minimized,
+          group: p.group
+        })),
+        groups: this.groups,
+        theme: this.workspaceTheme,
+        zoom: this.zoom,
+        pan: { x: this.panX, y: this.panY }
+      },
+      environment: {
+        profiles: JSON.parse(localStorage.getItem(ENV_PROFILES_KEY) || '{}'),
+        current: localStorage.getItem(CURRENT_ENV_KEY) || 'development'
+      },
+      collections
+    };
+  },
+
+  async exportWorkspace() {
+    const data = await this.buildWorkspaceBundle();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `workspace-${Date.now()}.json`;
+    a.download = `workspace-bundle-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  },
+
+  async applyWorkspaceBundle(data) {
+    const ENV_PROFILES_KEY = 'mcp_chat_studio_env_profiles';
+    const CURRENT_ENV_KEY = 'mcp_chat_studio_current_env';
+
+    const workspace = data.workspace || data;
+
+    // Clear current workspace
+    this.closeAllPanels({ skipSave: true });
+
+    // Load workspace
+    (workspace.panels || []).forEach(p => {
+      const panel = this.addPanel(p.type, p.x, p.y, {
+        skipSave: true,
+        skipConnections: true,
+        skipMiniMap: true
+      });
+      if (panel) {
+        panel.width = p.width;
+        panel.height = p.height;
+        panel.minimized = p.minimized;
+        const el = document.getElementById(panel.id);
+        if (el) {
+          el.style.width = `${p.width}px`;
+          el.style.height = p.minimized ? 'auto' : `${p.height}px`;
+          if (p.minimized) {
+            el.classList.add('minimized');
+          }
+          const btn = el.querySelector('.panel-action-btn');
+          if (btn) btn.innerHTML = panel.minimized ? '🔼' : '🔽';
+        }
+      }
+    });
+
+    if (workspace.groups) this.groups = workspace.groups;
+    if (workspace.theme) this.applyTheme(workspace.theme);
+    if (workspace.zoom) this.zoom = workspace.zoom;
+    if (workspace.pan) {
+      this.panX = workspace.pan.x;
+      this.panY = workspace.pan.y;
+    }
+
+    if (data.environment?.profiles) {
+      localStorage.setItem(ENV_PROFILES_KEY, JSON.stringify(data.environment.profiles));
+    }
+    if (data.environment?.current) {
+      localStorage.setItem(CURRENT_ENV_KEY, data.environment.current);
+      const envSelect = document.getElementById('envProfile');
+      if (envSelect) envSelect.value = data.environment.current;
+    }
+
+    if (Array.isArray(data.collections) && data.collections.length > 0) {
+      for (const collection of data.collections) {
+        try {
+          await fetch('/api/collections/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(collection)
+          });
+        } catch (error) {
+          console.warn('Failed to import collection:', error);
+        }
+      }
+      if (typeof window.loadCollections === 'function') {
+        window.loadCollections();
+      }
+    }
+
+    this.applyTransform();
+    this.updateQuickAccess();
+    this.updateConnections();
+    this.updateMiniMap();
+    this.saveLayout();
   },
 
   importWorkspace() {
@@ -1300,33 +1760,198 @@ const floatingWorkspace = {
       try {
         const text = await file.text();
         const data = JSON.parse(text);
-
-        // Clear current workspace
-        this.panels.forEach(p => document.getElementById(p.id)?.remove());
-        this.panels = [];
-
-        // Load workspace
-        data.panels.forEach(p => {
-          this.addPanel(p.type, p.x, p.y);
-        });
-
-        if (data.groups) this.groups = data.groups;
-        if (data.theme) this.applyTheme(data.theme);
-        if (data.zoom) this.zoom = data.zoom;
-        if (data.pan) {
-          this.panX = data.pan.x;
-          this.panY = data.pan.y;
-        }
-
-        this.applyTransform();
-        this.updateQuickAccess();
+        await this.applyWorkspaceBundle(data);
         console.log('Workspace imported successfully');
       } catch (error) {
         console.error('Failed to import workspace:', error);
-        alert('Failed to import workspace file');
+        if (typeof appAlert === 'function') {
+          await appAlert('Failed to import workspace file', { title: 'Import Failed' });
+        } else if (typeof showNotification === 'function') {
+          showNotification('Failed to import workspace file', 'error');
+        }
       }
     };
     input.click();
+  },
+
+  // ==========================================
+  // WORKSPACE TEMPLATES (DISK SYNC)
+  // ==========================================
+  async loadWorkspaceTemplates() {
+    try {
+      const res = await fetch('/api/workspaces', { credentials: 'include' });
+      const data = await res.json();
+      this.workspaceTemplates = data.templates || [];
+      return this.workspaceTemplates;
+    } catch (error) {
+      console.warn('Failed to load workspace templates:', error);
+      this.workspaceTemplates = [];
+      return [];
+    }
+  },
+
+  notifyWorkspace(message, type = 'info') {
+    if (typeof showNotification === 'function') {
+      showNotification(message, type);
+    } else if (typeof appAlert === 'function') {
+      appAlert(message, { title: 'Workspace' });
+    }
+  },
+
+  async saveWorkspaceTemplate() {
+    const result = await appFormModal({
+      title: 'Save Workspace Template',
+      confirmText: 'Save',
+      fields: [
+        { id: 'name', label: 'Template name', required: true },
+        { id: 'description', label: 'Description', placeholder: 'Optional' }
+      ]
+    });
+    if (!result.confirmed) return;
+    const name = (result.values.name || '').trim();
+    if (!name) return;
+    const description = result.values.description || '';
+
+    try {
+      const bundle = await this.buildWorkspaceBundle();
+      const res = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, description, bundle })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await this.loadWorkspaceTemplates();
+      this.renderWorkspaceTemplates();
+      this.notifyWorkspace('Workspace template saved', 'success');
+    } catch (error) {
+      this.notifyWorkspace(`Failed to save template: ${error.message}`, 'error');
+    }
+  },
+
+  async updateWorkspaceTemplate(templateId) {
+    const template = this.workspaceTemplates.find(t => t.id === templateId);
+    if (!template) return;
+    const confirmed = await appConfirm(`Overwrite template "${template.name}" with current workspace?`, {
+      title: 'Overwrite Template',
+      confirmText: 'Overwrite',
+      confirmVariant: 'danger'
+    });
+    if (!confirmed) return;
+
+    try {
+      const bundle = await this.buildWorkspaceBundle();
+      const res = await fetch(`/api/workspaces/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: template.name,
+          description: template.description || '',
+          bundle
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await this.loadWorkspaceTemplates();
+      this.renderWorkspaceTemplates();
+      this.notifyWorkspace('Workspace template updated', 'success');
+    } catch (error) {
+      this.notifyWorkspace(`Failed to update template: ${error.message}`, 'error');
+    }
+  },
+
+  async deleteWorkspaceTemplate(templateId) {
+    const confirmed = await appConfirm('Delete this workspace template?', {
+      title: 'Delete Template',
+      confirmText: 'Delete',
+      confirmVariant: 'danger'
+    });
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/workspaces/${templateId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await this.loadWorkspaceTemplates();
+      this.renderWorkspaceTemplates();
+      this.notifyWorkspace('Workspace template deleted', 'success');
+    } catch (error) {
+      this.notifyWorkspace(`Failed to delete template: ${error.message}`, 'error');
+    }
+  },
+
+  async loadWorkspaceTemplate(templateId) {
+    try {
+      const res = await fetch(`/api/workspaces/${templateId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(await res.text());
+      const template = await res.json();
+      if (!template?.bundle) throw new Error('Template missing workspace bundle');
+      await this.applyWorkspaceBundle(template.bundle);
+      this.notifyWorkspace(`Loaded template "${template.name}"`, 'success');
+      document.getElementById('workspaceTemplatesModal')?.classList.remove('active');
+    } catch (error) {
+      this.notifyWorkspace(`Failed to load template: ${error.message}`, 'error');
+    }
+  },
+
+  async showTemplatesModal() {
+    await this.loadWorkspaceTemplates();
+
+    let modal = document.getElementById('workspaceTemplatesModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'workspaceTemplatesModal';
+      modal.className = 'modal-overlay active';
+      modal.innerHTML = `
+        <div class="modal" style="max-width: 700px; max-height: 80vh; overflow-y: auto">
+          <div class="modal-header">
+            <h2 class="modal-title">🗂️ Workspace Templates</h2>
+            <button class="modal-close" onclick="document.getElementById('workspaceTemplatesModal').classList.remove('active')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div style="padding: 16px; display: flex; justify-content: space-between; align-items: center">
+            <div style="font-size: 0.8rem; color: var(--text-muted)">Saved to <code>data/workspace-templates.json</code></div>
+            <button class="btn primary" onclick="floatingWorkspace.saveWorkspaceTemplate()">💾 Save Current</button>
+          </div>
+          <div id="workspaceTemplatesList" style="padding: 16px; display: grid; gap: 12px"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    } else {
+      modal.classList.add('active');
+    }
+
+    this.renderWorkspaceTemplates();
+  },
+
+  renderWorkspaceTemplates() {
+    const list = document.getElementById('workspaceTemplatesList');
+    if (!list) return;
+
+    if (!this.workspaceTemplates.length) {
+      list.innerHTML = `<div style="color: var(--text-muted); font-style: italic; text-align: center">No templates saved yet.</div>`;
+      return;
+    }
+
+    list.innerHTML = this.workspaceTemplates.map(template => `
+      <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center; gap: 16px">
+        <div>
+          <div style="font-weight: 600">${template.name}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted)">${template.description || 'No description'}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">Updated: ${new Date(template.updatedAt).toLocaleString()}</div>
+        </div>
+        <div style="display: flex; gap: 6px">
+          <button class="btn" onclick="floatingWorkspace.loadWorkspaceTemplate('${template.id}')">Load</button>
+          <button class="btn" onclick="floatingWorkspace.updateWorkspaceTemplate('${template.id}')">Update</button>
+          <button class="btn" style="background: var(--error); color: white" onclick="floatingWorkspace.deleteWorkspaceTemplate('${template.id}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
   },
 
   // ==========================================
@@ -1376,6 +2001,237 @@ const floatingWorkspace = {
         panel.y = other.y - panel.height;
       }
     });
+  },
+
+  // Show snap guidelines when dragging near other panels
+  showSnapGuidelines(panel) {
+    if (!this.snapToGrid) return;
+
+    // Clear existing guidelines
+    this.clearSnapGuidelines();
+
+    const snapThreshold = 15;
+    const guidelines = [];
+
+    this.panels.forEach(other => {
+      if (other.id === panel.id) return;
+
+      // Check for vertical alignment (left edges)
+      if (Math.abs(panel.x - other.x) < snapThreshold) {
+        guidelines.push({ type: 'vertical', pos: other.x });
+      }
+      // Check for vertical alignment (right edges)
+      if (Math.abs((panel.x + panel.width) - (other.x + other.width)) < snapThreshold) {
+        guidelines.push({ type: 'vertical', pos: other.x + other.width });
+      }
+      // Check for horizontal alignment (top edges)
+      if (Math.abs(panel.y - other.y) < snapThreshold) {
+        guidelines.push({ type: 'horizontal', pos: other.y });
+      }
+      // Check for horizontal alignment (bottom edges)
+      if (Math.abs((panel.y + panel.height) - (other.y + other.height)) < snapThreshold) {
+        guidelines.push({ type: 'horizontal', pos: other.y + other.height });
+      }
+    });
+
+    // Draw guidelines
+    guidelines.forEach(guide => {
+      const line = document.createElement('div');
+      line.className = 'snap-guideline';
+      if (guide.type === 'vertical') {
+        line.style.cssText = `
+          position: absolute;
+          left: ${guide.pos}px;
+          top: -9999px;
+          bottom: -9999px;
+          width: 2px;
+          background: var(--accent);
+          opacity: 0.6;
+          pointer-events: none;
+          z-index: 999;
+        `;
+      } else {
+        line.style.cssText = `
+          position: absolute;
+          top: ${guide.pos}px;
+          left: -9999px;
+          right: -9999px;
+          height: 2px;
+          background: var(--accent);
+          opacity: 0.6;
+          pointer-events: none;
+          z-index: 999;
+        `;
+      }
+      this.canvas.appendChild(line);
+    });
+  },
+
+  clearSnapGuidelines() {
+    const guidelines = this.canvas.querySelectorAll('.snap-guideline');
+    guidelines.forEach(line => line.remove());
+  },
+
+  // Clone a panel
+  clonePanel(panelId) {
+    const panel = this.panels.find(p => p.id === panelId);
+    if (!panel) return;
+
+    // Create clone at offset position
+    this.addPanel(panel.type, panel.x + 30, panel.y + 30);
+    console.log(`✅ Cloned panel: ${panel.type}`);
+  },
+
+  // ==========================================
+  // WORKSPACE SESSIONS
+  // ==========================================
+  saveWorkspaceSession(name) {
+    const sessions = this.getWorkspaceSessions();
+    const session = {
+      id: `session_${Date.now()}`,
+      name,
+      timestamp: Date.now(),
+      panels: this.panels.map(p => ({
+        type: p.type,
+        x: p.x,
+        y: p.y,
+        width: p.width,
+        height: p.height,
+        minimized: p.minimized
+      })),
+      zoom: this.zoom,
+      pan: { x: this.panX, y: this.panY },
+      theme: this.workspaceTheme
+    };
+
+    sessions.push(session);
+    localStorage.setItem('mcp_workspace_sessions', JSON.stringify(sessions));
+    console.log(`✅ Saved workspace session: ${name}`);
+    return session;
+  },
+
+  getWorkspaceSessions() {
+    try {
+      return JSON.parse(localStorage.getItem('mcp_workspace_sessions') || '[]');
+    } catch (e) {
+      return [];
+    }
+  },
+
+  loadWorkspaceSession(sessionId) {
+    const sessions = this.getWorkspaceSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    // Clear current workspace
+    this.closeAllPanels({ skipSave: true });
+
+    // Load session
+    session.panels.forEach(p => {
+      const panel = this.addPanel(p.type, p.x, p.y, {
+        skipSave: true,
+        skipConnections: true,
+        skipMiniMap: true
+      });
+      if (panel) {
+        panel.width = p.width;
+        panel.height = p.height;
+        panel.minimized = !!p.minimized;
+        const el = document.getElementById(panel.id);
+        if (el) {
+          el.style.width = `${p.width}px`;
+          el.style.height = panel.minimized ? 'auto' : `${p.height}px`;
+          if (panel.minimized) {
+            el.classList.add('minimized');
+          }
+          const btn = el.querySelector('.panel-action-btn');
+          if (btn) btn.innerHTML = panel.minimized ? '🔼' : '🔽';
+        }
+      }
+    });
+
+    if (session.zoom) this.zoom = session.zoom;
+    if (session.pan) {
+      this.panX = session.pan.x;
+      this.panY = session.pan.y;
+    }
+    if (session.theme) this.applyTheme(session.theme);
+
+    this.applyTransform();
+    this.updateQuickAccess();
+    this.updateConnections();
+    this.updateMiniMap();
+    this.saveLayout();
+    console.log(`✅ Loaded workspace session: ${session.name}`);
+  },
+
+  deleteWorkspaceSession(sessionId) {
+    let sessions = this.getWorkspaceSessions();
+    sessions = sessions.filter(s => s.id !== sessionId);
+    localStorage.setItem('mcp_workspace_sessions', JSON.stringify(sessions));
+    console.log(`🗑️ Deleted workspace session`);
+  },
+
+  showSessionsModal() {
+    const modal = document.getElementById('sessionsModal') || this.createSessionsModal();
+    this.renderSessions();
+    modal.classList.add('active');
+  },
+
+  createSessionsModal() {
+    const modal = document.createElement('div');
+    modal.id = 'sessionsModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 700px">
+        <h2 style="margin-bottom: 20px">💾 Workspace Sessions</h2>
+        <div style="display: flex; gap: 12px; margin-bottom: 20px">
+          <button class="btn primary" onclick="floatingWorkspace.saveNewSession()">💾 Save Current</button>
+        </div>
+        <div id="sessionsList" style="display: flex; flex-direction: column; gap: 12px"></div>
+        <div class="modal-actions" style="margin-top: 24px">
+          <button class="btn" onclick="document.getElementById('sessionsModal').classList.remove('active')">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+  },
+
+  async saveNewSession() {
+    const name = await appPrompt('Enter session name:', {
+      title: 'Save Workspace Session',
+      label: 'Session name',
+      required: true
+    });
+    if (!name) return;
+    this.saveWorkspaceSession(name);
+    this.renderSessions();
+  },
+
+  renderSessions() {
+    const container = document.getElementById('sessionsList');
+    if (!container) return;
+
+    const sessions = this.getWorkspaceSessions();
+
+    if (sessions.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px">No saved sessions</div>';
+      return;
+    }
+
+    container.innerHTML = sessions.map(session => `
+      <div class="preset-card" style="padding: 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center">
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px">${session.name}</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary)">${new Date(session.timestamp).toLocaleString()} • ${session.panels.length} panels</div>
+        </div>
+        <div style="display: flex; gap: 8px">
+          <button class="btn primary" onclick="floatingWorkspace.loadWorkspaceSession('${session.id}'); document.getElementById('sessionsModal').classList.remove('active')" style="font-size: 0.8rem; padding: 4px 12px">Load</button>
+          <button class="btn" onclick="floatingWorkspace.deleteWorkspaceSession('${session.id}'); floatingWorkspace.renderSessions()" style="font-size: 0.8rem; padding: 4px 12px">Delete</button>
+        </div>
+      </div>
+    `).join('');
   },
 
   // ==========================================
@@ -1434,171 +2290,207 @@ const floatingWorkspace = {
 
   // Setup event listeners
   setupEventListeners() {
-    // Right-click on canvas to show radial menu
-    this.canvasOuter?.addEventListener('contextmenu', (e) => {
+    if (!this.canvasOuter) {
+      console.error('canvasOuter not initialized, cannot setup event listeners');
+      return;
+    }
+
+    this.handlers = {};
+
+    this.handlers.canvasContextMenu = (e) => {
       if (e.target.closest('.floating-panel')) return;
       e.preventDefault();
       this.showRadialMenu(e.clientX, e.clientY);
-    });
-    
-    // Close radial menu on click outside
-    document.addEventListener('click', (e) => {
+    };
+    this.canvasOuter.addEventListener('contextmenu', this.handlers.canvasContextMenu);
+
+    this.handlers.documentClick = (e) => {
       if (!e.target.closest('.radial-menu')) {
         this.closeRadialMenu();
       }
-    });
-    
-    // Scroll wheel zoom
-    this.canvasOuter?.addEventListener('wheel', (e) => {
+    };
+    document.addEventListener('click', this.handlers.documentClick);
+
+    this.handlers.canvasWheel = (e) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        
-        // Zoom towards cursor position
+        e.stopPropagation();
+
         const rect = this.canvasOuter.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-        
-        // Convert mouse position to canvas coordinates before zoom
+
         const canvasX = (mouseX - this.panX) / this.zoom;
         const canvasY = (mouseY - this.panY) / this.zoom;
-        
-        // Apply zoom
+
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
         const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom + delta));
-        
-        // Adjust pan to keep cursor position fixed
+
         this.panX = mouseX - canvasX * newZoom;
         this.panY = mouseY - canvasY * newZoom;
         this.zoom = newZoom;
-        
+
         this.applyTransform();
-        document.getElementById('zoomLevel').textContent = `${Math.round(this.zoom * 100)}%`;
+        const zoomLevel = document.getElementById('zoomLevel');
+        if (zoomLevel) zoomLevel.textContent = `${Math.round(this.zoom * 100)}%`;
       } else {
-        // Regular scroll for panning
         this.panX -= e.deltaX;
         this.panY -= e.deltaY;
         this.applyTransform();
       }
-    }, { passive: false });
-    
-    // Middle mouse or Space+click for panning
-    this.canvasOuter?.addEventListener('mousedown', (e) => {
-      // Middle mouse button or space held
-      if (e.button === 1 || this.spaceDown) {
+    };
+    this.canvasOuter.addEventListener('wheel', this.handlers.canvasWheel, { passive: false });
+
+    this.handlers.canvasMouseDown = (e) => {
+      const clickedPanel = e.target.closest('.floating-panel');
+      if (e.button === 1 || (e.button === 0 && this.spaceDown && !clickedPanel)) {
         e.preventDefault();
         this.isPanning = true;
-        // Save starting mouse position and current pan position
         this.panStartMouseX = e.clientX;
         this.panStartMouseY = e.clientY;
         this.panStartPanX = this.panX;
         this.panStartPanY = this.panY;
         this.canvasOuter.style.cursor = 'grabbing';
       }
-    });
+    };
+    this.canvasOuter.addEventListener('mousedown', this.handlers.canvasMouseDown);
 
-    document.addEventListener('mousemove', (e) => {
+    this.handlers.canvasAuxClick = (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+      }
+    };
+    this.canvasOuter.addEventListener('auxclick', this.handlers.canvasAuxClick);
+
+    this.handlers.documentMouseMove = (e) => {
       if (this.isPanning) {
-        // Calculate delta from start position and add to starting pan
         const deltaX = e.clientX - this.panStartMouseX;
         const deltaY = e.clientY - this.panStartMouseY;
         this.panX = this.panStartPanX + deltaX;
         this.panY = this.panStartPanY + deltaY;
         this.applyTransform();
       }
-    });
-    
-    document.addEventListener('mouseup', () => {
+    };
+    document.addEventListener('mousemove', this.handlers.documentMouseMove);
+
+    this.handlers.documentMouseUp = () => {
       if (this.isPanning) {
         this.isPanning = false;
         if (this.canvasOuter) {
           this.canvasOuter.style.cursor = this.spaceDown ? 'grab' : '';
         }
       }
-    });
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Space for pan mode
-      if (e.code === 'Space' && !e.repeat && e.target === document.body) {
-        e.preventDefault();
-        this.spaceDown = true;
-        if (this.canvasOuter) this.canvasOuter.style.cursor = 'grab';
+    };
+    document.addEventListener('mouseup', this.handlers.documentMouseUp);
+
+    this.handlers.documentKeyDown = (e) => {
+      if (!document.body.classList.contains('workspace-mode')) return;
+
+      if (e.code === 'Space' && !e.repeat) {
+        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
+          e.preventDefault();
+          this.spaceDown = true;
+          if (this.canvasOuter) this.canvasOuter.style.cursor = 'grab';
+        }
       }
-      
-      // Escape to close menus
+
       if (e.key === 'Escape') {
         this.closeRadialMenu();
         this.closeCommandPalette();
       }
 
-      // Ctrl/Cmd shortcuts
       if (e.ctrlKey || e.metaKey) {
-        // Zoom
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
+          e.stopPropagation();
           this.zoomIn();
         } else if (e.key === '-') {
           e.preventDefault();
+          e.stopPropagation();
           this.zoomOut();
         } else if (e.key === '0') {
           e.preventDefault();
+          e.stopPropagation();
           this.resetZoom();
-        }
-        // Command palette
-        else if (e.key === 'k' || e.key === 'K') {
+        } else if (e.shiftKey && (e.key === 'p' || e.key === 'P')) {
           e.preventDefault();
+          e.stopPropagation();
           this.showCommandPalette();
-        }
-        // Save layout
-        else if (e.key === 's' || e.key === 'S') {
+        } else if (e.key === 'k' || e.key === 'K') {
           e.preventDefault();
+          e.stopPropagation();
+          this.showCommandPalette();
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          e.stopPropagation();
           this.saveLayout();
           console.log('✅ Layout saved');
-        }
-        // Load preset
-        else if (e.key === 'l' || e.key === 'L') {
+        } else if (e.key === 'l' || e.key === 'L') {
           e.preventDefault();
+          e.stopPropagation();
           this.showPresetsModal();
-        }
-        // Keyboard shortcuts help
-        else if (e.key === '/' || e.key === '?') {
+        } else if (e.key === '/' || e.key === '?') {
           e.preventDefault();
+          e.stopPropagation();
           this.showKeyboardShortcuts();
         }
       }
 
-      // Alt shortcuts
       if (e.altKey) {
-        // Toggle mini-map
         if (e.key === 'm' || e.key === 'M') {
           e.preventDefault();
+          e.stopPropagation();
           this.toggleMiniMap();
         }
       }
 
-      // Toggle snap to grid with G key
       if (e.key === 'g' || e.key === 'G') {
-        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
           this.snapToGrid = !this.snapToGrid;
           console.log(`Snap to grid: ${this.snapToGrid ? 'ON' : 'OFF'}`);
         }
       }
-    });
-    
-    document.addEventListener('keyup', (e) => {
+    };
+    document.addEventListener('keydown', this.handlers.documentKeyDown, true);
+
+    this.handlers.documentKeyUp = (e) => {
       if (e.code === 'Space') {
         this.spaceDown = false;
         if (this.canvasOuter && !this.isPanning) {
           this.canvasOuter.style.cursor = '';
         }
       }
-    });
+    };
+    document.addEventListener('keyup', this.handlers.documentKeyUp, true);
   }
 };
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => floatingWorkspace.init(), 200);
+// Initialize when DOM is ready - with delay to ensure app.js runs first
+window.addEventListener('load', () => {
+  console.log('Window loaded, workspace mode:', document.body.classList.contains('workspace-mode'));
+
+  // Only initialize if workspace mode is active
+  if (document.body.classList.contains('workspace-mode')) {
+    // Small delay to ensure all DOM is fully ready
+    setTimeout(() => {
+      if (!floatingWorkspace.initialized) {
+        console.log('🚀 Starting floating workspace initialization...');
+        try {
+          floatingWorkspace.init();
+          floatingWorkspace.initialized = true;
+          console.log('✅ Workspace initialized successfully');
+        } catch (error) {
+          console.error('❌ Failed to initialize workspace:', error);
+          console.error(error.stack);
+        }
+      } else {
+        console.log('⚠️ Workspace already initialized');
+      }
+    }, 100);
+  } else {
+    console.log('⚠️ Workspace mode not active, skipping initialization');
+  }
 });
 
 // Expose globally

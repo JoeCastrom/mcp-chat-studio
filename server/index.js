@@ -36,6 +36,7 @@ import monitorsRoutes from './routes/monitors.js';
 import mocksRoutes from './routes/mocks.js';
 import scriptsRoutes from './routes/scripts.js';
 import documentationRoutes from './routes/documentation.js';
+import workspacesRoutes from './routes/workspaces.js';
 import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -271,6 +272,7 @@ app.use('/api/monitors', generalLimiter, monitorsRoutes);
 app.use('/api/mocks', generalLimiter, mocksRoutes);
 app.use('/api/scripts', generalLimiter, scriptsRoutes);
 app.use('/api/documentation', generalLimiter, documentationRoutes);
+app.use('/api/workspaces', generalLimiter, workspacesRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 

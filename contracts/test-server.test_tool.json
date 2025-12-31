@@ -3,12 +3,33 @@
   "server": "test-server",
   "version": "1.0.0",
   "createdAt": "2025-12-29T00:49:29.193Z",
-  "updatedAt": "2025-12-29T00:49:29.193Z",
+  "updatedAt": "2025-12-31T12:07:39.570Z",
   "tests": [
     {
       "description": "should return object",
       "path": "result",
       "expected": "string"
     }
-  ]
+  ],
+  "id": "test-server.test_tool",
+  "toolName": "test_tool",
+  "schema": null,
+  "sampleArgs": {},
+  "baselineResponse": null,
+  "breakingChanges": [],
+  "lastValidation": {
+    "timestamp": "2025-12-31T12:07:39.569Z",
+    "duration": 0,
+    "valid": false,
+    "errors": [
+      {
+        "field": "response",
+        "message": "Server not connected: test-server. It may require authentication."
+      }
+    ],
+    "warnings": []
+  },
+  "validationCount": 1,
+  "successCount": 0,
+  "failureCount": 1
 }

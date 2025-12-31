@@ -124,6 +124,9 @@ router.delete('/:id', (req, res) => {
  */
 router.post('/:id/execute', async (req, res) => {
   try {
+    if (!req.params.id || req.params.id === 'null' || req.params.id === 'undefined') {
+      return res.status(400).json({ error: 'Workflow id is required', status: 'error' });
+    }
     const { input, llmConfig } = req.body;
     const engine = getWorkflowEngine();
     
