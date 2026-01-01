@@ -1134,12 +1134,19 @@ const floatingWorkspace = {
     } else {
       this.addPanel(type);
     }
+    if (type !== 'workflows' && typeof closeAIBuilderIfOpen === 'function') {
+      closeAIBuilderIfOpen();
+    }
     this.closePanelPicker();
   },
 
   focusPanel(panelId) {
     const panel = this.panels.find(p => p.id === panelId);
     if (!panel || !this.canvasOuter) return;
+
+    if (panel.type !== 'workflows' && typeof closeAIBuilderIfOpen === 'function') {
+      closeAIBuilderIfOpen();
+    }
 
     const centerX = panel.x + panel.width / 2;
     const centerY = panel.y + panel.height / 2;
