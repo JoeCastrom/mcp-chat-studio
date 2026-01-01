@@ -80,5 +80,57 @@
     "id": "wf_1767196922198",
     "createdAt": "2025-12-31T16:02:02.198Z",
     "updatedAt": "2025-12-31T16:02:02.198Z"
+  },
+  {
+    "name": "",
+    "nodes": [
+      {
+        "id": "trigger_start",
+        "type": "trigger",
+        "position": {
+          "x": 50,
+          "y": 100
+        },
+        "data": {}
+      },
+      {
+        "id": "tool_1",
+        "type": "tool",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "server": "windows",
+          "tool": "Launch-Tool",
+          "args": "{\"app_name\": \"mspaint\"}"
+        }
+      },
+      {
+        "id": "llm_1",
+        "type": "llm",
+        "position": {
+          "x": 650,
+          "y": 100
+        },
+        "data": {
+          "systemPrompt": "Paint opened successfully?",
+          "prompt": "Result: {{tool_1.output}}"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_start",
+        "to": "tool_1"
+      },
+      {
+        "from": "tool_1",
+        "to": "llm_1"
+      }
+    ],
+    "id": "wf_1767243817264",
+    "createdAt": "2026-01-01T05:03:37.264Z",
+    "updatedAt": "2026-01-01T05:03:37.264Z"
   }
 ]

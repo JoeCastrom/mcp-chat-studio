@@ -21,6 +21,7 @@ import yaml from 'js-yaml';
 import { getMCPManager } from './services/MCPManager.js';
 import { createLLMClient } from './services/LLMClient.js';
 import { createOAuthManager, getOAuthManager } from './services/OAuthManager.js';
+import { loadPersistedServers } from './services/MCPConfigStore.js';
 import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
@@ -378,6 +379,19 @@ process.on('SIGTERM', async () => {
 async function start() {
   try {
     const config = loadConfig();
+    const persistedServers = await loadPersistedServers();
+    if (persistedServers && Object.keys(persistedServers).length > 0) {
+      const normalizedPersisted = Object.fromEntries(
+        Object.entries(persistedServers).map(([name, config]) => [
+          name,
+          { ...config, startup: false },
+        ])
+      );
+      config.mcpServers = {
+        ...(config.mcpServers || {}),
+        ...normalizedPersisted,
+      };
+    }
     await initializeServices(config);
 
     app.listen(PORT, () => {

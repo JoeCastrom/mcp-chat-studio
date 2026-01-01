@@ -7,7 +7,8 @@ import axios from 'axios';
 
 export class LLMClient {
   constructor(config) {
-    this.config = config.llm;
+    const normalized = (config && config.llm) ? config.llm : (config || {});
+    this.config = normalized;
     this.provider = this.config.provider || 'ollama'; // Default to Ollama
 
     // Generic API keys (provider-specific take priority)

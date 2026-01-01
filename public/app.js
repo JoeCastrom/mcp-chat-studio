@@ -823,6 +823,62 @@
         notifyUser('Workspace templates are available in Workspace mode.', 'info');
       }
 
+      function openWorkspaceSessions() {
+        if (!document.body.classList.contains('workspace-mode')) {
+          notifyUser('Switch to Workspace mode to manage sessions.', 'info');
+          return;
+        }
+        if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.showSessionsModal === 'function') {
+          floatingWorkspace.showSessionsModal();
+          return;
+        }
+        notifyUser('Workspace sessions are available in Workspace mode.', 'info');
+      }
+
+      function exportWorkspaceBundle() {
+        if (!document.body.classList.contains('workspace-mode')) {
+          notifyUser('Switch to Workspace mode to export a bundle.', 'info');
+          return;
+        }
+        if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.exportWorkspace === 'function') {
+          floatingWorkspace.exportWorkspace();
+          return;
+        }
+        notifyUser('Workspace export is available in Workspace mode.', 'info');
+      }
+
+      function importWorkspaceBundle() {
+        if (!document.body.classList.contains('workspace-mode')) {
+          notifyUser('Switch to Workspace mode to import a bundle.', 'info');
+          return;
+        }
+        if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.importWorkspace === 'function') {
+          floatingWorkspace.importWorkspace();
+          return;
+        }
+        notifyUser('Workspace import is available in Workspace mode.', 'info');
+      }
+
+      function toggleWorkspaceMenu() {
+        const popover = document.getElementById('workspaceMenuPopover');
+        const toggle = document.getElementById('workspaceMenuToggle');
+        if (!popover || !toggle) return;
+        const isOpen = popover.classList.contains('open');
+        if (isOpen) {
+          closeWorkspaceMenu();
+        } else {
+          popover.classList.add('open');
+          toggle.setAttribute('aria-expanded', 'true');
+        }
+      }
+
+      function closeWorkspaceMenu() {
+        const popover = document.getElementById('workspaceMenuPopover');
+        const toggle = document.getElementById('workspaceMenuToggle');
+        if (popover) popover.classList.remove('open');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+
       function maybeShowWorkspaceTemplateHint() {
         if (localStorage.getItem('workspace_templates_hint') === 'shown') return;
         localStorage.setItem('workspace_templates_hint', 'shown');
@@ -911,6 +967,7 @@
         clearEnvVars();
         toggleServerTypeFields();
         updateConfigPreview();
+        loadExistingServerTemplates();
         // Reset title and button for "Add" mode
         document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
         document.getElementById('addServerSubmitBtn').textContent = 'Add Server';
@@ -986,6 +1043,58 @@
         }
       };
 
+      async function loadExistingServerTemplates() {
+        const group = document.getElementById('existingServersGroup');
+        if (!group) return;
+
+        try {
+          Object.keys(serverTemplates)
+            .filter(id => id.startsWith('existing_'))
+            .forEach(id => delete serverTemplates[id]);
+
+          const response = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await response.json();
+          const servers = status.servers || status;
+          const entries = Object.entries(servers || {}).filter(([, info]) => info?.config);
+          const existing = entries
+            .map(([name, info]) => {
+              const config = info.config || {};
+              const type = config.type || (config.command ? 'stdio' : 'sse');
+              if (type === 'mock') return null;
+              return {
+                id: `existing_${name}`,
+                label: `🔁 ${name}`,
+                template: {
+                  name,
+                  type,
+                  command: config.command || '',
+                  args: Array.isArray(config.args) ? config.args.join('\n') : (config.args || ''),
+                  url: config.url || '',
+                  env: config.env,
+                  description: config.description || `Configured MCP server: ${name}`,
+                  envHint: 'Loaded from your configured servers'
+                }
+              };
+            })
+            .filter(Boolean);
+
+          if (existing.length === 0) {
+            group.style.display = 'none';
+            group.innerHTML = '';
+            return;
+          }
+
+          group.style.display = '';
+          group.innerHTML = existing.map(item => {
+            serverTemplates[item.id] = item.template;
+            return `<option value="${item.id}">${escapeHtml(item.label)}</option>`;
+          }).join('');
+        } catch (error) {
+          group.style.display = 'none';
+          group.innerHTML = '';
+        }
+      }
+
       // Apply server template to form
       function applyServerTemplate() {
         const templateId = document.getElementById('serverTemplate').value;
@@ -1009,11 +1118,19 @@
           document.getElementById('serverUrl').value = template.url;
         }
 
+        clearEnvVars();
+        if (template.env && typeof template.env === 'object') {
+          for (const [key, value] of Object.entries(template.env)) {
+            addEnvVarRow(key, String(value));
+          }
+        }
+
         // Update preview
         updateConfigPreview();
 
         // Show hint
-        appendMessage('system', `📦 Applied "${templateId}" template. ${template.envHint}`);
+        const hint = template.envHint ? ` ${template.envHint}` : '';
+        appendMessage('system', `📦 Applied "${templateId}" template.${hint}`);
 
         // Reset dropdown
         document.getElementById('serverTemplate').value = '';
@@ -1027,6 +1144,7 @@
         const name = document.getElementById('serverName').value.trim();
         const type = document.getElementById('serverType').value;
         const description = document.getElementById('serverDescription').value.trim();
+        const env = collectEnvVars();
 
         if (!name) {
           appendMessage('error', 'Enter a server name first to save as template');
@@ -1053,6 +1171,9 @@
           template.args = document.getElementById('serverArgs').value.trim();
         } else if (type === 'sse') {
           template.url = document.getElementById('serverUrl').value.trim();
+        }
+        if (Object.keys(env).length > 0) {
+          template.env = env;
         }
 
         // Load existing custom templates
@@ -1696,6 +1817,7 @@
       // Close modals on Escape key
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
+          closeWorkspaceMenu();
           if (document.getElementById('addServerModal').classList.contains('active')) {
             hideAddServerModal();
           }
@@ -1708,6 +1830,13 @@
           if (document.getElementById('importConfigModal').classList.contains('active')) {
             hideImportConfigModal();
           }
+        }
+      });
+
+      document.addEventListener('click', e => {
+        const menu = document.getElementById('workspaceMenu');
+        if (menu && !menu.contains(e.target)) {
+          closeWorkspaceMenu();
         }
       });
 
@@ -1739,6 +1868,29 @@
       // LAYOUT TOGGLE (Classic Grid vs Floating Workspace)
       // ==========================================
 
+      function updateLayoutSwitch() {
+        const isWorkspace = document.body.classList.contains('workspace-mode');
+        const classicBtn = document.getElementById('layoutClassicBtn');
+        const workspaceBtn = document.getElementById('layoutWorkspaceBtn');
+        if (classicBtn && workspaceBtn) {
+          classicBtn.classList.toggle('active', !isWorkspace);
+          workspaceBtn.classList.toggle('active', isWorkspace);
+          classicBtn.setAttribute('aria-pressed', String(!isWorkspace));
+          workspaceBtn.setAttribute('aria-pressed', String(isWorkspace));
+        }
+      }
+
+      function setLayoutMode(mode) {
+        const isWorkspace = document.body.classList.contains('workspace-mode');
+        if (mode === 'workspace' && !isWorkspace) {
+          toggleLayout();
+        } else if (mode === 'classic' && isWorkspace) {
+          toggleLayout();
+        } else {
+          updateLayoutSwitch();
+        }
+      }
+
       function toggleLayout() {
         const body = document.body;
         const isWorkspaceMode = body.classList.contains('workspace-mode');
@@ -1749,8 +1901,10 @@
           localStorage.setItem('layout', 'classic');
 
           // Update button
-          document.getElementById('layoutIcon').textContent = '📋';
-          document.getElementById('layoutText').textContent = 'Classic';
+          const layoutIcon = document.getElementById('layoutIcon');
+          const layoutText = document.getElementById('layoutText');
+          if (layoutIcon) layoutIcon.textContent = '📋';
+          if (layoutText) layoutText.textContent = 'Classic';
 
           // Cleanup workspace elements
           if (typeof floatingWorkspace !== 'undefined') {
@@ -1809,8 +1963,10 @@
           setWorkflowsActive(false);
 
           // Update button
-          document.getElementById('layoutIcon').textContent = '🎨';
-          document.getElementById('layoutText').textContent = 'Workspace';
+          const layoutIcon = document.getElementById('layoutIcon');
+          const layoutText = document.getElementById('layoutText');
+          if (layoutIcon) layoutIcon.textContent = '🎨';
+          if (layoutText) layoutText.textContent = 'Workspace';
 
           // Initialize floating workspace
           if (typeof floatingWorkspace !== 'undefined') {
@@ -1826,6 +1982,8 @@
           }
           maybeShowWorkspaceTemplateHint();
         }
+        updateLayoutSwitch();
+        closeWorkspaceMenu();
       }
 
       function setWorkflowsActive(isActive) {
@@ -1905,6 +2063,7 @@
           const savedPanel = localStorage.getItem('activeClassicPanel') || 'chatPanel';
           setTimeout(() => switchClassicPanel(savedPanel), 100);
         }
+        updateLayoutSwitch();
       })();
 
       function closeAIBuilderIfOpen() {
@@ -3251,7 +3410,9 @@
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Enter</kbd></td><td>Send message</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Shift+Enter</kbd></td><td>New line</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Escape</kbd></td><td>Cancel / Close modal</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+K</kbd></td><td>Focus tool search</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+K</kbd></td><td>Command palette (Workspace) / Tool search (Classic)</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+P</kbd></td><td>Command palette (Workspace)</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+T</kbd></td><td>Quick tool search (Classic)</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+E</kbd></td><td>Export chat</td></tr>
               <tr><td style="padding: 8px;"><kbd>Ctrl+/</kbd></td><td>Show this help</td></tr>
             </table>

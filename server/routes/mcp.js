@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { getMCPManager } from '../services/MCPManager.js';
 import { getOAuthManager } from '../services/OAuthManager.js';
 import { getToolExplorer } from '../services/ToolExplorer.js';
+import { upsertPersistedServer, removePersistedServer } from '../services/MCPConfigStore.js';
 
 const router = Router();
 
@@ -234,6 +235,11 @@ router.post('/add', async (req, res) => {
     console.log(`[MCP/Add] Adding server "${name}" with config:`, JSON.stringify(config, null, 2));
 
     const serverConfig = mcpManager.addServerConfig(name, config);
+    try {
+      await upsertPersistedServer(name, config);
+    } catch (error) {
+      console.warn('[MCP/Add] Failed to persist server config:', error.message);
+    }
 
     res.json({
       success: true,
@@ -256,6 +262,7 @@ router.put('/update/:serverName', async (req, res) => {
     const { type, command, args, url, env, description, requiresAuth, timeout, mockId } = req.body;
 
     const mcpManager = getMCPManager();
+    const existingConfig = mcpManager.configs.get(serverName);
 
     // Check if server exists
     if (!mcpManager.configs.has(serverName)) {
@@ -293,6 +300,11 @@ router.put('/update/:serverName', async (req, res) => {
     // Remove and re-add (effectively update)
     mcpManager.configs.delete(serverName);
     const serverConfig = mcpManager.addServerConfig(serverName, config);
+    try {
+      await upsertPersistedServer(serverName, config);
+    } catch (error) {
+      console.warn('[MCP/Update] Failed to persist server config:', error.message);
+    }
 
     res.json({
       success: true,
@@ -315,6 +327,11 @@ router.delete('/remove/:serverName', async (req, res) => {
     const mcpManager = getMCPManager();
 
     await mcpManager.removeServerConfig(serverName);
+    try {
+      await removePersistedServer(serverName);
+    } catch (error) {
+      console.warn('[MCP/Remove] Failed to update persisted servers:', error.message);
+    }
 
     res.json({
       success: true,

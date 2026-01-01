@@ -793,7 +793,7 @@ async function runWorkflow() {
   // Fetch current LLM config from API to ensure we use what's in the header/settings
   let llmConfig = {};
   try {
-    const configRes = await fetch('/api/llm/config');
+    const configRes = await fetch('/api/llm/config', { credentials: 'include' });
     llmConfig = await configRes.json();
   } catch (e) {
     console.warn("Using default LLM config");

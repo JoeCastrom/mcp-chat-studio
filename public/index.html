@@ -70,20 +70,70 @@
           <span id="themeIcon">🌙</span>
         </button>
 
-        <!-- Layout Toggle -->
-        <button
-          class="btn layout-toggle"
-          id="layoutToggle"
-          onclick="toggleLayout()"
-          title="Switch between Classic and Workspace layouts"
-          style="font-size: 0.8rem; padding: 4px 12px; background: var(--accent-gradient); color: white; border: none; font-weight: 600;"
-        >
-          <span id="layoutIcon">🎨</span>
-          <span id="layoutText">Workspace</span>
-        </button>
-        <button class="btn" onclick="openWorkspaceTemplates()" title="Workspace templates">
-          🗂️ Templates
-        </button>
+        <!-- Layout Switch -->
+        <div class="layout-switch" role="group" aria-label="Layout mode">
+          <button
+            class="layout-option"
+            id="layoutClassicBtn"
+            aria-pressed="false"
+            onclick="setLayoutMode('classic')"
+          >
+            Classic
+          </button>
+          <button
+            class="layout-option"
+            id="layoutWorkspaceBtn"
+            aria-pressed="true"
+            onclick="setLayoutMode('workspace')"
+          >
+            Workspace
+          </button>
+        </div>
+
+        <!-- Workspace Menu -->
+        <div class="workspace-menu" id="workspaceMenu">
+          <button
+            class="btn workspace-menu-toggle"
+            id="workspaceMenuToggle"
+            onclick="toggleWorkspaceMenu()"
+            title="Workspace tools"
+            aria-expanded="false"
+            aria-haspopup="true"
+          >
+            🧭 Workspace
+            <span class="workspace-menu-chevron">▾</span>
+          </button>
+          <div class="workspace-menu-popover" id="workspaceMenuPopover" role="menu">
+            <button class="workspace-menu-item" onclick="openWorkspaceTemplates()">
+              <span class="menu-icon">🗂️</span>
+              <span class="menu-content">
+                <span class="menu-title">Templates</span>
+                <span class="menu-hint">Saved layouts</span>
+              </span>
+            </button>
+            <button class="workspace-menu-item" onclick="openWorkspaceSessions()">
+              <span class="menu-icon">💾</span>
+              <span class="menu-content">
+                <span class="menu-title">Sessions</span>
+                <span class="menu-hint">Save & load states</span>
+              </span>
+            </button>
+            <button class="workspace-menu-item" onclick="exportWorkspaceBundle()">
+              <span class="menu-icon">📤</span>
+              <span class="menu-content">
+                <span class="menu-title">Export Bundle</span>
+                <span class="menu-hint">JSON workspace</span>
+              </span>
+            </button>
+            <button class="workspace-menu-item" onclick="importWorkspaceBundle()">
+              <span class="menu-icon">📥</span>
+              <span class="menu-content">
+                <span class="menu-title">Import Bundle</span>
+                <span class="menu-hint">Load JSON</span>
+              </span>
+            </button>
+          </div>
+        </div>
 
         <div id="userSection"></div>
         <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
@@ -1970,6 +2020,11 @@
               <optgroup label="SSE Examples">
                 <option value="sse-example">🌐 SSE Server (example URL)</option>
               </optgroup>
+              <optgroup
+                id="existingServersGroup"
+                label="Configured Servers"
+                style="display: none"
+              ></optgroup>
               <optgroup
                 id="customTemplatesGroup"
                 label="📌 My Templates"
