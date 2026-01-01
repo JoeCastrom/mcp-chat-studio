@@ -111,7 +111,8 @@ export class WorkflowEngine {
     const context = {
       input: inputData,
       steps: {}, // Store outputs of each node
-      logs: []
+      logs: [],
+      lastNodeId: null
     };
 
     const executionLog = [];
@@ -176,6 +177,7 @@ export class WorkflowEngine {
         const result = await this.executeNode(node, context, llmClient);
         results[node.id] = result;
         context.steps[node.id] = result;
+        context.lastNodeId = node.id;
         
         executionLog.push({
           nodeId: node.id,
@@ -238,6 +240,20 @@ export class WorkflowEngine {
         }
         if (typeof args !== 'object' || Array.isArray(args)) {
           throw new Error('Tool args must be a JSON object');
+        }
+        let toolDef = null;
+        try {
+          const { tools } = await this.mcpManager.listTools(data.server);
+          toolDef = (tools || []).find(tool => tool.name === data.tool) || null;
+        } catch (error) {
+          toolDef = null;
+        }
+        const required = toolDef?.inputSchema?.required || [];
+        if (required.length > 0) {
+          const missing = required.filter(key => !(key in args));
+          if (missing.length > 0) {
+            throw new Error(`Missing required args: ${missing.join(', ')}`);
+          }
         }
         return await this.mcpManager.callTool(data.server, data.tool, args);
 
@@ -349,6 +365,11 @@ export class WorkflowEngine {
         if (parts[0] === 'input') {
           current = context.input;
           parts.shift();
+        } else if (parts[0] === 'prev') {
+          const prevId = context.lastNodeId;
+          if (!prevId) return match;
+          parts.shift();
+          current = context.steps[prevId];
         } else {
           // Handle node ID root
           const nodeId = parts.shift();

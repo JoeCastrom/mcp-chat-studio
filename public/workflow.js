@@ -582,12 +582,21 @@ function addNode(type) {
   // Center roughly in current view (could use scroll position)
   const x = 50 + (workflowState.nodes.length * 20);
   const y = 50 + (workflowState.nodes.length * 20);
-  
+  const data = {};
+  if (type === 'llm') {
+    data.systemPrompt = 'Analyze the tool output and summarize the result.';
+    data.prompt = 'Result: {{prev.output}}';
+  } else if (type === 'javascript') {
+    data.code = '// return input;';
+  } else if (type === 'assert') {
+    data.condition = 'contains';
+  }
+
   const node = {
     id,
     type,
     position: { x, y },
-    data: {}
+    data
   };
   
   workflowState.nodes.push(node);
@@ -969,6 +978,29 @@ function buildArgsTemplate(schema) {
   return result;
 }
 
+function summarizeToolSchema(schema) {
+  if (!schema || typeof schema !== 'object') return '';
+  const properties = schema.properties || {};
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  const propEntries = Object.entries(properties);
+  if (propEntries.length === 0) {
+    return required.length > 0 ? `required: ${required.join(', ')}` : '';
+  }
+
+  const fields = propEntries.map(([key, prop]) => {
+    const type = prop?.type || (Array.isArray(prop?.enum) ? 'enum' : 'any');
+    const enumHint = Array.isArray(prop?.enum)
+      ? ` enum(${prop.enum.slice(0, 3).join('|')}${prop.enum.length > 3 ? '…' : ''})`
+      : '';
+    return `${key}:${type}${enumHint}`;
+  });
+
+  const trimmed = fields.slice(0, 8);
+  const suffix = fields.length > trimmed.length ? '…' : '';
+  const requiredLabel = required.length > 0 ? `required: ${required.join(', ')}` : 'required: none';
+  return `${requiredLabel}; fields: ${trimmed.join(', ')}${suffix}`;
+}
+
 function defaultValueForSchema(prop) {
   if (prop.default !== undefined) return prop.default;
   switch (prop.type) {
@@ -1291,21 +1323,33 @@ async function generateWorkflow() {
   
   try {
     // 1. Fetch available tools to give context to the LLM
-    const toolsRes = await fetch('/api/mcp/tools');
+    const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
     const toolsData = await toolsRes.json();
     
     // Format tools with clear server and tool separation
     const toolsByServer = {};
     toolsData.tools.forEach(t => {
       if (!toolsByServer[t.serverName]) toolsByServer[t.serverName] = [];
-      toolsByServer[t.serverName].push({ name: t.name, description: t.description || 'No description' });
+      toolsByServer[t.serverName].push({
+        name: t.name,
+        description: t.description || 'No description',
+        inputSchema: t.inputSchema || null
+      });
     });
-    
+
+    for (const [serverName, tools] of Object.entries(toolsByServer)) {
+      toolSchemaCache[serverName] = tools;
+    }
+
     let toolList = '';
     for (const [serverName, tools] of Object.entries(toolsByServer)) {
       toolList += `\nServer: "${serverName}"\n`;
       tools.forEach(t => {
+        const schemaSummary = summarizeToolSchema(t.inputSchema);
         toolList += `  - Tool: "${t.name}" - ${t.description}\n`;
+        if (schemaSummary) {
+          toolList += `    args: ${schemaSummary}\n`;
+        }
       });
     }
     
