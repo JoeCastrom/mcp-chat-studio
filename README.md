@@ -3,7 +3,7 @@
 **The Ultimate Testing Platform for MCP Servers**
 
 Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI and a powerful Workspace mode.  
-**Record scenarios** • **Workspace canvas** • **Compare LLM responses** • **Generate mock servers** • **Zero config with Ollama**
+**Record scenarios** • **Workspace canvas** • **Workflow export (Python + Node)** • **Mock servers** • **Docs generator** • **Zero config with Ollama**
 
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square)
@@ -89,6 +89,12 @@ Generate workflows from a natural-language goal:
 - **One-click generate** - Creates a workflow you can edit and run
 - **Works with Workspace and Classic modes**
 
+### 📦 Workflow Export
+Turn visual flows into runnable scripts:
+- **Python (mcp SDK)** and **Node.js (mcp SDK)**
+- **Tool calls + variable substitution** baked in
+- **Shareable** automation for CI or docs
+
 ### 🔍 Advanced Inspector
 Three powerful new testing tools:
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
@@ -109,6 +115,18 @@ Real-time usage statistics and performance metrics:
 - **Error monitoring** - Recent errors per tool
 - **Leaderboards** - Most-used tools across servers
 - **Health dashboard** - System-wide health overview
+
+### 📚 Documentation Generator
+Publish MCP server docs in seconds:
+- **Markdown / HTML / JSON**
+- **Tools + schemas + examples**
+- **Shareable docs bundle**
+
+### ⏱️ Monitors & Performance
+Keep an eye on quality and latency:
+- **Scheduled monitors** with pass/fail history
+- **Performance tab** with p50/p95/p99 and trends
+- **Health check dashboards**
 
 ### 🧭 Workspace Mode
 Build your own testing cockpit with floating panels:
@@ -149,6 +167,8 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
+- **📦 Workflow Export** - Generate Python or Node.js scripts from workflows
+- **📚 Docs Generator** - Publish MCP documentation in one click
 - **🔍 Custom Assertions** - 14 operators with JSONPath support
 - **🔍 Low-Level Debugging** - Inspector tab for raw MCP protocol inspection
 - **🐳 Production Ready** - Docker support, CI/CD, security-hardened

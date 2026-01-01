@@ -40,6 +40,12 @@ logs/
 # Config with secrets (keep example)
 config.yaml
 
+# Local runtime data (optional)
+data/*.local.json
+data/*.tmp
+data/*.bak
+workflows.local.json
+
 # Certificates and keys
 certs/
 *.pem
