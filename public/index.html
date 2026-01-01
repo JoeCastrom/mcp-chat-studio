@@ -585,6 +585,7 @@
                 <h3>🧪 Variables</h3>
                 <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px">
                   Use <code>{{var}}</code> or <code>{{env.key}}</code> in inputs or raw JSON.
+                  Inspector variables override global + environment variables.
                 </p>
                 <textarea
                   id="inspectorVariablesInput"
@@ -597,9 +598,10 @@
                   id="inspectorVariablesStatus"
                   style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px"
                 ></div>
-                <div style="margin-top: 8px; display: flex; gap: 8px">
+                <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap">
                   <button class="btn" onclick="saveInspectorVariables()">💾 Save</button>
                   <button class="btn" onclick="clearInspectorVariables()">🗑️ Clear</button>
+                  <button class="btn" onclick="showVariablesManager()">🧩 Global / Env</button>
                 </div>
               </div>
 

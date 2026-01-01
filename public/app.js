@@ -7106,14 +7106,13 @@ main().catch(console.error);
           // Disconnect current servers first
           const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
           const currentStatus = await statusRes.json();
+          const currentServers = currentStatus.servers || currentStatus;
           
-          for (const serverName of Object.keys(currentStatus.servers || {})) {
+          for (const serverName of Object.keys(currentServers || {})) {
             try {
-              await fetch('/api/mcp/disconnect', {
+              await fetch(`/api/mcp/disconnect/${encodeURIComponent(serverName)}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ name: serverName })
+                credentials: 'include'
               });
             } catch (e) {
               console.warn(`Failed to disconnect ${serverName}`);
@@ -7124,11 +7123,9 @@ main().catch(console.error);
           let connected = 0;
           for (const server of profile.servers) {
             try {
-              const res = await fetch('/api/mcp/connect', {
+              const res = await fetch(`/api/mcp/connect/${encodeURIComponent(server.name)}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ name: server.name })
+                credentials: 'include'
               });
               if (res.ok) connected++;
             } catch (e) {
@@ -7153,13 +7150,15 @@ main().catch(console.error);
         try {
           const res = await fetch('/api/mcp/status', { credentials: 'include' });
           const data = await res.json();
+          const serversData = data.servers || data;
           
           const servers = [];
-          for (const [name, info] of Object.entries(data.servers || {})) {
+          for (const [name, info] of Object.entries(serversData || {})) {
             servers.push({
               name,
               status: info.status,
-              // Could save more config here like command, args, env if we expose it
+              connected: info.connected,
+              config: info.config || null
             });
           }
           
