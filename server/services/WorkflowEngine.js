@@ -220,7 +220,26 @@ export class WorkflowEngine {
 
       case 'tool':
         if (!data.server || !data.tool) throw new Error('Tool node missing server or tool selection');
-        return await this.mcpManager.callTool(data.server, data.tool, data.args || {});
+        let args = data.args;
+        if (typeof args === 'string') {
+          const trimmed = args.trim();
+          if (trimmed.length === 0) {
+            args = {};
+          } else {
+            try {
+              args = JSON.parse(trimmed);
+            } catch (error) {
+              throw new Error(`Tool args must be valid JSON: ${error.message}`);
+            }
+          }
+        }
+        if (args === undefined || args === null) {
+          args = {};
+        }
+        if (typeof args !== 'object' || Array.isArray(args)) {
+          throw new Error('Tool args must be a JSON object');
+        }
+        return await this.mcpManager.callTool(data.server, data.tool, args);
 
       case 'llm':
         if (!data.prompt) throw new Error('LLM node missing prompt');
@@ -230,12 +249,16 @@ export class WorkflowEngine {
           // For now, assume one is passed or throw
           throw new Error('LLM execution requires LLM configuration');
         }
-        
-        const response = await llmClient.chat({
-          messages: [{ role: 'user', content: data.prompt }],
-          system: data.systemPrompt
-        });
-        return response.content;
+
+        const messages = [];
+        if (data.systemPrompt) {
+          messages.push({ role: 'system', content: data.systemPrompt });
+        }
+        messages.push({ role: 'user', content: data.prompt });
+
+        const response = await llmClient.chat(messages, {});
+        const content = response?.choices?.[0]?.message?.content;
+        return content !== undefined ? content : response;
 
       case 'javascript':
         // Execute JavaScript in sandboxed VM2 environment

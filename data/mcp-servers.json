@@ -1,1 +1,16 @@
-{}
+{
+  "windows": {
+    "type": "stdio",
+    "description": "Dynamic MCP server: windows",
+    "requiresAuth": false,
+    "timeout": 60000,
+    "startup": false,
+    "command": "uv",
+    "args": [
+      "--directory",
+      "D:/tools/ALY-Windows-MCP",
+      "run",
+      "main.py"
+    ]
+  }
+}

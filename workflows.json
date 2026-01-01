@@ -3,88 +3,6 @@
     "name": "",
     "nodes": [
       {
-        "id": "tool_1767187752439",
-        "type": "tool",
-        "position": {
-          "x": 50,
-          "y": 50
-        },
-        "data": {}
-      },
-      {
-        "id": "llm_1767187752671",
-        "type": "llm",
-        "position": {
-          "x": 70,
-          "y": 70
-        },
-        "data": {}
-      }
-    ],
-    "edges": [],
-    "id": "wf_1767187753911",
-    "createdAt": "2025-12-31T13:29:13.911Z",
-    "updatedAt": "2025-12-31T13:29:13.911Z"
-  },
-  {
-    "name": "",
-    "nodes": [],
-    "edges": [],
-    "id": "wf_1767189589043",
-    "createdAt": "2025-12-31T13:59:49.043Z",
-    "updatedAt": "2025-12-31T13:59:49.043Z"
-  },
-  {
-    "name": "New WorkflTest Workflow QAow",
-    "nodes": [
-      {
-        "id": "start",
-        "type": "trigger",
-        "position": {
-          "x": 50,
-          "y": 50
-        },
-        "data": {}
-      },
-      {
-        "id": "javascript_1767196569691",
-        "type": "javascript",
-        "position": {
-          "x": 70,
-          "y": 70
-        },
-        "data": {
-          "code": "return { val: 42 };"
-        }
-      }
-    ],
-    "edges": [],
-    "id": "wf_1767196507699",
-    "createdAt": "2025-12-31T15:55:07.699Z",
-    "updatedAt": "2025-12-31T15:56:36.452Z"
-  },
-  {
-    "name": "New Workflow",
-    "nodes": [
-      {
-        "id": "start",
-        "type": "trigger",
-        "position": {
-          "x": 50,
-          "y": 50
-        },
-        "data": {}
-      }
-    ],
-    "edges": [],
-    "id": "wf_1767196922198",
-    "createdAt": "2025-12-31T16:02:02.198Z",
-    "updatedAt": "2025-12-31T16:02:02.198Z"
-  },
-  {
-    "name": "",
-    "nodes": [
-      {
         "id": "trigger_start",
         "type": "trigger",
         "position": {
@@ -103,19 +21,7 @@
         "data": {
           "server": "windows",
           "tool": "Launch-Tool",
-          "args": "{\"app_name\": \"mspaint\"}"
-        }
-      },
-      {
-        "id": "llm_1",
-        "type": "llm",
-        "position": {
-          "x": 650,
-          "y": 100
-        },
-        "data": {
-          "systemPrompt": "Paint opened successfully?",
-          "prompt": "Result: {{tool_1.output}}"
+          "args": "{\"name\": \"paint.exe\"}"
         }
       }
     ],
@@ -123,14 +29,10 @@
       {
         "from": "trigger_start",
         "to": "tool_1"
-      },
-      {
-        "from": "tool_1",
-        "to": "llm_1"
       }
     ],
-    "id": "wf_1767243817264",
-    "createdAt": "2026-01-01T05:03:37.264Z",
-    "updatedAt": "2026-01-01T05:03:37.264Z"
+    "id": "wf_1767277771196",
+    "createdAt": "2026-01-01T14:29:31.196Z",
+    "updatedAt": "2026-01-01T14:29:31.196Z"
   }
 ]

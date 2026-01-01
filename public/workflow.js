@@ -15,6 +15,8 @@ const workflowState = {
   tempMousePos: { x: 0, y: 0 }
 };
 
+const toolSchemaCache = {};
+
 // Custom toast notification that matches app styling
 function showToast(message, type = 'success') {
   // Remove any existing toasts
@@ -365,15 +367,15 @@ function createNodeElement(node) {
         </div>
         <div>
           <label>Tool</label>
-          <select class="form-select node-tool-select" id="tool_select_${node.id}" onmousedown="event.stopPropagation()" onfocus="refreshToolSelect('${node.id}')" onchange="updateNodeData('${node.id}', 'tool', this.value)">
+          <select class="form-select node-tool-select" id="tool_select_${node.id}" onmousedown="event.stopPropagation()" onfocus="refreshToolSelect('${node.id}')" onchange="handleToolSelection('${node.id}', this.value)">
             <option value="">Select Server First</option>
           </select>
         </div>
         <div>
           <label>Arguments (JSON)</label>
           <textarea class="form-input" placeholder='{"arg": "{{prev.output}}"}' 
-            onchange="updateNodeData('${node.id}', 'args', this.value)"
-            style="height: 60px;">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : (node.data.args || '')}</textarea>
+            oninput="updateNodeData('${node.id}', 'args', this.value)"
+            style="height: 60px;" id="args_input_${node.id}">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : (node.data.args || '')}</textarea>
         </div>
       </div>
     `;
@@ -391,10 +393,10 @@ function createNodeElement(node) {
            </select>
         </div>
         <textarea class="form-input" id="prompt_text_${node.id}" placeholder="System Prompt / Instructions..."
-          onchange="updateNodeData('${node.id}', 'systemPrompt', this.value)"
+          oninput="updateNodeData('${node.id}', 'systemPrompt', this.value)"
           style="height: 50px;">${node.data.systemPrompt || ''}</textarea>
         <textarea class="form-input" placeholder="User Message... (use {{tool_id.output}})" 
-          onchange="updateNodeData('${node.id}', 'prompt', this.value)"
+          oninput="updateNodeData('${node.id}', 'prompt', this.value)"
           style="height: 80px;">${node.data.prompt || ''}</textarea>
       </div>
     `;
@@ -405,7 +407,7 @@ function createNodeElement(node) {
           Available: <code>input</code>, <code>context.steps</code>
         </div>
         <textarea class="form-input" placeholder="// return input.value + 1;"
-          onchange="updateNodeData('${node.id}', 'code', this.value)"
+          oninput="updateNodeData('${node.id}', 'code', this.value)"
           style="height: 100px;">${node.data.code || ''}</textarea>
       </div>
     `;
@@ -426,7 +428,7 @@ function createNodeElement(node) {
           <label style="font-size: 0.7rem;">Expected Value</label>
           <input class="form-input" type="text" placeholder="success" 
             value="${node.data.expected || ''}"
-            onchange="updateNodeData('${node.id}', 'expected', this.value)">
+            oninput="updateNodeData('${node.id}', 'expected', this.value)">
         </div>
         <div style="font-size: 0.7rem; color: var(--text-muted); padding: 6px; background: rgba(0,0,0,0.1); border-radius: 4px;">
           Tests: <code>{{prev.output}}</code>
@@ -922,6 +924,7 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
     const res = await fetch('/api/mcp/tools');
     const data = await res.json();
     const tools = data.tools.filter(t => t.serverName === serverName);
+    toolSchemaCache[serverName] = tools;
     
     const select = document.getElementById(`tool_select_${nodeId}`);
     if (select) {
@@ -930,6 +933,58 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
     }
   } catch (e) {
     console.error('Failed to load tools for node', e);
+  }
+}
+
+function handleToolSelection(nodeId, toolName) {
+  updateNodeData(nodeId, 'tool', toolName);
+  const node = workflowState.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  const existingArgs = node.data?.args;
+  if (existingArgs && String(existingArgs).trim().length > 0) return;
+  if (!node.data?.server || !toolName) return;
+
+  const tools = toolSchemaCache[node.data.server] || [];
+  const tool = tools.find(t => t.name === toolName);
+  const template = buildArgsTemplate(tool?.inputSchema);
+  if (!template || Object.keys(template).length === 0) return;
+
+  const json = JSON.stringify(template, null, 2);
+  node.data.args = json;
+  const textarea = document.getElementById(`args_input_${nodeId}`);
+  if (textarea) textarea.value = json;
+}
+
+function buildArgsTemplate(schema) {
+  if (!schema || typeof schema !== 'object') return {};
+  const properties = schema.properties || {};
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  const keys = required.length > 0 ? required : Object.keys(properties);
+  if (keys.length === 0) return {};
+  const result = {};
+  keys.forEach(key => {
+    const prop = properties[key] || {};
+    result[key] = defaultValueForSchema(prop);
+  });
+  return result;
+}
+
+function defaultValueForSchema(prop) {
+  if (prop.default !== undefined) return prop.default;
+  switch (prop.type) {
+    case 'string':
+      return '';
+    case 'number':
+    case 'integer':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'array':
+      return [];
+    case 'object':
+      return {};
+    default:
+      return null;
   }
 }
 

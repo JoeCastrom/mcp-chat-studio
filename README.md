@@ -11,7 +11,13 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 [![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
 
-![Demo](docs/gif/showcase.gif)
+## 🎬 Showcase
+
+![Main Showcase](docs/gif/showcase.gif)
+
+| Workspace Canvas | AI Workflow Builder | Documentation Generator |
+| --- | --- | --- |
+| ![Workspace Showcase](docs/gif/showcase-workspaces.gif) | ![AI Builder Showcase](docs/gif/showcase-workflow-ai-builder.gif) | ![Docs Generator Showcase](docs/gif/showcase-docs-generator.gif) |
 
 > **📌 Local MCP Test Bench** - Designed for development. Not intended for internet exposure.
 
