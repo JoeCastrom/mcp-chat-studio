@@ -118,8 +118,9 @@ const onboardingTour = {
         content: `
           <p><strong>Keyboard shortcuts</strong> for power users:</p>
           <div style="margin-top: 12px; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: 0.85rem;">
-            <kbd>Ctrl+1-9</kbd><span>Switch tabs</span>
-            <kbd>Ctrl+K</kbd><span>Search tools</span>
+            <kbd>Ctrl+1-9</kbd><span>Switch tabs (Classic)</span>
+            <kbd>Ctrl+K</kbd><span>Command palette (Workspace)</span>
+            <kbd>Ctrl+Shift+P</kbd><span>Command palette (Workspace)</span>
             <kbd>Ctrl+/</kbd><span>Show all shortcuts</span>
             <kbd>Escape</kbd><span>Cancel / Close</span>
           </div>

@@ -1357,20 +1357,21 @@ const floatingWorkspace = {
             <h3 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--accent)">Navigation</h3>
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem">
               <div><kbd>Space + Drag</kbd> Pan canvas</div>
-              <div><kbd>Ctrl + Scroll</kbd> Zoom in/out</div>
+              <div><kbd>Ctrl + Scroll</kbd> / <kbd>Ctrl + +</kbd> / <kbd>Ctrl + -</kbd> Zoom</div>
               <div><kbd>Ctrl + 0</kbd> Reset zoom</div>
               <div><kbd>Ctrl + K</kbd> / <kbd>Ctrl + Shift + P</kbd> Command palette</div>
+              <div><kbd>Right Click</kbd> Add panel menu</div>
               <div><kbd>Escape</kbd> Close menus</div>
             </div>
           </div>
           <div>
-            <h3 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--accent)">Panels</h3>
+            <h3 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--accent)">Workspace</h3>
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem">
-              <div><kbd>G</kbd> Toggle grid snap</div>
-              <div><kbd>Right Click</kbd> Add panel menu</div>
               <div><kbd>Ctrl + S</kbd> Save layout</div>
-              <div><kbd>Ctrl + L</kbd> Load preset</div>
+              <div><kbd>Ctrl + L</kbd> Layout presets</div>
               <div><kbd>Alt + M</kbd> Toggle mini-map</div>
+              <div><kbd>G</kbd> Toggle grid snap</div>
+              <div><kbd>Ctrl + /</kbd> Show shortcuts</div>
             </div>
           </div>
         </div>

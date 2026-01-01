@@ -3413,7 +3413,12 @@
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+K</kbd></td><td>Command palette (Workspace) / Tool search (Classic)</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+P</kbd></td><td>Command palette (Workspace)</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+T</kbd></td><td>Quick tool search (Classic)</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+R</kbd></td><td>Refresh all servers</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>F5</kbd></td><td>Re-run last tool</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+E</kbd></td><td>Export chat</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+1-9</kbd></td><td>Switch tabs (Classic)</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+0</kbd></td><td>Open Mocks tab</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Alt+1-3</kbd></td><td>Open Scripts / Docs / Contracts</td></tr>
               <tr><td style="padding: 8px;"><kbd>Ctrl+/</kbd></td><td>Show this help</td></tr>
             </table>
           </div>

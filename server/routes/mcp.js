@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { getMCPManager } from '../services/MCPManager.js';
 import { getOAuthManager } from '../services/OAuthManager.js';
 import { getToolExplorer } from '../services/ToolExplorer.js';
-import { upsertPersistedServer, removePersistedServer } from '../services/MCPConfigStore.js';
+import { loadPersistedServers, upsertPersistedServer, removePersistedServer } from '../services/MCPConfigStore.js';
 
 const router = Router();
 
@@ -36,11 +36,27 @@ function getSessionId(req) {
  *                 servers:
  *                   type: object
  */
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
     const sessionId = getSessionId(req);
     const mcpManager = getMCPManager();
-    const status = mcpManager.getStatus(sessionId);
+    let status = mcpManager.getStatus(sessionId);
+
+    const persistedServers = await loadPersistedServers();
+    const persistedEntries = Object.entries(persistedServers || {});
+    if (persistedEntries.length > 0) {
+      let added = false;
+      for (const [name, config] of persistedEntries) {
+        if (!mcpManager.configs.has(name)) {
+          mcpManager.addServerConfig(name, { ...config, startup: false });
+          added = true;
+        }
+      }
+      if (added) {
+        status = mcpManager.getStatus(sessionId);
+      }
+    }
+
     res.json(status);
   } catch (error) {
     console.error('[MCP/Status] Error:', error.message);
