@@ -27,124 +27,123 @@
         <span class="logo-badge">Studio</span>
       </div>
       <div class="header-actions">
-        <!-- Model Badge -->
-        <div
-          id="modelBadge"
-          class="model-badge"
-          onclick="showSettingsModal()"
-          title="Click to change LLM settings"
-        >
-          <span id="modelProvider">🦙</span>
-          <span id="modelName">llama3.1:8b</span>
-        </div>
-
-        <!-- Token Usage Badge -->
-        <div
-          id="tokenBadge"
-          class="model-badge"
-          onclick="showTokenUsage()"
-          title="Token usage this session (click for details)"
-          style="font-size: 0.7rem; padding: 4px 8px"
-        >
-          <span>📊</span>
-          <span id="tokenCount">0 tokens</span>
-        </div>
-
-        <!-- Branches Button -->
-        <button
-          class="btn"
-          onclick="showBranchesModal()"
-          title="Manage conversation branches"
-          style="font-size: 0.7rem; padding: 4px 8px"
-        >
-          🌿 Branches
-        </button>
-
-        <!-- Theme Toggle -->
-        <button
-          class="btn theme-toggle"
-          id="themeToggle"
-          onclick="toggleTheme()"
-          title="Toggle light/dark theme"
-        >
-          <span id="themeIcon">🌙</span>
-        </button>
-
-        <!-- Layout Switch -->
-        <div class="layout-switch" role="group" aria-label="Layout mode">
-          <button
-            class="layout-option"
-            id="layoutClassicBtn"
-            aria-pressed="false"
-            onclick="setLayoutMode('classic')"
+        <div class="header-cluster">
+          <!-- Model Badge -->
+          <div
+            id="modelBadge"
+            class="model-badge"
+            onclick="showSettingsModal()"
+            title="Click to change LLM settings"
           >
-            Classic
-          </button>
-          <button
-            class="layout-option"
-            id="layoutWorkspaceBtn"
-            aria-pressed="true"
-            onclick="setLayoutMode('workspace')"
+            <span id="modelProvider">🦙</span>
+            <span id="modelName">llama3.1:8b</span>
+          </div>
+
+          <!-- Token Usage Badge -->
+          <div
+            id="tokenBadge"
+            class="model-badge"
+            onclick="showTokenUsage()"
+            title="Token usage this session (click for details)"
+            style="font-size: 0.7rem; padding: 4px 8px"
           >
-            Workspace
+            <span>📊</span>
+            <span id="tokenCount">0 tokens</span>
+          </div>
+
+          <!-- Branches Button -->
+          <button
+            class="btn"
+            onclick="showBranchesModal()"
+            title="Manage conversation branches"
+            style="font-size: 0.7rem; padding: 4px 8px"
+          >
+            🌿 Branches
           </button>
         </div>
 
-        <!-- Workspace Menu -->
-        <div class="workspace-menu" id="workspaceMenu">
-          <button
-            class="btn workspace-menu-toggle"
-            id="workspaceMenuToggle"
-            onclick="toggleWorkspaceMenu()"
-            title="Workspace tools"
-            aria-expanded="false"
-            aria-haspopup="true"
-          >
-            🧭 Workspace
-            <span class="workspace-menu-chevron">▾</span>
-          </button>
-          <div class="workspace-menu-popover" id="workspaceMenuPopover" role="menu">
-            <button class="workspace-menu-item" onclick="openWorkspaceTemplates()">
-              <span class="menu-icon">🗂️</span>
-              <span class="menu-content">
-                <span class="menu-title">Templates</span>
-                <span class="menu-hint">Saved layouts</span>
-              </span>
+        <div class="header-cluster header-cluster--layout">
+          <!-- Layout Switch -->
+          <div class="layout-switch" role="group" aria-label="Layout mode">
+            <button
+              class="layout-option"
+              id="layoutClassicBtn"
+              aria-pressed="false"
+              onclick="setLayoutMode('classic')"
+            >
+              Classic
             </button>
-            <button class="workspace-menu-item" onclick="openWorkspaceSessions()">
-              <span class="menu-icon">💾</span>
-              <span class="menu-content">
-                <span class="menu-title">Sessions</span>
-                <span class="menu-hint">Save & load states</span>
-              </span>
+            <button
+              class="layout-option"
+              id="layoutWorkspaceBtn"
+              aria-pressed="true"
+              onclick="setLayoutMode('workspace')"
+            >
+              Workspace
             </button>
-            <button class="workspace-menu-item" onclick="exportWorkspaceBundle()">
-              <span class="menu-icon">📤</span>
-              <span class="menu-content">
-                <span class="menu-title">Export Bundle</span>
-                <span class="menu-hint">JSON workspace</span>
-              </span>
+          </div>
+
+          <!-- Workspace Menu -->
+          <div class="workspace-menu" id="workspaceMenu">
+            <button
+              class="btn workspace-menu-toggle"
+              id="workspaceMenuToggle"
+              onclick="toggleWorkspaceMenu()"
+              title="Workspace actions"
+              aria-expanded="false"
+              aria-haspopup="true"
+            >
+              🧭 Actions
+              <span class="workspace-menu-chevron">▾</span>
             </button>
-            <button class="workspace-menu-item" onclick="importWorkspaceBundle()">
-              <span class="menu-icon">📥</span>
-              <span class="menu-content">
-                <span class="menu-title">Import Bundle</span>
-                <span class="menu-hint">Load JSON</span>
-              </span>
-            </button>
+            <div class="workspace-menu-popover" id="workspaceMenuPopover" role="menu">
+              <button class="workspace-menu-item" onclick="openWorkspaceTemplates()">
+                <span class="menu-icon">🗂️</span>
+                <span class="menu-content">
+                  <span class="menu-title">Templates</span>
+                  <span class="menu-hint">Saved layouts</span>
+                </span>
+              </button>
+              <button class="workspace-menu-item" onclick="openWorkspaceSessions()">
+                <span class="menu-icon">💾</span>
+                <span class="menu-content">
+                  <span class="menu-title">Sessions</span>
+                  <span class="menu-hint">Save & load states</span>
+                </span>
+              </button>
+              <button class="workspace-menu-item" onclick="exportWorkspaceBundle()">
+                <span class="menu-icon">📤</span>
+                <span class="menu-content">
+                  <span class="menu-title">Export Bundle</span>
+                  <span class="menu-hint">JSON workspace</span>
+                </span>
+              </button>
+              <button class="workspace-menu-item" onclick="importWorkspaceBundle()">
+                <span class="menu-icon">📥</span>
+                <span class="menu-content">
+                  <span class="menu-title">Import Bundle</span>
+                  <span class="menu-hint">Load JSON</span>
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div id="userSection"></div>
-        <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
-        <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)" aria-label="Show keyboard shortcuts">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          ?
-        </button>
+        <div class="header-cluster">
+          <div id="userSection"></div>
+          <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
+          <button class="btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+            <span id="themeIcon">🌙</span>
+          </button>
+          <button class="btn" onclick="showShortcutsHelp()" title="Keyboard Shortcuts (Ctrl+/)" aria-label="Show keyboard shortcuts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            ?
+          </button>
+        </div>
       </div>
     </header>
 
@@ -255,6 +254,16 @@
             <option value="staging">🧪 Staging</option>
             <option value="production">🚀 Production</option>
           </select>
+          <div style="display: flex; gap: var(--spacing-xs); margin-top: 6px">
+            <button
+              class="btn"
+              onclick="showVariablesManager()"
+              title="Manage global and environment variables"
+              style="width: 100%; font-size: 0.7rem; padding: 4px 8px"
+            >
+              🧩 Variables
+            </button>
+          </div>
         </div>
 
         <!-- Tool Search -->

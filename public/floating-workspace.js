@@ -1454,6 +1454,7 @@ const floatingWorkspace = {
       { type: 'action', icon: '💾', title: 'Save Layout', action: () => { this.saveLayout(); this.closeCommandPalette(); } },
       { type: 'action', icon: '💾', title: 'Workspace Sessions', action: () => { this.showSessionsModal(); this.closeCommandPalette(); } },
       { type: 'action', icon: '🗂️', title: 'Workspace Templates', action: () => { this.showTemplatesModal(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '🧩', title: 'Manage Variables', action: () => { if (typeof showVariablesManager === 'function') { showVariablesManager(); } this.closeCommandPalette(); } },
       { type: 'action', icon: '📥', title: 'Load Preset', action: () => { this.showPresetsModal(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📤', title: 'Export Workspace', action: () => { this.exportWorkspace(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📥', title: 'Import Workspace', action: () => { this.importWorkspace(); this.closeCommandPalette(); } },

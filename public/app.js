@@ -678,8 +678,8 @@
             switchTab(tabs[index]);
           }
         }
-        // Ctrl+0: Switch to mocks tab
-        if (e.ctrlKey && e.key === '0') {
+        // Ctrl+0 / Ctrl+B: Switch to mocks tab
+        if (e.ctrlKey && (e.key === '0' || e.key === 'b' || e.key === 'B')) {
           e.preventDefault();
           switchTab('mocks');
         }
@@ -2837,6 +2837,44 @@
       }
 
       const INSPECTOR_VARIABLES_KEY = 'mcp_chat_studio_inspector_variables';
+      const VARIABLE_STORE_KEY = 'mcp_chat_studio_variable_store';
+
+      function loadVariableStore() {
+        try {
+          const data = JSON.parse(localStorage.getItem(VARIABLE_STORE_KEY) || '{}');
+          return {
+            global: data && typeof data.global === 'object' && !Array.isArray(data.global) ? data.global : {},
+            environments: data && typeof data.environments === 'object' && !Array.isArray(data.environments)
+              ? data.environments
+              : {}
+          };
+        } catch (e) {
+          return { global: {}, environments: {} };
+        }
+      }
+
+      function saveVariableStore(store) {
+        const payload = {
+          global: store?.global || {},
+          environments: store?.environments || {}
+        };
+        localStorage.setItem(VARIABLE_STORE_KEY, JSON.stringify(payload));
+      }
+
+      function normalizeVariableObject(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+        return value;
+      }
+
+      function getGlobalVariables() {
+        const store = loadVariableStore();
+        return normalizeVariableObject(store.global);
+      }
+
+      function getEnvironmentVariables(envName = getCurrentEnv()) {
+        const store = loadVariableStore();
+        return normalizeVariableObject(store.environments?.[envName]);
+      }
 
       function updateInspectorVariablesStatus(message, isError = false) {
         const statusEl = document.getElementById('inspectorVariablesStatus');
@@ -2892,6 +2930,89 @@
         } catch (error) {
           updateInspectorVariablesStatus('Invalid JSON: ' + error.message, true);
           return null;
+        }
+      }
+
+      function getRuntimeVariables() {
+        const inspectorVars = getInspectorVariables();
+        if (inspectorVars === null) return null;
+        return {
+          ...getGlobalVariables(),
+          ...getEnvironmentVariables(),
+          ...(inspectorVars || {})
+        };
+      }
+
+      function parseVariablesInput(raw) {
+        if (!raw || !raw.trim()) return {};
+        return JSON.parse(raw);
+      }
+
+      async function showVariablesManager() {
+        const envName = getCurrentEnv();
+        const store = loadVariableStore();
+        const globalJson = JSON.stringify(store.global || {}, null, 2);
+        const envJson = JSON.stringify(store.environments?.[envName] || {}, null, 2);
+
+        const result = await appFormModal({
+          title: `🧩 Variables (${envName})`,
+          message: 'Global variables apply everywhere. Environment variables override globals. Inspector variables override both when running tools.',
+          confirmText: 'Save Variables',
+          cancelText: 'Cancel',
+          maxWidth: '720px',
+          fields: [
+            {
+              id: 'globalVars',
+              label: 'Global Variables (all environments)',
+              type: 'textarea',
+              rows: 8,
+              monospace: true,
+              value: globalJson,
+              validate: (value) => {
+                if (!value || !value.trim()) return null;
+                try {
+                  const parsed = JSON.parse(value);
+                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return null;
+                  return 'Must be a JSON object';
+                } catch (error) {
+                  return `Invalid JSON: ${error.message}`;
+                }
+              }
+            },
+            {
+              id: 'envVars',
+              label: `${envName} Variables`,
+              type: 'textarea',
+              rows: 8,
+              monospace: true,
+              value: envJson,
+              validate: (value) => {
+                if (!value || !value.trim()) return null;
+                try {
+                  const parsed = JSON.parse(value);
+                  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return null;
+                  return 'Must be a JSON object';
+                } catch (error) {
+                  return `Invalid JSON: ${error.message}`;
+                }
+              }
+            }
+          ]
+        });
+
+        if (!result.confirmed) return;
+
+        try {
+          const globalVars = parseVariablesInput(result.values.globalVars);
+          const envVars = parseVariablesInput(result.values.envVars);
+          const updated = loadVariableStore();
+          updated.global = globalVars;
+          updated.environments = updated.environments || {};
+          updated.environments[envName] = envVars;
+          saveVariableStore(updated);
+          appendMessage('system', `🧩 Saved variables for ${envName}`);
+        } catch (error) {
+          appendMessage('error', `Failed to save variables: ${error.message}`);
         }
       }
 
@@ -3129,7 +3250,7 @@
           });
         }
 
-        const variables = getInspectorVariables();
+        const variables = getRuntimeVariables();
         if (variables === null) {
           responseSection.style.display = 'block';
           responseStatus.textContent = '❌ Invalid variables JSON';
@@ -3418,6 +3539,7 @@
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+Shift+E</kbd></td><td>Export chat</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+1-9</kbd></td><td>Switch tabs (Classic)</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+0</kbd></td><td>Open Mocks tab</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Ctrl+B</kbd></td><td>Open Mocks tab</td></tr>
               <tr><td style="padding: 8px; border-bottom: 1px solid var(--border-subtle);"><kbd>Alt+1-3</kbd></td><td>Open Scripts / Docs / Contracts</td></tr>
               <tr><td style="padding: 8px;"><kbd>Ctrl+/</kbd></td><td>Show this help</td></tr>
             </table>
@@ -4845,7 +4967,7 @@
           return;
         }
 
-        const variables = getInspectorVariables();
+        const variables = getRuntimeVariables();
         if (variables === null) {
           appendMessage('error', 'Invalid Variables JSON. Fix it before replaying.');
           return;
@@ -7450,7 +7572,7 @@ main().catch(console.error);
           return;
         }
 
-        const variables = getInspectorVariables();
+        const variables = getRuntimeVariables();
         if (variables === null) {
           appendMessage('error', 'Invalid Variables JSON. Fix it before running bulk tests.');
           return;
@@ -7609,7 +7731,7 @@ main().catch(console.error);
           return;
         }
 
-        const variables = getInspectorVariables();
+        const variables = getRuntimeVariables();
         if (variables === null) {
           appendMessage('error', 'Invalid Variables JSON. Fix it before running diff.');
           return;
@@ -7955,6 +8077,7 @@ main().catch(console.error);
       window.fillInspectorDefaults = fillInspectorDefaults;
       window.saveInspectorVariables = saveInspectorVariables;
       window.clearInspectorVariables = clearInspectorVariables;
+      window.showVariablesManager = showVariablesManager;
       window.loadInspectorServers = loadInspectorServers;
       window.appConfirm = appConfirm;
       window.appAlert = appAlert;

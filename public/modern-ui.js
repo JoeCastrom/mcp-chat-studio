@@ -52,6 +52,7 @@ const modernUI = {
     // Actions
     { id: 'test-all', icon: '🚀', title: 'Test All Tools', desc: 'Smoke test connected servers', category: 'Actions', action: () => testAllTools?.() },
     { id: 'add-server', icon: '➕', title: 'Add MCP Server', desc: 'Configure new server', category: 'Actions', action: () => showAddServerModal?.() },
+    { id: 'variables', icon: '🧩', title: 'Variables Manager', desc: 'Global & environment variables', category: 'Actions', action: () => showVariablesManager?.() },
     { id: 'settings', icon: '⚙️', title: 'LLM Settings', desc: 'Configure AI provider', category: 'Actions', action: () => showSettingsModal?.() },
     { id: 'clear-chat', icon: '🗑️', title: 'Clear Chat', desc: 'Start fresh conversation', category: 'Actions', action: () => clearChat?.() },
     { id: 'export', icon: '📥', title: 'Export Chat', desc: 'Download conversation', category: 'Actions', action: () => exportChat?.() },
