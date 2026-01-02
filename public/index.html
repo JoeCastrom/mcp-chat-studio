@@ -131,6 +131,7 @@
 
         <div class="header-cluster">
           <div id="userSection"></div>
+          <button class="btn" onclick="showOAuthSettingsModal()" title="OAuth settings" aria-label="Open OAuth settings">🔐</button>
           <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
           <button class="btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
             <span id="themeIcon">🌙</span>
@@ -982,13 +983,29 @@
               <div class="inspector-section" id="bulkTestResultsSection" style="display: none">
                 <h3 style="display: flex; justify-content: space-between; align-items: center">
                   <span>📈 Results</span>
-                  <button
-                    class="btn"
-                    onclick="exportBulkTestResults()"
-                    style="font-size: 0.65rem; padding: 2px 6px"
-                  >
-                    📥 Export
-                  </button>
+                  <div style="display: flex; gap: 6px">
+                    <button
+                      class="btn"
+                      onclick="exportBulkTestResults()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      📥 Export
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="saveBulkFailuresAsScenario()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      🎬 Save Failures
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="saveBulkFailuresAsDataset()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      📚 Save Dataset
+                    </button>
+                  </div>
                 </h3>
                 <div
                   id="bulkTestSummary"
@@ -2335,6 +2352,15 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label">Authentication</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem">
+              <input type="checkbox" id="serverRequiresAuth" onchange="updateConfigPreview()" />
+              Requires OAuth login (session-based)
+            </label>
+            <div class="form-hint">Use the Login button to connect for this server.</div>
+          </div>
+
+          <div class="form-group">
             <label class="form-label">Description (optional)</label>
             <input
               type="text"
@@ -2536,6 +2562,118 @@ env:
             <button type="submit" class="btn primary">Save Settings</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- OAuth Settings Modal -->
+    <div class="modal-overlay" id="oauthSettingsModal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="oauthSettingsModalTitle" style="max-width: 640px">
+        <div class="modal-header">
+          <h2 class="modal-title" id="oauthSettingsModalTitle">🔐 OAuth Settings</h2>
+          <button class="modal-close" onclick="hideOAuthSettingsModal()" aria-label="Close modal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <form id="oauthSettingsForm" onsubmit="saveOAuthSettings(event)">
+          <div class="form-group">
+            <label class="form-label">Provider *</label>
+            <select class="form-select" id="oauthProvider" onchange="onOAuthProviderChange()">
+              <option value="keycloak">🔑 Keycloak / OIDC</option>
+              <option value="github">🐙 GitHub</option>
+              <option value="google">🟢 Google</option>
+              <option value="custom">⚙️ Custom OAuth2</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Client ID *</label>
+            <input type="text" class="form-input" id="oauthClientId" placeholder="client-id" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Client Secret</label>
+            <input type="password" class="form-input" id="oauthClientSecret" placeholder="Leave blank to keep current" />
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 6px">
+              <input type="checkbox" id="oauthClearSecret" />
+              Clear stored secret
+            </label>
+            <div class="form-hint" id="oauthSecretHint">Optional for public clients</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Redirect URI</label>
+            <input
+              type="text"
+              class="form-input"
+              id="oauthRedirectUri"
+              placeholder="http://localhost:3082/api/oauth/callback"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Scopes</label>
+            <input
+              type="text"
+              class="form-input"
+              id="oauthScopes"
+              placeholder="openid profile email"
+            />
+            <div class="form-hint">Space-separated list of scopes</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">PKCE</label>
+            <select class="form-select" id="oauthUsePkce">
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </div>
+
+          <div id="oauthKeycloakFields">
+            <div class="form-group">
+              <label class="form-label">Keycloak URL</label>
+              <input type="text" class="form-input" id="oauthKeycloakUrl" placeholder="https://keycloak.example.com" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Realm</label>
+              <input type="text" class="form-input" id="oauthKeycloakRealm" placeholder="master" />
+            </div>
+          </div>
+
+          <div id="oauthCustomFields" style="display: none">
+            <div class="form-group">
+              <label class="form-label">Authorize URL</label>
+              <input type="text" class="form-input" id="oauthAuthorizeUrl" placeholder="https://provider.com/oauth/authorize" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Token URL</label>
+              <input type="text" class="form-input" id="oauthTokenUrl" placeholder="https://provider.com/oauth/token" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Userinfo URL</label>
+              <input type="text" class="form-input" id="oauthUserinfoUrl" placeholder="https://provider.com/oauth/userinfo" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Logout URL</label>
+              <input type="text" class="form-input" id="oauthLogoutUrl" placeholder="https://provider.com/oauth/logout" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <div id="oauthStatusInfo" style="font-size: 0.75rem; color: var(--text-muted)"></div>
+          </div>
+        </form>
+
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="hideOAuthSettingsModal()">Cancel</button>
+          <button type="button" class="btn" onclick="disableOAuthConfig()" style="color: var(--error)">Disable OAuth</button>
+          <button type="submit" form="oauthSettingsForm" class="btn primary">Save</button>
+        </div>
       </div>
     </div>
 

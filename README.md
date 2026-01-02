@@ -107,10 +107,13 @@ Turn visual flows into runnable scripts:
 Three powerful new testing tools:
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
+- **🎬 Fuzz Fail → Scenario** - Save failing cases as replayable scenarios
+- **📚 Failure Datasets** - Store bulk-test failures as dataset rows for data runs
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
 - **🌐 Cross-Server Snapshot** - Run one tool across servers and diff output
 - **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
 - **🔍 Resolved Preview** - See variable substitutions before execution
+- **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env
 
 ### 📋 Contract Testing
 Consumer-driven contract testing for MCP servers:
@@ -183,6 +186,8 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🌐 Matrix Runs** - Execute the same scenario across multiple servers with baseline diffs
 - **📊 Data Runs** - Replay scenarios against a JSON dataset
 - **📚 Dataset Library** - Save reusable data tables for scenarios
+- **🔐 OAuth in UI** - Configure auth providers and session-based servers from the app
+- **🎬 Fuzz Fail → Scenario** - Convert bulk test failures into replayable scenarios
 - **🌐 Cross-Server Snapshots** - Compare live tool outputs across servers
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
 - **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline

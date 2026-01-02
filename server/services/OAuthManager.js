@@ -43,7 +43,12 @@ const PROVIDER_PRESETS = {
 
 export class OAuthManager {
   constructor(config) {
-    this.config = config.oauth || {};
+    this.applyConfig(config);
+  }
+
+  applyConfig(config) {
+    const oauthConfig = config?.oauth ?? config ?? {};
+    this.config = oauthConfig || {};
 
     // Provider type (keycloak, github, google, or custom)
     this.provider = this.config.provider || 'keycloak';
@@ -71,6 +76,14 @@ export class OAuthManager {
 
     // PKCE support (default: true for public clients)
     this.usePKCE = this.config.use_pkce !== false;
+  }
+
+  updateConfig(oauthConfig, options = {}) {
+    this.applyConfig(oauthConfig);
+    if (options.clearTokens !== false) {
+      userTokens.clear();
+      oauthStates.clear();
+    }
   }
 
   /**
@@ -103,6 +116,7 @@ export class OAuthManager {
    * Check if OAuth is configured
    */
   isConfigured() {
+    if (this.config?.disabled) return false;
     const endpoints = this.getEndpoints();
     return !!(endpoints.authorization && endpoints.token && this.clientId);
   }

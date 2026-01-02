@@ -6,6 +6,10 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getOAuthManager } from '../services/OAuthManager.js';
+import {
+  loadPersistedOAuthConfig,
+  savePersistedOAuthConfig
+} from '../services/OAuthConfigStore.js';
 
 const router = Router();
 
@@ -32,6 +36,111 @@ router.get('/status', (req, res) => {
     authenticated: isAuth,
     sessionId: isAuth ? sessionId : null,
   });
+});
+
+/**
+ * GET /api/oauth/config
+ * Get current OAuth configuration (safe fields only)
+ */
+router.get('/config', async (req, res) => {
+  const oauth = getOAuthManager();
+  const persisted = await loadPersistedOAuthConfig();
+
+  res.json({
+    configured: oauth?.isConfigured() || false,
+    disabled: oauth?.config?.disabled || false,
+    provider: oauth?.provider || 'keycloak',
+    client_id: oauth?.clientId || '',
+    redirect_uri: oauth?.redirectUri || '',
+    scopes: oauth?.scopes || [],
+    use_pkce: oauth?.usePKCE !== false,
+    keycloak_url: oauth?.keycloakUrl || '',
+    keycloak_realm: oauth?.realm || '',
+    authorize_url: oauth?.customEndpoints?.authorization || '',
+    token_url: oauth?.customEndpoints?.token || '',
+    userinfo_url: oauth?.customEndpoints?.userinfo || '',
+    logout_url: oauth?.customEndpoints?.logout || '',
+    hasClientSecret: !!oauth?.clientSecret,
+    source: persisted !== null ? 'ui' : 'config'
+  });
+});
+
+/**
+ * POST /api/oauth/config
+ * Update OAuth configuration (persisted)
+ */
+router.post('/config', async (req, res) => {
+  try {
+    const oauth = getOAuthManager();
+    const existing = (await loadPersistedOAuthConfig()) || {};
+    const payload = req.body || {};
+
+    const hasScopes = Object.prototype.hasOwnProperty.call(payload, 'scopes');
+    const rawScopes = hasScopes ? payload.scopes : existing.scopes;
+    const scopes = Array.isArray(rawScopes)
+      ? rawScopes.map(s => String(s).trim()).filter(Boolean)
+      : String(rawScopes || '')
+          .split(/[\s,]+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+
+    const nextConfig = {
+      provider: payload.provider || existing.provider || 'keycloak',
+      client_id: String(payload.client_id ?? existing.client_id ?? '').trim(),
+      redirect_uri: String(payload.redirect_uri ?? existing.redirect_uri ?? '').trim(),
+      scopes,
+      use_pkce: payload.use_pkce !== undefined ? !!payload.use_pkce : existing.use_pkce,
+      keycloak_url: String(payload.keycloak_url ?? existing.keycloak_url ?? '').trim(),
+      keycloak_realm: String(payload.keycloak_realm ?? existing.keycloak_realm ?? '').trim(),
+      authorize_url: String(payload.authorize_url ?? existing.authorize_url ?? '').trim(),
+      token_url: String(payload.token_url ?? existing.token_url ?? '').trim(),
+      userinfo_url: String(payload.userinfo_url ?? existing.userinfo_url ?? '').trim(),
+      logout_url: String(payload.logout_url ?? existing.logout_url ?? '').trim(),
+      disabled: payload.disabled === true ? true : false
+    };
+
+    if (!nextConfig.client_id && !nextConfig.disabled) {
+      return res.status(400).json({ error: 'client_id is required' });
+    }
+
+    const incomingSecret = (payload.client_secret || '').trim();
+    if (incomingSecret) {
+      nextConfig.client_secret = incomingSecret;
+    } else if (payload.clear_secret === true) {
+      delete nextConfig.client_secret;
+    } else if (existing.client_secret) {
+      nextConfig.client_secret = existing.client_secret;
+    }
+
+    await savePersistedOAuthConfig(nextConfig);
+    oauth?.updateConfig(nextConfig);
+
+    res.json({
+      success: true,
+      configured: oauth?.isConfigured() || false,
+      provider: oauth?.provider || nextConfig.provider
+    });
+  } catch (error) {
+    console.error('[OAuth] Config update failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/oauth/config
+ * Disable OAuth (persisted)
+ */
+router.delete('/config', async (req, res) => {
+  try {
+    const oauth = getOAuthManager();
+    const disabledConfig = { disabled: true };
+    await savePersistedOAuthConfig(disabledConfig);
+    oauth?.updateConfig(disabledConfig);
+    res.json({ success: true, configured: false });
+  } catch (error) {
+    console.error('[OAuth] Config disable failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 /**

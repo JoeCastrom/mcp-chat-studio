@@ -22,6 +22,7 @@ import { getMCPManager } from './services/MCPManager.js';
 import { createLLMClient } from './services/LLMClient.js';
 import { createOAuthManager, getOAuthManager } from './services/OAuthManager.js';
 import { loadPersistedServers } from './services/MCPConfigStore.js';
+import { loadPersistedOAuthConfig } from './services/OAuthConfigStore.js';
 import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
@@ -320,8 +321,12 @@ app.get('/api/health', (req, res) => {
 });
 
 // Config endpoint (for UI)
-app.get('/api/config', (req, res) => {
+app.get('/api/config', async (req, res) => {
   const config = loadConfig();
+  const persistedOAuth = await loadPersistedOAuthConfig();
+  if (persistedOAuth !== null) {
+    config.oauth = persistedOAuth;
+  }
   const oauth = getOAuthManager();
 
   // Return safe config (no secrets)
@@ -334,6 +339,9 @@ app.get('/api/config', (req, res) => {
       configured: oauth?.isConfigured() || false,
       keycloakUrl: oauth?.keycloakUrl,
       realm: oauth?.realm,
+      provider: oauth?.provider,
+      scopes: oauth?.scopes,
+      disabled: oauth?.config?.disabled || false,
     },
     mcpServers: Object.entries(config.mcpServers || {}).map(([name, cfg]) => ({
       name,
@@ -379,6 +387,10 @@ process.on('SIGTERM', async () => {
 async function start() {
   try {
     const config = loadConfig();
+    const persistedOAuth = await loadPersistedOAuthConfig();
+    if (persistedOAuth !== null) {
+      config.oauth = persistedOAuth;
+    }
     const persistedServers = await loadPersistedServers();
     if (persistedServers && Object.keys(persistedServers).length > 0) {
       const normalizedPersisted = Object.fromEntries(

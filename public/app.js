@@ -969,6 +969,8 @@
         document.getElementById('addServerModal').classList.add('active');
         document.getElementById('addServerForm').reset();
         clearEnvVars();
+        const requiresAuthEl = document.getElementById('serverRequiresAuth');
+        if (requiresAuthEl) requiresAuthEl.checked = false;
         toggleServerTypeFields();
         updateConfigPreview();
         loadExistingServerTemplates();
@@ -983,6 +985,8 @@
         document.getElementById('addServerModal').classList.remove('active');
         document.getElementById('addServerForm').reset();
         clearEnvVars();
+        const requiresAuthEl = document.getElementById('serverRequiresAuth');
+        if (requiresAuthEl) requiresAuthEl.checked = false;
         toggleServerTypeFields();
         // Reset title and button
         document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
@@ -1076,7 +1080,8 @@
                   url: config.url || '',
                   env: config.env,
                   description: config.description || `Configured MCP server: ${name}`,
-                  envHint: 'Loaded from your configured servers'
+                  envHint: 'Loaded from your configured servers',
+                  requiresAuth: config.requiresAuth || config.requiresOAuth || false
                 }
               };
             })
@@ -1121,6 +1126,10 @@
         } else if (template.type === 'sse') {
           document.getElementById('serverUrl').value = template.url;
         }
+        const requiresAuthEl = document.getElementById('serverRequiresAuth');
+        if (requiresAuthEl) {
+          requiresAuthEl.checked = !!template.requiresAuth;
+        }
 
         clearEnvVars();
         if (template.env && typeof template.env === 'object') {
@@ -1149,6 +1158,7 @@
         const type = document.getElementById('serverType').value;
         const description = document.getElementById('serverDescription').value.trim();
         const env = collectEnvVars();
+        const requiresAuth = document.getElementById('serverRequiresAuth')?.checked || false;
 
         if (!name) {
           appendMessage('error', 'Enter a server name first to save as template');
@@ -1167,7 +1177,8 @@
           name,
           type,
           description: description || `Custom: ${name}`,
-          envHint: 'Your saved template'
+          envHint: 'Your saved template',
+          requiresAuth
         };
 
         if (type === 'stdio') {
@@ -1296,8 +1307,9 @@
         const name = document.getElementById('serverName').value.trim();
         const type = document.getElementById('serverType').value;
         const description = document.getElementById('serverDescription').value.trim();
+        const requiresAuth = document.getElementById('serverRequiresAuth')?.checked || false;
 
-        let payload = { name, type, description };
+        let payload = { name, type, description, requiresAuth };
 
         // Collect environment variables
         const envVars = collectEnvVars();
@@ -1411,6 +1423,7 @@
         const argsStr = document.getElementById('serverArgs').value.trim();
         const url = document.getElementById('serverUrl').value.trim();
         const env = collectEnvVars();
+        const requiresAuth = document.getElementById('serverRequiresAuth')?.checked || false;
 
         let yaml = `mcpServers:\n  ${name}:\n`;
 
@@ -1437,6 +1450,10 @@
           for (const [k, v] of Object.entries(env)) {
             yaml += `      ${k}: ${v}\n`;
           }
+        }
+
+        if (requiresAuth) {
+          yaml += `    requiresAuth: true\n`;
         }
 
         document.getElementById('configPreview').textContent = yaml;
@@ -1511,6 +1528,11 @@
 
           if (config.args && Array.isArray(config.args)) {
             document.getElementById('serverArgs').value = config.args.join('\n');
+          }
+
+          const requiresAuthEl = document.getElementById('serverRequiresAuth');
+          if (requiresAuthEl) {
+            requiresAuthEl.checked = !!(config.requiresAuth || config.requiresOAuth);
           }
 
           // Clear and add env vars
@@ -1658,6 +1680,10 @@
           document.getElementById('serverArgs').value = (config.args || []).join(' ');
           document.getElementById('serverUrl').value = config.url || '';
           document.getElementById('serverDescription').value = config.description || '';
+          const requiresAuthEl = document.getElementById('serverRequiresAuth');
+          if (requiresAuthEl) {
+            requiresAuthEl.checked = !!(config.requiresAuth || config.requiresOAuth);
+          }
 
           // Pre-fill environment variables
           const envContainer = document.getElementById('envVarsContainer');
@@ -1727,6 +1753,168 @@
 
       function hideSettingsModal() {
         document.getElementById('settingsModal').classList.remove('active');
+      }
+
+      // ==========================================
+      // OAUTH SETTINGS MODAL
+      // ==========================================
+
+      async function showOAuthSettingsModal() {
+        try {
+          const [configRes, statusRes] = await Promise.all([
+            fetch('/api/oauth/config', { credentials: 'include' }),
+            fetch('/api/oauth/status', { credentials: 'include' })
+          ]);
+
+          const config = configRes.ok ? await configRes.json() : {};
+          const status = statusRes.ok ? await statusRes.json() : {};
+
+          document.getElementById('oauthProvider').value = config.provider || 'keycloak';
+          document.getElementById('oauthClientId').value = config.client_id || '';
+          document.getElementById('oauthClientSecret').value = '';
+          document.getElementById('oauthClearSecret').checked = false;
+          document.getElementById('oauthRedirectUri').value =
+            config.redirect_uri || `${window.location.origin}/api/oauth/callback`;
+          document.getElementById('oauthScopes').value = Array.isArray(config.scopes)
+            ? config.scopes.join(' ')
+            : (config.scopes || '');
+          document.getElementById('oauthUsePkce').value = config.use_pkce === false ? 'false' : 'true';
+          document.getElementById('oauthKeycloakUrl').value = config.keycloak_url || '';
+          document.getElementById('oauthKeycloakRealm').value = config.keycloak_realm || '';
+          document.getElementById('oauthAuthorizeUrl').value = config.authorize_url || '';
+          document.getElementById('oauthTokenUrl').value = config.token_url || '';
+          document.getElementById('oauthUserinfoUrl').value = config.userinfo_url || '';
+          document.getElementById('oauthLogoutUrl').value = config.logout_url || '';
+
+          const statusEl = document.getElementById('oauthStatusInfo');
+          if (statusEl) {
+            const statusParts = [];
+            statusParts.push(config.disabled ? 'OAuth disabled' : config.configured ? 'Configured' : 'Not configured');
+            statusParts.push(status.authenticated ? 'Authenticated' : 'Not logged in');
+            if (config.source) {
+              statusParts.push(`Source: ${config.source === 'ui' ? 'UI override' : 'config.yaml'}`);
+            }
+            statusEl.textContent = statusParts.join(' • ');
+          }
+
+          const secretHint = document.getElementById('oauthSecretHint');
+          if (secretHint) {
+            secretHint.textContent = config.hasClientSecret
+              ? 'Secret stored. Leave blank to keep current.'
+              : 'Optional for public clients.';
+          }
+
+          onOAuthProviderChange();
+          document.getElementById('oauthSettingsModal').classList.add('active');
+        } catch (error) {
+          appendMessage('error', `Failed to load OAuth settings: ${error.message}`);
+        }
+      }
+
+      function hideOAuthSettingsModal() {
+        document.getElementById('oauthSettingsModal').classList.remove('active');
+      }
+
+      function onOAuthProviderChange() {
+        const provider = document.getElementById('oauthProvider').value;
+        const keycloakFields = document.getElementById('oauthKeycloakFields');
+        const customFields = document.getElementById('oauthCustomFields');
+
+        if (keycloakFields) {
+          keycloakFields.style.display = provider === 'keycloak' ? 'block' : 'none';
+        }
+        if (customFields) {
+          customFields.style.display = provider === 'custom' ? 'block' : 'none';
+        }
+      }
+
+      async function saveOAuthSettings(event) {
+        event.preventDefault();
+
+        const provider = document.getElementById('oauthProvider').value;
+        const clientId = document.getElementById('oauthClientId').value.trim();
+        const clientSecret = document.getElementById('oauthClientSecret').value.trim();
+        const clearSecret = document.getElementById('oauthClearSecret').checked;
+        const redirectUri = document.getElementById('oauthRedirectUri').value.trim();
+        const scopes = document.getElementById('oauthScopes').value.trim();
+        const usePkce = document.getElementById('oauthUsePkce').value === 'true';
+        const keycloakUrl = document.getElementById('oauthKeycloakUrl').value.trim();
+        const keycloakRealm = document.getElementById('oauthKeycloakRealm').value.trim();
+        const authorizeUrl = document.getElementById('oauthAuthorizeUrl').value.trim();
+        const tokenUrl = document.getElementById('oauthTokenUrl').value.trim();
+        const userinfoUrl = document.getElementById('oauthUserinfoUrl').value.trim();
+        const logoutUrl = document.getElementById('oauthLogoutUrl').value.trim();
+
+        if (!clientId) {
+          await appAlert('Client ID is required to configure OAuth.', { title: 'Missing Client ID' });
+          return;
+        }
+
+        const payload = {
+          provider,
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scopes,
+          use_pkce: usePkce,
+          keycloak_url: keycloakUrl,
+          keycloak_realm: keycloakRealm,
+          authorize_url: authorizeUrl,
+          token_url: tokenUrl,
+          userinfo_url: userinfoUrl,
+          logout_url: logoutUrl,
+          clear_secret: clearSecret
+        };
+
+        if (clientSecret) {
+          payload.client_secret = clientSecret;
+        }
+
+        try {
+          const response = await fetch('/api/oauth/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+
+          if (data.error) {
+            showNotification(`Failed to save OAuth config: ${data.error}`, 'error');
+            return;
+          }
+
+          showNotification('OAuth configuration saved.', 'success');
+          hideOAuthSettingsModal();
+          checkAuthStatus();
+        } catch (error) {
+          showNotification(`Failed to save OAuth config: ${error.message}`, 'error');
+        }
+      }
+
+      async function disableOAuthConfig() {
+        const confirmed = await appConfirm('Disable OAuth and clear the stored configuration?', {
+          title: 'Disable OAuth',
+          confirmText: 'Disable',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch('/api/oauth/config', {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          const data = await response.json();
+          if (data.error) {
+            showNotification(`Failed to disable OAuth: ${data.error}`, 'error');
+            return;
+          }
+          showNotification('OAuth disabled.', 'success');
+          hideOAuthSettingsModal();
+          checkAuthStatus();
+        } catch (error) {
+          showNotification(`Failed to disable OAuth: ${error.message}`, 'error');
+        }
       }
 
       async function copySessionToken() {
@@ -4047,6 +4235,7 @@
             }
             if (cfg.url) yaml += `    url: ${cfg.url}\n`;
             if (cfg.description) yaml += `    description: "${cfg.description}"\n`;
+            if (cfg.requiresAuth || cfg.requiresOAuth) yaml += `    requiresAuth: true\n`;
             if (cfg.env && Object.keys(cfg.env).length > 0) {
               yaml += `    env:\n`;
               for (const [k, v] of Object.entries(cfg.env)) {
@@ -5915,20 +6104,22 @@
 
             const data = await response.json();
             const duration = Math.round(performance.now() - startTime);
-            const actualHash = hashString(JSON.stringify(data.result || data.error));
+            const resultPayload = data.error || data.result;
+            const actualHash = hashString(JSON.stringify(resultPayload));
             const isError = data.error || data.result?.isError === true;
+            const expectsError = step.expectError === true;
             const hashMatch = actualHash === step.responseHash;
 
             // Schema validation (if schema was saved)
             let schemaViolations = [];
-            if (step.responseSchema && data.result && !isError) {
+            if (!expectsError && step.responseSchema && data.result && !isError) {
               schemaViolations = validateSchema(data.result, step.responseSchema);
             }
 
             // Custom assertions evaluation
             let assertionResults = [];
             let assertionsFailed = 0;
-            if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+            if (!expectsError && step.assertions && step.assertions.length > 0 && data.result && !isError) {
               for (const assertion of step.assertions) {
                 const result = evaluateSingleAssertion(data.result, assertion);
                 assertionResults.push({
@@ -5943,21 +6134,58 @@
               }
             }
 
-            if (isError) {
-              failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [], assertionResults: [] });
+            let status = 'pass';
+            let message = '';
+            let expected = null;
+            let actual = null;
+
+            if (expectsError) {
+              expected = step.expectedResponse;
+              if (isError) {
+                actual = resultPayload;
+                if (!hashMatch) {
+                  status = 'diff';
+                  message = 'Error differs from expected';
+                }
+              } else {
+                status = 'diff';
+                message = 'Expected error, got success';
+                actual = data.result;
+              }
+            } else if (isError) {
+              status = 'error';
+              message = data.error || 'Error';
             } else if (assertionsFailed > 0) {
-              failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'assertion_fail', message: `${assertionsFailed} assertion(s) failed`, duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
+              status = 'assertion_fail';
+              message = `${assertionsFailed} assertion(s) failed`;
+              expected = step.expectedResponse;
+              actual = data.result;
             } else if (!hashMatch) {
-              failed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
-            } else {
-              passed++;
-              results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations, assertionResults });
+              status = 'diff';
+              message = 'Response differs from baseline';
+              expected = step.expectedResponse;
+              actual = data.result;
             }
 
-            if (!isError) {
+            if (status === 'pass') {
+              passed++;
+            } else {
+              failed++;
+            }
+
+            results.push({
+              step: i + 1,
+              tool: step.tool,
+              status,
+              message,
+              duration,
+              expected,
+              actual,
+              schemaViolations,
+              assertionResults
+            });
+
+            if (!isError && !expectsError) {
               const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
               if (Object.keys(extracted).length > 0) {
                 Object.assign(runtimeVariables, extracted);
@@ -6161,18 +6389,20 @@
               const data = await response.json();
               const duration = Math.round(performance.now() - startTime);
               totalTime += duration;
-              const actualHash = hashString(JSON.stringify(data.result || data.error));
+              const resultPayload = data.error || data.result;
+              const actualHash = hashString(JSON.stringify(resultPayload));
               const isError = data.error || data.result?.isError === true;
+              const expectsError = step.expectError === true;
               const hashMatch = actualHash === step.responseHash;
 
               let schemaViolations = [];
-              if (step.responseSchema && data.result && !isError) {
+              if (!expectsError && step.responseSchema && data.result && !isError) {
                 schemaViolations = validateSchema(data.result, step.responseSchema);
               }
 
               let assertionResults = [];
               let assertionsFailed = 0;
-              if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+              if (!expectsError && step.assertions && step.assertions.length > 0 && data.result && !isError) {
                 for (const assertion of step.assertions) {
                   const result = evaluateSingleAssertion(data.result, assertion);
                   assertionResults.push({
@@ -6187,21 +6417,48 @@
                 }
               }
 
-              if (isError) {
-                failed++;
-                results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [], assertionResults: [] });
+              let status = 'pass';
+              let message = '';
+              let expected = null;
+              let actual = null;
+
+              if (expectsError) {
+                expected = step.expectedResponse;
+                if (isError) {
+                  actual = resultPayload;
+                  if (!hashMatch) {
+                    status = 'diff';
+                    message = 'Error differs from expected';
+                  }
+                } else {
+                  status = 'diff';
+                  message = 'Expected error, got success';
+                  actual = data.result;
+                }
+              } else if (isError) {
+                status = 'error';
+                message = data.error || 'Error';
               } else if (assertionsFailed > 0) {
-                failed++;
-                results.push({ step: i + 1, tool: step.tool, status: 'assertion_fail', message: `${assertionsFailed} assertion(s) failed`, duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
+                status = 'assertion_fail';
+                message = `${assertionsFailed} assertion(s) failed`;
+                expected = step.expectedResponse;
+                actual = data.result;
               } else if (!hashMatch) {
-                failed++;
-                results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
-              } else {
-                passed++;
-                results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations, assertionResults });
+                status = 'diff';
+                message = 'Response differs from baseline';
+                expected = step.expectedResponse;
+                actual = data.result;
               }
 
-              if (!isError) {
+              if (status === 'pass') {
+                passed++;
+              } else {
+                failed++;
+              }
+
+              results.push({ step: i + 1, tool: step.tool, status, message, duration, expected, actual, schemaViolations, assertionResults });
+
+              if (!isError && !expectsError) {
                 const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
                 if (Object.keys(extracted).length > 0) {
                   Object.assign(runtimeVariables, extracted);
@@ -6330,16 +6587,17 @@
             const resultPayload = data.error || data.result;
             const actualHash = hashString(JSON.stringify(resultPayload));
             const isError = data.error || data.result?.isError === true;
+            const expectsError = step.expectError === true;
             const hashMatch = actualHash === step.responseHash;
 
             let schemaViolations = [];
-            if (step.responseSchema && data.result && !isError) {
+            if (!expectsError && step.responseSchema && data.result && !isError) {
               schemaViolations = validateSchema(data.result, step.responseSchema);
             }
 
             let assertionResults = [];
             let assertionsFailed = 0;
-            if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+            if (!expectsError && step.assertions && step.assertions.length > 0 && data.result && !isError) {
               for (const assertion of step.assertions) {
                 const result = evaluateSingleAssertion(data.result, assertion);
                 assertionResults.push({
@@ -6356,15 +6614,35 @@
 
             let status = 'pass';
             let message = '';
-            if (isError) {
+            let expected = null;
+            let actual = null;
+
+            if (expectsError) {
+              expected = step.expectedResponse;
+              if (isError) {
+                actual = resultPayload;
+                if (!hashMatch) {
+                  status = 'diff';
+                  message = 'Error differs from expected';
+                }
+              } else {
+                status = 'diff';
+                message = 'Expected error, got success';
+                actual = data.result;
+              }
+            } else if (isError) {
               status = 'error';
               message = data.error || 'Error';
             } else if (assertionsFailed > 0) {
               status = 'assertion_fail';
               message = `${assertionsFailed} assertion(s) failed`;
+              expected = step.expectedResponse;
+              actual = data.result;
             } else if (!hashMatch) {
               status = 'diff';
               message = 'Response differs from baseline';
+              expected = step.expectedResponse;
+              actual = data.result;
             }
 
             if (status === 'pass') {
@@ -6375,7 +6653,7 @@
               if (status === 'assertion_fail') assertionFailures++;
             }
 
-            if (!isError) {
+            if (!isError && !expectsError) {
               const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
               if (Object.keys(extracted).length > 0) {
                 Object.assign(runtimeVariables, extracted);
@@ -6388,8 +6666,8 @@
               status,
               message,
               duration,
-              expected: step.expectedResponse,
-              actual: data.result,
+              expected,
+              actual: actual ?? resultPayload,
               schemaViolations,
               assertionResults
             });
@@ -6682,13 +6960,14 @@
               <!-- Steps -->
               <div style="display: flex; flex-direction: column; gap: 12px">
                 ${(scenario.steps || []).map((step, i) => `
-                  <div style="background: var(--bg-card); border-radius: 8px; padding: 12px; border-left: 3px solid ${step.success ? 'var(--success)' : 'var(--error)'}">
+                  <div style="background: var(--bg-card); border-radius: 8px; padding: 12px; border-left: 3px solid ${step.expectError ? 'var(--warning)' : step.success ? 'var(--success)' : 'var(--error)'}">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
                       <div style="display: flex; align-items: center; gap: 8px">
                         <span style="font-weight: 600">${i + 1}.</span>
-                        <span>${step.success ? '✅' : '❌'}</span>
+                        <span>${step.expectError ? '⚠️' : step.success ? '✅' : '❌'}</span>
                         <code style="font-weight: 500">${escapeHtml(step.tool)}</code>
                         <span style="color: var(--text-muted); font-size: 0.7rem">@ ${escapeHtml(step.server)}</span>
+                        ${step.expectError ? '<span class="pill" style="border-color: var(--warning); color: var(--warning)">Expected error</span>' : ''}
                       </div>
                       <span style="color: var(--text-muted); font-size: 0.7rem">${step.timing}ms</span>
                     </div>
@@ -6701,7 +6980,7 @@
 
                     <!-- Baseline Response -->
                     <details style="margin-bottom: 8px">
-                      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted)">📤 Baseline Response (hash: ${step.responseHash || 'N/A'})</summary>
+                      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted)">${step.expectError ? '⚠️ Expected Error' : '📤 Baseline Response'} (hash: ${step.responseHash || 'N/A'})</summary>
                       <pre style="background: var(--bg-surface); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 4px; overflow-x: auto; max-height: 150px">${escapeHtml(JSON.stringify(step.expectedResponse || {}, null, 2))}</pre>
                     </details>
 
@@ -8997,6 +9276,7 @@ main().catch(console.error);
       // ADVANCED INSPECTOR - BULK TEST
       // ==========================================
       let bulkTestCache = [];
+      let bulkTestLastRun = null;
 
       async function loadBulkTestServers() {
         const select = document.getElementById('bulkTestServerSelect');
@@ -9259,6 +9539,14 @@ main().catch(console.error);
           html += '</tbody></table>';
           document.getElementById('bulkTestResults').innerHTML = html;
 
+          bulkTestLastRun = {
+            serverName,
+            toolName,
+            inputs,
+            results,
+            createdAt: new Date().toISOString()
+          };
+
           appendMessage('system', `✅ Bulk test completed: ${results.successful}/${results.total} successful`);
 
         } catch (error) {
@@ -9285,6 +9573,99 @@ main().catch(console.error);
         URL.revokeObjectURL(url);
 
         appendMessage('system', '📥 Results exported');
+      }
+
+      async function saveBulkFailuresAsScenario() {
+        if (!bulkTestLastRun || !bulkTestLastRun.results?.results) {
+          appendMessage('error', 'Run a bulk test first.');
+          return;
+        }
+
+        const failures = bulkTestLastRun.results.results.filter(result => result.status === 'error');
+        if (!failures.length) {
+          appendMessage('system', 'No failures to save.');
+          return;
+        }
+
+        const defaultName = `Failures - ${bulkTestLastRun.toolName || 'Tool'}`;
+        const name = await appPrompt('Scenario name:', {
+          title: 'Save Failures',
+          label: 'Scenario name',
+          defaultValue: defaultName,
+          required: true
+        });
+        if (!name) return;
+
+        const steps = failures.map(result => ({
+          server: bulkTestLastRun.serverName,
+          tool: bulkTestLastRun.toolName,
+          args: result.input || {},
+          expectedResponse: result.error || 'Unknown error',
+          responseHash: hashString(JSON.stringify(result.error || 'Unknown error')),
+          responseSchema: null,
+          timing: result.duration || 0,
+          success: false,
+          expectError: true
+        }));
+
+        const scenario = {
+          name,
+          steps,
+          metadata: {
+            source: 'bulk-test',
+            createdAt: new Date().toISOString(),
+            totalFailures: failures.length
+          }
+        };
+
+        sessionManager.saveScenario(scenario);
+        refreshScenariosPanel();
+        showNotification(`Scenario "${name}" saved with ${steps.length} failing case${steps.length !== 1 ? 's' : ''}.`, 'success');
+      }
+
+      async function saveBulkFailuresAsDataset() {
+        if (!bulkTestLastRun || !bulkTestLastRun.results?.results) {
+          appendMessage('error', 'Run a bulk test first.');
+          return;
+        }
+
+        const failures = bulkTestLastRun.results.results.filter(result => result.status === 'error');
+        if (!failures.length) {
+          appendMessage('system', 'No failures to save.');
+          return;
+        }
+
+        const defaultName = `Failures - ${bulkTestLastRun.toolName || 'Tool'}`;
+        const name = await appPrompt('Dataset name:', {
+          title: 'Save Failure Dataset',
+          label: 'Dataset name',
+          defaultValue: defaultName,
+          required: true
+        });
+        if (!name) return;
+
+        const rows = failures.map(result => {
+          const input = result.input;
+          const base = input && typeof input === 'object' && !Array.isArray(input)
+            ? { ...input }
+            : { value: input };
+          base._bulkError = result.error || 'Unknown error';
+          return base;
+        });
+
+        const datasets = loadDatasets();
+        datasets.unshift({
+          id: `dataset_${Date.now()}`,
+          name,
+          rows,
+          createdAt: new Date().toISOString(),
+          source: 'bulk-test',
+          tool: bulkTestLastRun.toolName,
+          server: bulkTestLastRun.serverName
+        });
+        saveDatasets(datasets);
+        renderDatasetManagerList();
+        showNotification(`Dataset "${name}" saved with ${rows.length} row${rows.length !== 1 ? 's' : ''}.`, 'success');
       }
 
       // ==========================================
@@ -9901,4 +10282,10 @@ main().catch(console.error);
       window.loadCrossServerOptions = loadCrossServerOptions;
       window.runCrossServerCompare = runCrossServerCompare;
       window.generateFuzzCases = generateFuzzCases;
+      window.saveBulkFailuresAsScenario = saveBulkFailuresAsScenario;
+      window.saveBulkFailuresAsDataset = saveBulkFailuresAsDataset;
+      window.showOAuthSettingsModal = showOAuthSettingsModal;
+      window.hideOAuthSettingsModal = hideOAuthSettingsModal;
+      window.saveOAuthSettings = saveOAuthSettings;
+      window.disableOAuthConfig = disableOAuthConfig;
 
