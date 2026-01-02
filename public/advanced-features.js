@@ -9,6 +9,79 @@
 
 let currentCollection = null;
 let collections = [];
+const COLLECTION_RUNS_KEY = 'mcp_chat_studio_collection_runs';
+
+function getCollectionRuns() {
+  try {
+    return JSON.parse(localStorage.getItem(COLLECTION_RUNS_KEY) || '[]');
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCollectionRuns(runs) {
+  localStorage.setItem(COLLECTION_RUNS_KEY, JSON.stringify(runs));
+}
+
+function recordCollectionRun(results) {
+  const runs = getCollectionRuns();
+  const entry = {
+    id: `run_${Date.now()}`,
+    collectionId: results.collectionId,
+    collectionName: results.collectionName,
+    timestamp: results.endTime || new Date().toISOString(),
+    duration: results.duration || 0,
+    summary: {
+      passed: results.passed,
+      failed: results.failed,
+      skipped: results.skipped,
+      total: results.total
+    },
+    results
+  };
+  runs.unshift(entry);
+  saveCollectionRuns(runs.slice(0, 20));
+}
+
+function clearCollectionRuns() {
+  saveCollectionRuns([]);
+  renderCollectionRuns();
+  showNotification('Collection run history cleared.', 'success');
+}
+
+function renderCollectionRuns() {
+  const list = document.getElementById('collectionRunsList');
+  if (!list) return;
+  const runs = getCollectionRuns();
+
+  if (runs.length === 0) {
+    list.innerHTML = '<div class="empty-state">No runs yet. Execute a collection to see reports here.</div>';
+    return;
+  }
+
+  list.innerHTML = runs.map(run => `
+    <div class="collection-card" style="padding: 10px">
+      <div class="collection-header">
+        <h3>${escapeHtml(run.collectionName || 'Collection')}</h3>
+        <span class="badge">${run.summary?.total || 0} scenarios</span>
+      </div>
+      <div class="collection-meta">
+        <span>${new Date(run.timestamp).toLocaleString()}</span>
+        <span>${run.duration || 0}ms</span>
+      </div>
+      <div style="display: flex; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin: 6px 0">
+        <span>✅ ${run.summary?.passed || 0}</span>
+        <span>❌ ${run.summary?.failed || 0}</span>
+        <span>⏭️ ${run.summary?.skipped || 0}</span>
+      </div>
+      <div class="collection-actions">
+        <button class="btn-small" onclick="viewCollectionRunReport('${run.id}')">👁️ View</button>
+        <button class="btn-small" onclick="exportCollectionRunById('${run.id}')">📥 JSON</button>
+        <button class="btn-small" onclick="exportCollectionRunJUnitById('${run.id}')">🧾 JUnit</button>
+      </div>
+    </div>
+  `).join('');
+}
 
 function selectCollection(id) {
   currentCollection = collections.find(col => col.id === id) || null;
@@ -23,6 +96,7 @@ async function loadCollections() {
     const data = await res.json();
     collections = data.collections || [];
     renderCollectionsList();
+    renderCollectionRuns();
   } catch (error) {
     console.error('Failed to load collections:', error);
   }
@@ -182,6 +256,8 @@ async function runCollection(id) {
 
     const message = `✅ ${results.passed} passed, ❌ ${results.failed} failed, ⏭️ ${results.skipped} skipped`;
     showNotification(message, results.failed === 0 ? 'success' : 'warning');
+    recordCollectionRun(results);
+    renderCollectionRuns();
     showCollectionRunReport(results);
   } catch (error) {
     showNotification('Failed to run collection: ' + error.message, 'error');
@@ -254,6 +330,38 @@ function exportCollectionRunJUnit(results) {
 ${testcases}
 </testsuite>`;
   downloadTextFile('collection-run-report.xml', xml, 'application/xml');
+}
+
+function getCollectionRunById(runId) {
+  const runs = getCollectionRuns();
+  return runs.find(run => run.id === runId)?.results || null;
+}
+
+function viewCollectionRunReport(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  showCollectionRunReport(results);
+}
+
+function exportCollectionRunById(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  exportCollectionRunReport(results);
+}
+
+function exportCollectionRunJUnitById(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  exportCollectionRunJUnit(results);
 }
 
 function showCollectionRunReport(results) {
