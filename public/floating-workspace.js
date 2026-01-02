@@ -1458,6 +1458,8 @@ const floatingWorkspace = {
       { type: 'action', icon: '📥', title: 'Load Preset', action: () => { this.showPresetsModal(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📤', title: 'Export Workspace', action: () => { this.exportWorkspace(); this.closeCommandPalette(); } },
       { type: 'action', icon: '📥', title: 'Import Workspace', action: () => { this.importWorkspace(); this.closeCommandPalette(); } },
+      { type: 'action', icon: '📦', title: 'Export Project Bundle', action: () => { if (typeof exportProjectBundle === 'function') { exportProjectBundle(); } this.closeCommandPalette(); } },
+      { type: 'action', icon: '📥', title: 'Import Project Bundle', action: () => { if (typeof triggerProjectBundleImport === 'function') { triggerProjectBundleImport(); } this.closeCommandPalette(); } },
       { type: 'action', icon: '🗺️', title: 'Toggle Mini-map', action: () => { this.toggleMiniMap(); this.closeCommandPalette(); } },
       { type: 'action', icon: '⤢', title: 'Fit All Panels', action: () => { this.fitAll(); this.closeCommandPalette(); } },
       { type: 'action', icon: '🎨', title: 'Change Theme', action: () => { this.showThemeSelector(); this.closeCommandPalette(); } },

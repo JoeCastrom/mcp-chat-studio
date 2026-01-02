@@ -2361,6 +2361,24 @@ env:
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Project Bundle</label>
+            <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center">
+              <button type="button" class="btn" onclick="exportProjectBundle()">📦 Export Project</button>
+              <button type="button" class="btn" onclick="triggerProjectBundleImport()">📥 Import Project</button>
+              <input
+                id="projectBundleInput"
+                type="file"
+                accept="application/json"
+                style="display: none"
+                onchange="handleProjectBundleFile(event)"
+              />
+            </div>
+            <div class="form-hint">
+              Exports collections, workflows, contracts, mocks, scripts, monitors, variables, and workspace layouts into a single file.
+            </div>
+          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn" onclick="hideSettingsModal()">Cancel</button>
             <button type="submit" class="btn primary">Save Settings</button>

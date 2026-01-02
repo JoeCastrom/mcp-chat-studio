@@ -1739,6 +1739,339 @@
         }
       }
 
+      function safeParseJson(value) {
+        if (value === undefined || value === null) return null;
+        if (typeof value !== 'string') return value;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+          return JSON.parse(trimmed);
+        } catch {
+          return value;
+        }
+      }
+
+      function readLocalValue(key) {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return null;
+        return safeParseJson(raw);
+      }
+
+      function writeLocalValue(key, value) {
+        if (value === undefined) return;
+        if (value === null) {
+          localStorage.removeItem(key);
+          return;
+        }
+        if (typeof value === 'string') {
+          localStorage.setItem(key, value);
+        } else {
+          localStorage.setItem(key, JSON.stringify(value));
+        }
+      }
+
+      async function fetchJsonSafe(url, fallback) {
+        try {
+          const res = await fetch(url, { credentials: 'include' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return await res.json();
+        } catch (error) {
+          return fallback;
+        }
+      }
+
+      async function exportProjectBundle() {
+        try {
+          const bundle = await collectProjectBundle();
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `mcp-chat-studio-bundle-${timestamp}.json`;
+          const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          link.click();
+          URL.revokeObjectURL(url);
+          appendMessage('system', `📦 Project bundle exported (${filename})`);
+        } catch (error) {
+          appendMessage('error', `Project export failed: ${error.message}`);
+        }
+      }
+
+      function triggerProjectBundleImport() {
+        document.getElementById('projectBundleInput')?.click();
+      }
+
+      async function handleProjectBundleFile(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          const bundle = JSON.parse(text);
+          const summary = summarizeProjectBundle(bundle);
+          const confirmed = await appConfirm(
+            `Import project bundle?\n${summary}`,
+            { title: 'Import Project Bundle', confirmText: 'Import' }
+          );
+          if (!confirmed) {
+            event.target.value = '';
+            return;
+          }
+
+          await applyProjectBundle(bundle);
+          appendMessage('system', '✅ Project bundle imported.');
+
+          const reload = await appConfirm('Reload now to apply local data changes?', {
+            title: 'Reload to Apply',
+            confirmText: 'Reload',
+            cancelText: 'Later'
+          });
+          if (reload) window.location.reload();
+        } catch (error) {
+          appendMessage('error', `Import failed: ${error.message}`);
+        } finally {
+          event.target.value = '';
+        }
+      }
+
+      function summarizeProjectBundle(bundle) {
+        const server = bundle?.server || {};
+        const local = bundle?.local || {};
+        const counts = [
+          `collections: ${(server.collections || []).length}`,
+          `workflows: ${(server.workflows || []).length}`,
+          `contracts: ${(server.contracts || []).length}`,
+          `mocks: ${(server.mocks || []).length}`,
+          `scripts: ${(server.scripts || []).length}`,
+          `monitors: ${(server.monitors || []).length}`,
+          `workspace templates: ${(server.workspaceTemplates || []).length}`,
+          `servers: ${Object.keys(server.mcpServers || {}).length}`
+        ];
+        const localKeys = Object.keys(local || {});
+        const localSummary = localKeys.length ? `local items: ${localKeys.length}` : 'local items: 0';
+        return `${counts.join(', ')}\n${localSummary}`;
+      }
+
+      async function collectProjectBundle() {
+        const collectionsIndex = await fetchJsonSafe('/api/collections', { collections: [] });
+        const collections = await Promise.all((collectionsIndex.collections || []).map(async (col) => {
+          try {
+            const res = await fetch(`/api/collections/${col.id}/export`, { credentials: 'include' });
+            const text = await res.text();
+            return JSON.parse(text);
+          } catch (error) {
+            return col;
+          }
+        }));
+
+        const workflows = await fetchJsonSafe('/api/workflows', []);
+        const contractsData = await fetchJsonSafe('/api/contracts', { contracts: [] });
+        const contracts = contractsData.contracts || [];
+        const scriptsData = await fetchJsonSafe('/api/scripts', { scripts: [] });
+        const mocksData = await fetchJsonSafe('/api/mocks', { mocks: [] });
+        const monitorsData = await fetchJsonSafe('/api/monitors', { monitors: [] });
+        const workspaceData = await fetchJsonSafe('/api/workspaces', { templates: [] });
+        const statusData = await fetchJsonSafe('/api/mcp/status', {});
+
+        const mcpServers = {};
+        Object.entries(statusData || {}).forEach(([name, info]) => {
+          const config = info?.config;
+          if (!config || config.type === 'mock') return;
+          mcpServers[name] = config;
+        });
+
+        return {
+          format: 'mcp-chat-studio-bundle',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          local: {
+            layoutMode: localStorage.getItem('layout') || null,
+            workspaceLayout: readLocalValue('mcp_workspace_layout'),
+            workspaceSessions: readLocalValue('mcp_workspace_sessions'),
+            workspacePresets: readLocalValue('mcp_workspace_presets'),
+            scenarios: readLocalValue(sessionManager.SCENARIOS_KEY),
+            session: readLocalValue(sessionManager.STORAGE_KEY),
+            branches: readLocalValue(sessionManager.BRANCHES_KEY),
+            variables: readLocalValue(VARIABLE_STORE_KEY),
+            inspectorVariables: readLocalValue(INSPECTOR_VARIABLES_KEY),
+            customTemplates: readLocalValue(CUSTOM_TEMPLATES_KEY)
+          },
+          server: {
+            collections,
+            workflows,
+            contracts,
+            mocks: mocksData.mocks || [],
+            scripts: scriptsData.scripts || [],
+            monitors: monitorsData.monitors || [],
+            workspaceTemplates: workspaceData.templates || [],
+            mcpServers
+          }
+        };
+      }
+
+      async function applyProjectBundle(bundle) {
+        const local = bundle?.local || {};
+        const server = bundle?.server || {};
+
+        if (local.layoutMode) localStorage.setItem('layout', String(local.layoutMode));
+        writeLocalValue('mcp_workspace_layout', local.workspaceLayout);
+        writeLocalValue('mcp_workspace_sessions', local.workspaceSessions);
+        writeLocalValue('mcp_workspace_presets', local.workspacePresets);
+        writeLocalValue(sessionManager.SCENARIOS_KEY, local.scenarios);
+        writeLocalValue(sessionManager.STORAGE_KEY, local.session);
+        writeLocalValue(sessionManager.BRANCHES_KEY, local.branches);
+        writeLocalValue(VARIABLE_STORE_KEY, local.variables);
+        writeLocalValue(INSPECTOR_VARIABLES_KEY, local.inspectorVariables);
+        writeLocalValue(CUSTOM_TEMPLATES_KEY, local.customTemplates);
+
+        const status = await fetchJsonSafe('/api/mcp/status', {});
+        const existingServers = new Set(Object.keys(status || {}));
+
+        for (const [name, config] of Object.entries(server.mcpServers || {})) {
+          const payload = { name, ...config };
+          if (existingServers.has(name)) {
+            await fetch(`/api/mcp/update/${name}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
+          } else {
+            await fetch('/api/mcp/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
+          }
+        }
+
+        for (const collection of server.collections || []) {
+          await fetch('/api/collections/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(collection)
+          });
+        }
+
+        for (const workflow of server.workflows || []) {
+          await fetch('/api/workflows', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(workflow)
+          });
+        }
+
+        for (const contract of server.contracts || []) {
+          await fetch('/api/contracts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(contract)
+          });
+        }
+
+        const existingScripts = await fetchJsonSafe('/api/scripts', { scripts: [] });
+        const scriptMap = new Map((existingScripts.scripts || []).map(s => [s.id, s]));
+        const scriptNameMap = new Map((existingScripts.scripts || []).map(s => [s.name, s.id]));
+
+        for (const script of server.scripts || []) {
+          const existingId = script.id && scriptMap.has(script.id)
+            ? script.id
+            : scriptNameMap.get(script.name);
+          if (existingId) {
+            await fetch(`/api/scripts/${existingId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(script)
+            });
+          } else {
+            await fetch('/api/scripts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(script)
+            });
+          }
+        }
+
+        const existingMocks = await fetchJsonSafe('/api/mocks', { mocks: [] });
+        const mockMap = new Map((existingMocks.mocks || []).map(m => [m.id, m]));
+        const mockNameMap = new Map((existingMocks.mocks || []).map(m => [m.name, m.id]));
+
+        for (const mock of server.mocks || []) {
+          const existingId = mock.id && mockMap.has(mock.id)
+            ? mock.id
+            : mockNameMap.get(mock.name);
+          if (existingId) {
+            await fetch(`/api/mocks/${existingId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(mock)
+            });
+          } else {
+            await fetch('/api/mocks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(mock)
+            });
+          }
+        }
+
+        for (const monitor of server.monitors || []) {
+          await fetch('/api/monitors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(monitor)
+          });
+        }
+
+        const existingTemplates = await fetchJsonSafe('/api/workspaces', { templates: [] });
+        const templateMap = new Map((existingTemplates.templates || []).map(t => [t.id, t]));
+        const templateNameMap = new Map((existingTemplates.templates || []).map(t => [t.name, t.id]));
+
+        for (const template of server.workspaceTemplates || []) {
+          const existingId = template.id && templateMap.has(template.id)
+            ? template.id
+            : templateNameMap.get(template.name);
+          if (existingId) {
+            await fetch(`/api/workspaces/${existingId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(template)
+            });
+          } else {
+            await fetch('/api/workspaces', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(template)
+            });
+          }
+        }
+
+        if (typeof loadCollections === 'function') await loadCollections();
+        if (typeof loadWorkflowsList === 'function') loadWorkflowsList();
+        if (typeof loadContracts === 'function') await loadContracts();
+        if (typeof loadMockServers === 'function') await loadMockServers();
+        if (typeof loadScripts === 'function') await loadScripts();
+        if (typeof loadMonitors === 'function') await loadMonitors();
+        if (typeof loadInspectorServers === 'function') loadInspectorServers();
+        if (typeof loadMCPStatus === 'function') loadMCPStatus();
+        if (window.floatingWorkspace?.loadWorkspaceTemplates) {
+          await window.floatingWorkspace.loadWorkspaceTemplates();
+        }
+        loadInspectorVariables();
+      }
+
       function onProviderChange() {
         const provider = document.getElementById('llmProvider').value;
         const hintEl = document.getElementById('providerHint');

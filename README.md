@@ -179,6 +179,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
 - **📦 Workflow Export** - Generate Python or Node.js scripts from workflows
 - **📚 Docs Generator** - Publish MCP documentation in one click
+- **📦 Project Bundles** - Export/import full test setups (collections, mocks, envs)
 - **🔍 Custom Assertions** - 14 operators with JSONPath support
 - **🔍 Low-Level Debugging** - Inspector tab for raw MCP protocol inspection
 - **🐳 Production Ready** - Docker support, CI/CD, security-hardened
