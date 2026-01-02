@@ -10,6 +10,7 @@
 let currentCollection = null;
 let collections = [];
 const COLLECTION_RUNS_KEY = 'mcp_chat_studio_collection_runs';
+const COLLECTION_SNAPSHOTS_KEY = 'mcp_chat_studio_collection_snapshots';
 const COLLECTION_GOLDEN_KEY = 'mcp_chat_studio_collection_golden';
 
 function getCollectionRuns() {
@@ -18,6 +19,124 @@ function getCollectionRuns() {
   } catch (error) {
     return [];
   }
+}
+
+function getCollectionSnapshots() {
+  try {
+    return JSON.parse(localStorage.getItem(COLLECTION_SNAPSHOTS_KEY) || '[]');
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCollectionSnapshots(snapshots) {
+  localStorage.setItem(COLLECTION_SNAPSHOTS_KEY, JSON.stringify(snapshots));
+}
+
+function matchSnapshotCollection(snapshot, collectionId, collectionName) {
+  if (!snapshot) return false;
+  if (collectionId && snapshot.collectionId === collectionId) return true;
+  if (!collectionId && collectionName && snapshot.collectionName === collectionName) return true;
+  return false;
+}
+
+function getLatestSnapshotForCollection(collectionId, collectionName) {
+  const snapshots = getCollectionSnapshots();
+  const filtered = snapshots.filter(snapshot => matchSnapshotCollection(snapshot, collectionId, collectionName));
+  if (!filtered.length) return null;
+  filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return filtered[0];
+}
+
+function getSnapshotById(snapshotId) {
+  const snapshots = getCollectionSnapshots();
+  return snapshots.find(snapshot => snapshot.id === snapshotId) || null;
+}
+
+async function fetchSnapshotResource(url) {
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    return null;
+  }
+}
+
+async function saveRunSnapshot(results) {
+  if (!results) return;
+  const snapshots = getCollectionSnapshots();
+  const filtered = snapshots.filter(snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName));
+
+  const [tools, status, mocks, scripts] = await Promise.all([
+    fetchSnapshotResource('/api/mcp/tools'),
+    fetchSnapshotResource('/api/mcp/status'),
+    fetchSnapshotResource('/api/mocks'),
+    fetchSnapshotResource('/api/scripts')
+  ]);
+
+  const globals = typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
+  const envVars = typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
+
+  const snapshot = {
+    id: `snapshot_${Date.now()}`,
+    runId: results.runId,
+    collectionId: results.collectionId,
+    collectionName: results.collectionName,
+    timestamp: new Date().toISOString(),
+    runConfig: results.runConfig || {},
+    results,
+    environment: {
+      globals,
+      envVars,
+      runEnv: results.runConfig?.environment || {}
+    },
+    servers: status?.servers || status || {},
+    tools: tools?.tools || [],
+    mocks: mocks?.mocks || [],
+    scripts: scripts?.scripts || []
+  };
+
+  filtered.unshift(snapshot);
+  saveCollectionSnapshots(filtered.slice(0, 20));
+  showNotification('Snapshot saved for deterministic replay.', 'success');
+  return snapshot;
+}
+
+function clearRunSnapshot(results) {
+  const snapshots = getCollectionSnapshots();
+  const filtered = snapshots.filter(snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName));
+  saveCollectionSnapshots(filtered);
+  showNotification('Snapshot cleared.', 'success');
+}
+
+function showSnapshotReport(snapshotOrId) {
+  let snapshot = snapshotOrId;
+  if (typeof snapshotOrId === 'string') {
+    snapshot = getSnapshotById(snapshotOrId);
+  }
+  if (!snapshot?.results) {
+    showNotification('Snapshot not found.', 'error');
+    return;
+  }
+  const snapshotResults = {
+    ...snapshot.results,
+    snapshotMeta: snapshot
+  };
+  showCollectionRunReport(snapshotResults);
+}
+
+async function driftCheckSnapshot(results) {
+  const snapshot = getLatestSnapshotForCollection(results?.collectionId, results?.collectionName);
+  if (!snapshot) {
+    showNotification('No snapshot available for drift check.', 'warning');
+    return;
+  }
+  const runConfig = snapshot.runConfig || results?.runConfig || { environment: {}, iterations: 1, iterationData: [] };
+  const fresh = await runCollectionWithConfig(snapshot.collectionId || results.collectionId, runConfig);
+  recordCollectionRun(fresh);
+  renderCollectionRuns();
+  showCollectionRunReport(fresh);
 }
 
 function getGoldenBaselines() {
@@ -868,6 +987,7 @@ function clearGoldenFromReport(results) {
 function showCollectionRunReport(results) {
   window.lastCollectionRunReport = results;
   const goldenEntry = getGoldenBaselineForRun(results);
+  const snapshotEntry = results.snapshotMeta || getLatestSnapshotForCollection(results?.collectionId, results?.collectionName);
   const modal = document.createElement('div');
   modal.className = 'modal-overlay active';
   modal.id = 'collectionRunReportModal';
@@ -924,6 +1044,17 @@ function showCollectionRunReport(results) {
         </button>
       </div>
       <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
+        ${results.snapshotMeta ? `
+          <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(59, 130, 246, 0.08); font-size: 0.75rem">
+            <strong>📸 Snapshot Replay</strong>
+            <div style="color: var(--text-muted); margin-top: 4px">
+              Captured ${new Date(results.snapshotMeta.timestamp).toLocaleString()} ·
+              ${Object.keys(results.snapshotMeta.servers || {}).length} servers ·
+              ${(results.snapshotMeta.tools || []).length} tools ·
+              ${(results.snapshotMeta.mocks || []).length} mocks
+            </div>
+          </div>
+        ` : ''}
         ${(() => {
           const blocks = [];
           const goldenEntry = getGoldenBaselineForRun(results);
@@ -943,6 +1074,18 @@ function showCollectionRunReport(results) {
                 No golden baseline yet. Use ⭐ Set Golden to lock this run.
               </div>
             `);
+          }
+
+          if (snapshotEntry && snapshotEntry.runId !== results.runId) {
+            const snapshotDelta = computeRunDelta(results, {
+              timestamp: snapshotEntry.timestamp,
+              results: snapshotEntry.results
+            });
+            blocks.push(renderDeltaBlock(
+              snapshotDelta,
+              `📸 Snapshot · ${new Date(snapshotEntry.timestamp).toLocaleString()}`,
+              'Snapshot baseline'
+            ));
           }
 
           const previousEntry = findPreviousCollectionRun(results);
@@ -970,6 +1113,12 @@ function showCollectionRunReport(results) {
       <div class="modal-actions">
         <button class="btn" onclick="rerunCollectionFromReport(window.lastCollectionRunReport)">↻ Rerun</button>
         <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
+        <button class="btn" onclick="saveRunSnapshot(window.lastCollectionRunReport)">📸 Save Snapshot</button>
+        ${snapshotEntry ? `
+          <button class="btn" onclick="showSnapshotReport('${snapshotEntry.id}')">🎬 Replay Snapshot</button>
+          <button class="btn" onclick="driftCheckSnapshot(window.lastCollectionRunReport)">🔍 Drift Check</button>
+          <button class="btn" onclick="clearRunSnapshot(window.lastCollectionRunReport)">🧹 Clear Snapshot</button>
+        ` : ''}
         ${goldenEntry ? `
           <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Update Golden</button>
           <button class="btn" onclick="clearGoldenFromReport(window.lastCollectionRunReport)">🧹 Clear Golden</button>
