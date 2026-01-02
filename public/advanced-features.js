@@ -65,7 +65,7 @@ async function createCollectionModal() {
     fields: [
       { id: 'name', label: 'Collection name', required: true, placeholder: 'Smoke Tests' },
       { id: 'description', label: 'Description', placeholder: 'Optional' },
-      { id: 'variables', label: 'Environment variables (JSON)', type: 'textarea', value: '{}', rows: 4, monospace: true },
+      { id: 'variables', label: 'Environment variables (JSON)', type: 'textarea', value: '{}', rows: 4, monospace: true, hint: 'Overrides global + environment variables for this collection.' },
       { id: 'preScripts', label: 'Pre-script IDs (comma-separated)', placeholder: 'auth, setup' },
       { id: 'postScripts', label: 'Post-script IDs (comma-separated)', placeholder: 'cleanup' }
     ]
@@ -110,11 +110,20 @@ async function createCollectionModal() {
 
 async function runCollection(id) {
   try {
+    const defaultEnv = getDefaultRunEnvironment();
     const result = await appFormModal({
       title: 'Run Collection',
       confirmText: 'Run',
       fields: [
-        { id: 'environment', label: 'Environment variables (JSON)', type: 'textarea', value: '{}', rows: 4, monospace: true },
+        {
+          id: 'environment',
+          label: 'Environment variables (JSON)',
+          type: 'textarea',
+          value: JSON.stringify(defaultEnv, null, 2),
+          rows: 4,
+          monospace: true,
+          hint: 'Defaults to Global + Environment variables. Override as needed.'
+        },
         { id: 'iterations', label: 'Iteration count', type: 'number', value: 1 },
         { id: 'iterationData', label: 'Iteration data (JSON array)', type: 'textarea', value: '', rows: 4, monospace: true }
       ]
@@ -185,7 +194,70 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function escapeXml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function getDefaultRunEnvironment() {
+  const globals = typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
+  const envVars = typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
+  return { ...globals, ...envVars };
+}
+
+function downloadTextFile(filename, data, type = 'text/plain') {
+  const blob = new Blob([data], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCollectionRunReport(results) {
+  downloadTextFile('collection-run-report.json', JSON.stringify(results, null, 2), 'application/json');
+}
+
+function exportCollectionRunJUnit(results) {
+  const scenarios = results.scenarios || [];
+  const totalTime = scenarios.reduce((sum, s) => sum + (s.duration || 0), 0) / 1000;
+  const failures = scenarios.filter(s => s.status === 'failed').length;
+  const skipped = scenarios.filter(s => s.status === 'skipped').length;
+
+  const testcases = scenarios.map(scenario => {
+    const name = `${scenario.scenarioName || scenario.name || 'Scenario'} (iter ${scenario.iteration || 1})`;
+    const duration = ((scenario.duration || 0) / 1000).toFixed(3);
+    if (scenario.status === 'failed') {
+      return `
+        <testcase name="${escapeXml(name)}" time="${duration}">
+          <failure message="Failed">Failed</failure>
+        </testcase>
+      `;
+    }
+    if (scenario.status === 'skipped') {
+      return `
+        <testcase name="${escapeXml(name)}" time="${duration}">
+          <skipped />
+        </testcase>
+      `;
+    }
+    return `<testcase name="${escapeXml(name)}" time="${duration}" />`;
+  }).join('');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="MCP Collection Run" tests="${scenarios.length}" failures="${failures}" skipped="${skipped}" time="${totalTime.toFixed(3)}">
+${testcases}
+</testsuite>`;
+  downloadTextFile('collection-run-report.xml', xml, 'application/xml');
+}
+
 function showCollectionRunReport(results) {
+  window.lastCollectionRunReport = results;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay active';
   modal.id = 'collectionRunReportModal';
@@ -253,6 +325,8 @@ function showCollectionRunReport(results) {
         </div>
       </div>
       <div class="modal-actions">
+        <button class="btn" onclick="exportCollectionRunReport(window.lastCollectionRunReport)">📥 Export JSON</button>
+        <button class="btn" onclick="exportCollectionRunJUnit(window.lastCollectionRunReport)">🧾 Export JUnit</button>
         <button class="btn" onclick="document.getElementById('collectionRunReportModal')?.remove()">Close</button>
       </div>
     </div>
@@ -943,7 +1017,8 @@ async function editCollectionSettings(collectionId) {
           type: 'textarea',
           value: JSON.stringify(collection.variables || {}, null, 2),
           rows: 5,
-          monospace: true
+          monospace: true,
+          hint: 'Overrides global + environment variables for this collection.'
         },
         {
           id: 'preScripts',
