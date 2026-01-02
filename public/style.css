@@ -1691,6 +1691,49 @@ kbd {
   color: var(--text-primary);
 }
 
+.mock-recorder-stats {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.mock-recorder-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.mock-recorder-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.mock-recorder-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-muted);
+}
+
+.mock-recorder-dot.success {
+  background: var(--success);
+}
+
+.mock-recorder-dot.fail {
+  background: var(--error);
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;

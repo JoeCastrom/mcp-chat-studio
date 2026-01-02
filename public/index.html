@@ -612,6 +612,32 @@
                 </div>
               </div>
 
+              <div class="inspector-section" id="mockRecorderSection">
+                <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap">
+                  <div>
+                    <h3>🎙️ Mock Recorder</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 4px 0 0">
+                      Capture tool calls live and turn them into a mock server.
+                    </p>
+                  </div>
+                  <label class="toggle" style="font-size: 0.75rem">
+                    <input
+                      type="checkbox"
+                      id="mockRecorderToggle"
+                      onchange="toggleMockRecorder(this.checked)"
+                    />
+                    <span class="switch"></span>
+                    <span id="mockRecorderStatus">Recording off</span>
+                  </label>
+                </div>
+                <div id="mockRecorderStats" class="mock-recorder-stats"></div>
+                <div id="mockRecorderList" class="mock-recorder-list"></div>
+                <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap">
+                  <button class="btn" onclick="createMockFromRecorder()">🎭 Create Mock</button>
+                  <button class="btn" onclick="clearMockRecorder()">🗑️ Clear</button>
+                </div>
+              </div>
+
               <!-- Response Display -->
               <div class="inspector-section" id="inspectorResponseSection" style="display: none">
                 <h3>📤 Response</h3>

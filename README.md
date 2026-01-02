@@ -420,6 +420,13 @@ mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit
 - **Copy/Download** - Get starter code instantly
 - **Parameter types** - string, number, boolean, object
 
+### 🎙️ Mock Recorder (Live Capture)
+
+Record live tool calls and instantly spin them into a mock server:
+- **Capture** tool calls from the Inspector
+- **Create mock** with one click
+- **Keep context** with real tool schemas and outputs
+
 ### 🌿 Session Branching
 
 - **Fork conversations** - Branch at any message

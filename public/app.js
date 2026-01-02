@@ -81,6 +81,10 @@
             session.toolHistory = session.toolHistory.slice(0, 100);
           }
           this.save(session);
+
+          if (typeof window.recordMockEntry === 'function') {
+            window.recordMockEntry(entry);
+          }
         },
 
         // Get tool history
@@ -3420,6 +3424,132 @@
           });
         }
         return value;
+      }
+
+      const MOCK_RECORDER_KEY = 'mcp_chat_studio_mock_recorder';
+      const mockRecorderState = {
+        recording: false,
+        entries: []
+      };
+
+      function loadMockRecorderState() {
+        try {
+          const stored = JSON.parse(localStorage.getItem(MOCK_RECORDER_KEY) || '{}');
+          mockRecorderState.recording = Boolean(stored.recording);
+          mockRecorderState.entries = Array.isArray(stored.entries) ? stored.entries : [];
+        } catch (error) {
+          mockRecorderState.recording = false;
+          mockRecorderState.entries = [];
+        }
+      }
+
+      function saveMockRecorderState() {
+        localStorage.setItem(MOCK_RECORDER_KEY, JSON.stringify({
+          recording: mockRecorderState.recording,
+          entries: mockRecorderState.entries
+        }));
+      }
+
+      function renderMockRecorder() {
+        const list = document.getElementById('mockRecorderList');
+        const stats = document.getElementById('mockRecorderStats');
+        const status = document.getElementById('mockRecorderStatus');
+        const toggle = document.getElementById('mockRecorderToggle');
+        if (!list || !stats || !status || !toggle) return;
+
+        toggle.checked = mockRecorderState.recording;
+        status.textContent = mockRecorderState.recording ? 'Recording on' : 'Recording off';
+        status.style.color = mockRecorderState.recording ? 'var(--success)' : 'var(--text-muted)';
+
+        const entries = mockRecorderState.entries || [];
+        const total = entries.length;
+        const successes = entries.filter(e => e.success).length;
+        const failures = total - successes;
+        const servers = Array.from(new Set(entries.map(e => e.server).filter(Boolean)));
+
+        stats.innerHTML = `
+          <span class="pill">Captured: ${total}</span>
+          <span class="pill">✅ ${successes}</span>
+          <span class="pill">❌ ${failures}</span>
+          <span class="pill">Servers: ${servers.length}</span>
+        `;
+
+        if (total === 0) {
+          list.innerHTML = '<div style="color: var(--text-muted)">No captured calls yet.</div>';
+          return;
+        }
+
+        list.innerHTML = entries.slice(0, 6).map(entry => `
+          <div class="mock-recorder-item">
+            <div style="display: flex; gap: 8px; align-items: center">
+              <span class="mock-recorder-dot ${entry.success ? 'success' : 'fail'}"></span>
+              <div>
+                <div style="font-weight: 600; color: var(--text-primary)">${escapeHtml(entry.tool || 'tool')}</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(entry.server || 'server')} • ${entry.duration || 0}ms</div>
+              </div>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted)">${new Date(entry.timestamp).toLocaleTimeString()}</div>
+          </div>
+        `).join('');
+
+        if (total > 6) {
+          list.innerHTML += `<div style="font-size: 0.7rem; color: var(--text-muted)">+${total - 6} more captured calls</div>`;
+        }
+      }
+
+      function toggleMockRecorder(enabled) {
+        mockRecorderState.recording = Boolean(enabled);
+        saveMockRecorderState();
+        renderMockRecorder();
+      }
+
+      function clearMockRecorder() {
+        mockRecorderState.entries = [];
+        saveMockRecorderState();
+        renderMockRecorder();
+      }
+
+      function recordMockEntry(entry) {
+        if (!mockRecorderState.recording) return;
+        mockRecorderState.entries.unshift({
+          timestamp: entry.timestamp || new Date().toISOString(),
+          server: entry.server,
+          tool: entry.tool,
+          request: entry.request,
+          response: entry.response,
+          duration: entry.duration || 0,
+          success: entry.success !== false
+        });
+        if (mockRecorderState.entries.length > 50) {
+          mockRecorderState.entries = mockRecorderState.entries.slice(0, 50);
+        }
+        saveMockRecorderState();
+        renderMockRecorder();
+      }
+
+      async function createMockFromRecorder() {
+        const entries = mockRecorderState.entries || [];
+        if (entries.length === 0) {
+          appendMessage('error', 'No recorded tool calls to convert.');
+          return;
+        }
+
+        const steps = entries.map(entry => ({
+          server: entry.server,
+          tool: entry.tool,
+          response: entry.response,
+          status: entry.success ? 'passed' : 'failed'
+        }));
+        const results = {
+          collectionName: 'Mock Recorder',
+          scenarios: [{ name: 'Recorded Calls', steps }]
+        };
+
+        if (typeof createMocksFromRun === 'function') {
+          await createMocksFromRun(results);
+        } else {
+          appendMessage('error', 'Mock creation unavailable. Reload the app and try again.');
+        }
       }
 
       function collectVariablePlaceholders(value, collector) {
@@ -8501,6 +8631,8 @@ main().catch(console.error);
       updateTokenDisplay();
       initEnvProfile();
       loadInspectorVariables();
+      loadMockRecorderState();
+      renderMockRecorder();
 
       // Refresh MCP status periodically
       const mcpStatusInterval = setInterval(loadMCPStatus, 30000);
@@ -8550,6 +8682,10 @@ main().catch(console.error);
       window.getGlobalVariables = getGlobalVariables;
       window.getEnvironmentVariables = getEnvironmentVariables;
       window.getRuntimeVariables = getRuntimeVariables;
+      window.toggleMockRecorder = toggleMockRecorder;
+      window.clearMockRecorder = clearMockRecorder;
+      window.createMockFromRecorder = createMockFromRecorder;
+      window.recordMockEntry = recordMockEntry;
       window.loadSchemaDiffServers = loadSchemaDiffServers;
       window.loadSchemaDiffTools = loadSchemaDiffTools;
       window.saveSchemaBaseline = saveSchemaBaseline;
