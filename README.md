@@ -126,6 +126,7 @@ Real-time usage statistics and performance metrics:
 - **Leaderboards** - Most-used tools across servers
 - **Health dashboard** - System-wide health overview
 - **Flake radar** - Highlights tools with rising failure or latency jitter
+- **Flake alerts** - Baseline + regression checks for tool reliability
 
 ### 📚 Documentation Generator
 Publish MCP server docs in seconds:
@@ -180,6 +181,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🌐 Matrix Runs** - Execute the same scenario across multiple servers with baseline diffs
 - **📊 Data Runs** - Replay scenarios against a JSON dataset
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
+- **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes

@@ -1648,6 +1648,29 @@
               <h3>⚡ Flake Radar</h3>
               <div id="flakeRadar"></div>
             </div>
+
+            <div class="inspector-section" style="margin-top: 20px">
+              <h3>🚨 Flake Alerts</h3>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Capture a baseline and watch for rising failure or jitter.
+              </p>
+              <div class="flake-alert-controls">
+                <button class="btn" onclick="setFlakeBaseline()">📌 Set Baseline</button>
+                <button class="btn" onclick="checkFlakeAlerts()">🔎 Check Now</button>
+                <button class="btn" onclick="clearFlakeBaseline()">🗑️ Clear</button>
+                <label class="toggle" style="font-size: 0.75rem">
+                  <input
+                    type="checkbox"
+                    id="flakeAlertToggle"
+                    onchange="toggleFlakeAlerts(this.checked)"
+                  />
+                  <span class="switch"></span>
+                  <span>Auto watch</span>
+                </label>
+              </div>
+              <div id="flakeAlertStatus" class="flake-alert-status"></div>
+              <div id="flakeAlertList" class="flake-alert-list"></div>
+            </div>
           </div>
         </div>
 

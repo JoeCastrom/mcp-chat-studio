@@ -1159,6 +1159,7 @@ async function loadToolExplorer() {
       overallSuccessRate: health.overallSuccessRate ?? (avgSuccessRate * 100)
     });
     renderFlakeRadar();
+    initFlakeAlerts();
   } catch (error) {
     console.error('Failed to load tool explorer:', error);
   }
@@ -1314,21 +1315,17 @@ function renderHealthDashboard(health) {
   `;
 }
 
-function renderFlakeRadar() {
-  const el = document.getElementById('flakeRadar');
-  if (!el) return;
+const FLAKE_ALERT_KEY = 'mcp_chat_studio_flake_alerts';
+let flakeAlertState = {
+  enabled: false,
+  baseline: null,
+  lastCheck: null
+};
+let flakeAlertInterval = null;
 
-  const history = typeof window.getToolExecutionHistory === 'function'
-    ? window.getToolExecutionHistory()
-    : [];
-
-  if (!history || history.length === 0) {
-    el.innerHTML = '<div class="empty-state">No history yet. Run tools to see flake risk.</div>';
-    return;
-  }
-
+function computeFlakeRows(history) {
   const grouped = new Map();
-  history.forEach(entry => {
+  (history || []).forEach(entry => {
     if (!entry?.server || !entry?.tool) return;
     const key = `${entry.server}__${entry.tool}`;
     if (!grouped.has(key)) grouped.set(key, []);
@@ -1370,6 +1367,7 @@ function renderFlakeRadar() {
     const [server, tool] = key.split('__');
 
     rows.push({
+      key,
       server,
       tool,
       total,
@@ -1378,10 +1376,31 @@ function renderFlakeRadar() {
       p95,
       jitter,
       score,
+      failureRate: failures / total,
       trend
     });
   });
 
+  return rows;
+}
+
+function getHistoryForFlakes() {
+  return typeof window.getToolExecutionHistory === 'function'
+    ? window.getToolExecutionHistory()
+    : [];
+}
+
+function renderFlakeRadar() {
+  const el = document.getElementById('flakeRadar');
+  if (!el) return;
+
+  const history = getHistoryForFlakes();
+  if (!history || history.length === 0) {
+    el.innerHTML = '<div class="empty-state">No history yet. Run tools to see flake risk.</div>';
+    return;
+  }
+
+  const rows = computeFlakeRows(history);
   if (rows.length === 0) {
     el.innerHTML = '<div class="empty-state">No usable history yet.</div>';
     return;
@@ -1415,6 +1434,191 @@ function renderFlakeRadar() {
       `).join('')}
     </div>
   `;
+}
+
+function loadFlakeAlertState() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(FLAKE_ALERT_KEY) || '{}');
+    flakeAlertState = {
+      enabled: Boolean(stored.enabled),
+      baseline: stored.baseline || null,
+      lastCheck: stored.lastCheck || null
+    };
+  } catch (error) {
+    flakeAlertState = { enabled: false, baseline: null, lastCheck: null };
+  }
+}
+
+function saveFlakeAlertState() {
+  localStorage.setItem(FLAKE_ALERT_KEY, JSON.stringify(flakeAlertState));
+}
+
+function startFlakeAlertInterval() {
+  if (flakeAlertInterval) clearInterval(flakeAlertInterval);
+  if (!flakeAlertState.enabled || !flakeAlertState.baseline) return;
+  flakeAlertInterval = setInterval(() => {
+    checkFlakeAlerts({ silent: true });
+  }, 120000);
+}
+
+function buildFlakeBaseline(rows) {
+  const baseline = {};
+  rows.forEach(row => {
+    baseline[row.key] = {
+      score: row.score,
+      failureRate: row.failureRate,
+      jitter: row.jitter,
+      p95: row.p95,
+      total: row.total
+    };
+  });
+  return baseline;
+}
+
+function renderFlakeAlerts() {
+  const statusEl = document.getElementById('flakeAlertStatus');
+  const listEl = document.getElementById('flakeAlertList');
+  const toggle = document.getElementById('flakeAlertToggle');
+  if (!statusEl || !listEl || !toggle) return;
+
+  toggle.checked = flakeAlertState.enabled;
+  if (!flakeAlertState.baseline) {
+    statusEl.textContent = 'No baseline set yet. Capture one to detect rising flake risk.';
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const baselineTime = new Date(flakeAlertState.baseline.capturedAt).toLocaleString();
+  statusEl.textContent = `Baseline captured: ${baselineTime}.`;
+
+  if (!flakeAlertState.lastCheck) {
+    listEl.innerHTML = '<div style="color: var(--text-muted)">No check run yet.</div>';
+    return;
+  }
+
+  const { checkedAt, summary, top } = flakeAlertState.lastCheck;
+  const stamp = new Date(checkedAt).toLocaleString();
+  listEl.innerHTML = `
+    <div class="flake-alert-item">
+      <div>
+        <strong>Last check</strong>
+        <div style="font-size: 0.7rem; color: var(--text-muted)">${stamp}</div>
+      </div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap">
+        <span class="pill">Alerts: ${summary.alerts}</span>
+        <span class="pill">Stable: ${summary.stable}</span>
+      </div>
+    </div>
+    ${(top || []).map(item => `
+      <div class="flake-alert-item">
+        <div>
+          <strong>${escapeHtml(item.tool)}</strong>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(item.server)}</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <span class="pill">+${item.deltaScore}</span>
+          <span class="pill">Fail ${Math.round(item.failureRate * 100)}%</span>
+          <span class="pill">Jitter ${item.jitter}%</span>
+        </div>
+      </div>
+    `).join('')}
+    ${(top || []).length === 0 ? '<div style="color: var(--text-muted)">No changes detected.</div>' : ''}
+  `;
+}
+
+async function setFlakeBaseline() {
+  const history = getHistoryForFlakes();
+  if (!history || history.length === 0) {
+    showNotification('Run some tools before setting a baseline.', 'warning');
+    return;
+  }
+  const rows = computeFlakeRows(history);
+  flakeAlertState.baseline = {
+    capturedAt: new Date().toISOString(),
+    tools: buildFlakeBaseline(rows)
+  };
+  flakeAlertState.lastCheck = null;
+  saveFlakeAlertState();
+  renderFlakeAlerts();
+  startFlakeAlertInterval();
+  showNotification('Flake baseline captured.', 'success');
+}
+
+async function checkFlakeAlerts(options = {}) {
+  if (!flakeAlertState.baseline) {
+    if (!options.silent) {
+      showNotification('Set a flake baseline first.', 'warning');
+    }
+    renderFlakeAlerts();
+    return;
+  }
+
+  const history = getHistoryForFlakes();
+  const rows = computeFlakeRows(history);
+  const baseline = flakeAlertState.baseline.tools || {};
+
+  const alerts = [];
+  let stable = 0;
+  rows.forEach(row => {
+    const base = baseline[row.key];
+    if (!base) return;
+    const deltaScore = row.score - base.score;
+    const deltaFailure = row.failureRate - base.failureRate;
+    const deltaJitter = row.jitter - base.jitter;
+    const isAlert = deltaScore >= 15 || deltaFailure >= 0.15 || deltaJitter >= 30;
+    if (isAlert) {
+      alerts.push({
+        server: row.server,
+        tool: row.tool,
+        deltaScore,
+        failureRate: row.failureRate,
+        jitter: row.jitter
+      });
+    } else {
+      stable += 1;
+    }
+  });
+
+  alerts.sort((a, b) => b.deltaScore - a.deltaScore);
+  const top = alerts.slice(0, 5);
+
+  flakeAlertState.lastCheck = {
+    checkedAt: new Date().toISOString(),
+    summary: {
+      alerts: alerts.length,
+      stable
+    },
+    top
+  };
+  saveFlakeAlertState();
+  renderFlakeAlerts();
+
+  if (alerts.length > 0 && !options.silent) {
+    showNotification(`Flake alerts: ${alerts.length} tool(s) regressed.`, 'warning');
+  } else if (!options.silent) {
+    showNotification('Flake alerts: no regressions detected.', 'success');
+  }
+}
+
+function clearFlakeBaseline() {
+  flakeAlertState.baseline = null;
+  flakeAlertState.lastCheck = null;
+  saveFlakeAlertState();
+  renderFlakeAlerts();
+  showNotification('Flake baseline cleared.', 'success');
+}
+
+function toggleFlakeAlerts(enabled) {
+  flakeAlertState.enabled = Boolean(enabled);
+  saveFlakeAlertState();
+  renderFlakeAlerts();
+  startFlakeAlertInterval();
+}
+
+function initFlakeAlerts() {
+  loadFlakeAlertState();
+  renderFlakeAlerts();
+  startFlakeAlertInterval();
 }
 
 async function exportToolStats() {
