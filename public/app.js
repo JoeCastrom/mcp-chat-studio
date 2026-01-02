@@ -5556,6 +5556,177 @@
         appendMessage('system', `💾 Scenario "${name}" saved with ${scenario.steps.length} steps.`);
       }
 
+      const DATASETS_KEY = 'mcp_chat_studio_datasets';
+
+      function loadDatasets() {
+        try {
+          const data = JSON.parse(localStorage.getItem(DATASETS_KEY) || '[]');
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveDatasets(datasets) {
+        localStorage.setItem(DATASETS_KEY, JSON.stringify(datasets));
+      }
+
+      function getDatasetById(datasetId) {
+        return loadDatasets().find(dataset => dataset.id === datasetId);
+      }
+
+      function renderDatasetManagerList() {
+        const listEl = document.getElementById('datasetManagerList');
+        if (!listEl) return;
+
+        const datasets = loadDatasets();
+        if (datasets.length === 0) {
+          listEl.innerHTML = '<div class="empty-state">No datasets yet. Add one to run data-driven scenarios.</div>';
+          return;
+        }
+
+        listEl.innerHTML = datasets.map(dataset => `
+          <div class="dataset-card">
+            <div>
+              <strong>${escapeHtml(dataset.name)}</strong>
+              <div style="font-size: 0.7rem; color: var(--text-muted)">
+                ${dataset.rows?.length || 0} row${(dataset.rows?.length || 0) !== 1 ? 's' : ''} • ${new Date(dataset.createdAt).toLocaleString()}
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px">
+              <button class="btn" onclick="copyDataset('${dataset.id}')" style="font-size: 0.65rem; padding: 2px 6px">📋 Copy</button>
+              <button class="btn" onclick="deleteDataset('${dataset.id}')" style="font-size: 0.65rem; padding: 2px 6px">🗑️</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function showDatasetManager() {
+        const existing = document.getElementById('datasetManagerModal');
+        if (existing) {
+          existing.remove();
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'datasetManagerModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 760px; max-height: 85vh">
+            <div class="modal-header">
+              <h2 class="modal-title">📚 Dataset Library</h2>
+              <button class="modal-close" onclick="closeDatasetManager()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+                <div style="font-size: 0.8rem; color: var(--text-muted)">
+                  Reuse datasets across scenarios and data runs.
+                </div>
+                <button class="btn" onclick="createDatasetModal()">➕ New Dataset</button>
+              </div>
+              <div id="datasetManagerList" style="display: flex; flex-direction: column; gap: 8px"></div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeDatasetManager()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        renderDatasetManagerList();
+      }
+
+      function closeDatasetManager() {
+        const modal = document.getElementById('datasetManagerModal');
+        if (modal) modal.remove();
+      }
+
+      async function createDatasetModal(prefill = {}) {
+        const result = await appFormModal({
+          title: 'New Dataset',
+          confirmText: 'Save',
+          fields: [
+            {
+              id: 'name',
+              label: 'Dataset name',
+              required: true,
+              value: prefill.name || '',
+              placeholder: 'User smoke data'
+            },
+            {
+              id: 'data',
+              label: 'Rows (JSON array)',
+              type: 'textarea',
+              rows: 6,
+              monospace: true,
+              value: prefill.data || '[]',
+              hint: 'Each row is merged into variables when running a scenario.'
+            }
+          ]
+        });
+
+        if (!result.confirmed) return;
+
+        const name = (result.values.name || '').trim();
+        if (!name) return;
+
+        let rows = [];
+        try {
+          const parsed = JSON.parse(result.values.data || '[]');
+          if (Array.isArray(parsed)) {
+            rows = parsed;
+          } else {
+            rows = [parsed];
+          }
+        } catch (error) {
+          showNotification('Invalid dataset JSON: ' + error.message, 'error');
+          return;
+        }
+
+        if (!rows.length) {
+          showNotification('Dataset is empty.', 'warning');
+          return;
+        }
+
+        const datasets = loadDatasets();
+        const id = `dataset_${Date.now()}`;
+        datasets.unshift({
+          id,
+          name,
+          rows,
+          createdAt: new Date().toISOString()
+        });
+        saveDatasets(datasets);
+        renderDatasetManagerList();
+        showNotification(`Dataset "${name}" saved.`, 'success');
+      }
+
+      async function deleteDataset(datasetId) {
+        const dataset = getDatasetById(datasetId);
+        if (!dataset) return;
+        const confirmed = await appConfirm(`Delete dataset "${dataset.name}"?`, {
+          title: 'Delete Dataset',
+          confirmText: 'Delete',
+          confirmVariant: 'danger'
+        });
+        if (!confirmed) return;
+        const datasets = loadDatasets().filter(item => item.id !== datasetId);
+        saveDatasets(datasets);
+        renderDatasetManagerList();
+        showNotification('Dataset deleted.', 'success');
+      }
+
+      function copyDataset(datasetId) {
+        const dataset = getDatasetById(datasetId);
+        if (!dataset) return;
+        navigator.clipboard.writeText(JSON.stringify(dataset.rows || [], null, 2));
+        showNotification('Dataset copied to clipboard.', 'success');
+      }
+
       async function createScenarioFromHistory() {
         const history = sessionManager.getToolHistory();
         if (!history.length) {
@@ -5854,10 +6025,24 @@
           return;
         }
 
+        const datasets = loadDatasets();
+        const datasetOptions = [{ value: 'custom', label: 'Custom JSON' }]
+          .concat(datasets.map(dataset => ({
+            value: dataset.id,
+            label: `${dataset.name} (${dataset.rows?.length || 0} rows)`
+          })));
+
         const result = await appFormModal({
           title: 'Scenario Data Run',
           confirmText: 'Run',
           fields: [
+            {
+              id: 'datasetSource',
+              label: 'Dataset source',
+              type: 'select',
+              value: 'custom',
+              options: datasetOptions
+            },
             {
               id: 'dataset',
               label: 'Dataset (JSON array)',
@@ -5890,23 +6075,33 @@
         if (!result.confirmed) return;
 
         let dataset = [];
-        const datasetInput = (result.values.dataset || '').trim();
-        try {
-          if (!datasetInput) {
-            await appAlert('Provide a JSON array of objects.', { title: 'Missing Dataset' });
+        const datasetSource = result.values.datasetSource || 'custom';
+        if (datasetSource !== 'custom') {
+          const selected = getDatasetById(datasetSource);
+          if (!selected) {
+            await appAlert('Selected dataset not found.', { title: 'Dataset Missing' });
             return;
           }
-          const parsed = JSON.parse(datasetInput);
-          if (Array.isArray(parsed)) {
-            dataset = parsed;
-          } else if (parsed && typeof parsed === 'object') {
-            dataset = [parsed];
-          } else {
-            throw new Error('Dataset must be a JSON array of objects.');
+          dataset = Array.isArray(selected.rows) ? selected.rows : [];
+        } else {
+          const datasetInput = (result.values.dataset || '').trim();
+          try {
+            if (!datasetInput) {
+              await appAlert('Provide a JSON array of objects.', { title: 'Missing Dataset' });
+              return;
+            }
+            const parsed = JSON.parse(datasetInput);
+            if (Array.isArray(parsed)) {
+              dataset = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+              dataset = [parsed];
+            } else {
+              throw new Error('Dataset must be a JSON array of objects.');
+            }
+          } catch (error) {
+            await appAlert(`Invalid dataset JSON: ${error.message}`, { title: 'Invalid Dataset' });
+            return;
           }
-        } catch (error) {
-          await appAlert(`Invalid dataset JSON: ${error.message}`, { title: 'Invalid Dataset' });
-          return;
         }
 
         if (dataset.length === 0) {
@@ -9398,4 +9593,5 @@ main().catch(console.error);
       window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
       window.runScenarioMatrix = runScenarioMatrix;
       window.runScenarioDataset = runScenarioDataset;
+      window.showDatasetManager = showDatasetManager;
 

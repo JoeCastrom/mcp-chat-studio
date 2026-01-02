@@ -1685,6 +1685,17 @@ kbd {
   font-size: 0.75rem;
 }
 
+.dataset-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+}
+
 .inspector-status {
   display: flex;
   align-items: center;

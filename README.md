@@ -180,6 +180,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
 - **🌐 Matrix Runs** - Execute the same scenario across multiple servers with baseline diffs
 - **📊 Data Runs** - Replay scenarios against a JSON dataset
+- **📚 Dataset Library** - Save reusable data tables for scenarios
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
 - **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
@@ -314,6 +315,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **History → Scenario** - Convert recent tool history into a scenario in one click
 - **Matrix runs** - Run one scenario across all connected servers
 - **Data runs** - Feed a JSON dataset to replay scenarios with variables
+- **Dataset library** - Save reusable data tables for quick replay
 - **Replay** - Run all steps with ✅/❌/🔶 pass/fail status
 - **Export** - Download scenarios as JSON for Git/CI integration
 
