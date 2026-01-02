@@ -1634,6 +1634,26 @@ kbd {
   display: none;
 }
 
+.flake-card {
+  flex: 1 1 240px;
+  min-width: 220px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flake-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 .inspector-status {
   display: flex;
   align-items: center;

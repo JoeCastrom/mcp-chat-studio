@@ -1158,6 +1158,7 @@ async function loadToolExplorer() {
       totalFailures,
       overallSuccessRate: health.overallSuccessRate ?? (avgSuccessRate * 100)
     });
+    renderFlakeRadar();
   } catch (error) {
     console.error('Failed to load tool explorer:', error);
   }
@@ -1309,6 +1310,109 @@ function renderHealthDashboard(health) {
           </ul>
         </div>
       ` : ''}
+    </div>
+  `;
+}
+
+function renderFlakeRadar() {
+  const el = document.getElementById('flakeRadar');
+  if (!el) return;
+
+  const history = typeof window.getToolExecutionHistory === 'function'
+    ? window.getToolExecutionHistory()
+    : [];
+
+  if (!history || history.length === 0) {
+    el.innerHTML = '<div class="empty-state">No history yet. Run tools to see flake risk.</div>';
+    return;
+  }
+
+  const grouped = new Map();
+  history.forEach(entry => {
+    if (!entry?.server || !entry?.tool) return;
+    const key = `${entry.server}__${entry.tool}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(entry);
+  });
+
+  const percentile = (values, p) => {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const idx = Math.min(sorted.length - 1, Math.max(0, Math.round((p / 100) * (sorted.length - 1))));
+    return sorted[idx];
+  };
+
+  const failureRate = entries => {
+    if (!entries.length) return 0;
+    const failures = entries.filter(entry => !entry.success).length;
+    return failures / entries.length;
+  };
+
+  const rows = [];
+  grouped.forEach((entries, key) => {
+    const recent = entries.slice(0, 20);
+    const failures = recent.filter(entry => !entry.success).length;
+    const total = recent.length;
+    if (!total) return;
+
+    const durations = recent.map(entry => Number(entry.duration || 0)).filter(value => Number.isFinite(value) && value > 0);
+    const median = percentile(durations, 50);
+    const p95 = percentile(durations, 95);
+    const jitter = median > 0 ? Math.round(((p95 - median) / median) * 100) : 0;
+
+    const recentRate = failureRate(recent.slice(0, 5));
+    const prevRate = failureRate(recent.slice(5, 10));
+    let trend = 'stable';
+    if (recentRate - prevRate >= 0.2) trend = 'rising';
+    if (prevRate - recentRate >= 0.2) trend = 'improving';
+
+    const score = Math.min(Math.round((failures / total) * 100 + jitter * 0.35), 100);
+    const [server, tool] = key.split('__');
+
+    rows.push({
+      server,
+      tool,
+      total,
+      failures,
+      median,
+      p95,
+      jitter,
+      score,
+      trend
+    });
+  });
+
+  if (rows.length === 0) {
+    el.innerHTML = '<div class="empty-state">No usable history yet.</div>';
+    return;
+  }
+
+  rows.sort((a, b) => b.score - a.score);
+  const top = rows.slice(0, 6);
+
+  const trendIcon = trend => {
+    if (trend === 'rising') return '📈';
+    if (trend === 'improving') return '📉';
+    return '➖';
+  };
+
+  el.innerHTML = `
+    <div style="display: flex; flex-wrap: wrap; gap: 10px">
+      ${top.map(row => `
+        <div class="flake-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+            <strong>${escapeHtml(row.tool)}</strong>
+            <span class="pill">Risk ${row.score}</span>
+          </div>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(row.server)}</div>
+          <div class="flake-metrics">
+            <span>❌ ${row.failures}/${row.total}</span>
+            <span>p95 ${row.p95}ms</span>
+            <span>Jitter ${row.jitter}%</span>
+            <span>${trendIcon(row.trend)} ${row.trend}</span>
+          </div>
+        </div>
+      `).join('')}
     </div>
   `;
 }
