@@ -364,6 +364,33 @@ function computeRunDelta(currentResults, previousEntry) {
   return delta;
 }
 
+function computeGateSummary(results) {
+  if (!results) return null;
+  const golden = getGoldenBaselineForRun(results);
+  const snapshot = getLatestSnapshotForCollection(results.collectionId, results.collectionName);
+  const baselineEntry = golden || snapshot;
+  if (!baselineEntry?.results) return null;
+
+  const delta = computeRunDelta(results, {
+    timestamp: baselineEntry.timestamp,
+    results: baselineEntry.results
+  });
+  if (!delta) return null;
+
+  const reasons = [];
+  if (delta.failed > 0) reasons.push(`Failed +${delta.failed}`);
+  if (delta.newFailures.length > 0) reasons.push(`${delta.newFailures.length} new failure${delta.newFailures.length !== 1 ? 's' : ''}`);
+
+  const status = reasons.length > 0 ? 'fail' : 'pass';
+  return {
+    status,
+    baselineType: golden ? 'golden' : 'snapshot',
+    baselineTimestamp: baselineEntry.timestamp,
+    delta,
+    reasons
+  };
+}
+
 function renderDeltaBlock(delta, title, badgeText) {
   if (!delta) return '';
   const formatDelta = (value) => {
@@ -816,7 +843,19 @@ function downloadTextFile(filename, data, type = 'text/plain') {
 }
 
 function exportCollectionRunReport(results) {
-  downloadTextFile('collection-run-report.json', JSON.stringify(results, null, 2), 'application/json');
+  const gate = computeGateSummary(results);
+  const payload = gate ? { ...results, gate } : results;
+  downloadTextFile('collection-run-report.json', JSON.stringify(payload, null, 2), 'application/json');
+}
+
+function exportCollectionRunGate(results) {
+  const gate = computeGateSummary(results);
+  if (!gate) {
+    showNotification('No baseline available for gate export.', 'warning');
+    return;
+  }
+  downloadTextFile('collection-run-gate.json', JSON.stringify(gate, null, 2), 'application/json');
+  showNotification('Gate summary exported.', 'success');
 }
 
 function exportCollectionRunBundle(results) {
@@ -1180,6 +1219,24 @@ function showCollectionRunReport(results) {
           </div>
         ` : ''}
         ${(() => {
+          const gate = computeGateSummary(results);
+          if (!gate) return '';
+          const statusColor = gate.status === 'fail' ? 'var(--error)' : 'var(--success)';
+          const reasons = gate.reasons.length ? gate.reasons.join(', ') : 'No regressions detected';
+          const label = gate.baselineType === 'golden' ? 'Golden Gate' : 'Snapshot Gate';
+          return `
+            <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface); font-size: 0.75rem">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+                <strong>🚦 ${label}</strong>
+                <span style="font-weight: 600; color: ${statusColor}">${gate.status.toUpperCase()}</span>
+              </div>
+              <div style="color: var(--text-muted)">
+                Baseline: ${new Date(gate.baselineTimestamp).toLocaleString()} · ${reasons}
+              </div>
+            </div>
+          `;
+        })()}
+        ${(() => {
           const blocks = [];
           const goldenEntry = getGoldenBaselineForRun(results);
           if (goldenEntry) {
@@ -1244,6 +1301,7 @@ function showCollectionRunReport(results) {
           <button class="btn" onclick="driftCheckSnapshot(window.lastCollectionRunReport)">🔍 Drift Check</button>
           <button class="btn" onclick="clearRunSnapshot(window.lastCollectionRunReport)">🧹 Clear Snapshot</button>
         ` : ''}
+        <button class="btn" onclick="exportCollectionRunGate(window.lastCollectionRunReport)">🚦 Export Gate</button>
         ${goldenEntry ? `
           <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Update Golden</button>
           <button class="btn" onclick="clearGoldenFromReport(window.lastCollectionRunReport)">🧹 Clear Golden</button>
