@@ -902,10 +902,11 @@ Results show as **📋 Schema OK** or **📋 N issues**.
 Group multiple scenarios and run them like Postman collections.
 
 - **Add scenarios** to collections with one click
-- **Run with iterations** + environment variables
+- **Run with iterations** + environment variables + retries
+- **CSV/JSON iteration data** for data-driven testing
 - **Run history** with one-click rerun
 - **Run report** shows pass/fail + timing
-- **Export** JSON, JUnit, or a full run bundle
+- **Export** JSON, JUnit, HTML, or a full run bundle
 - **Mock from run** to generate offline test servers
 
 ### 🧩 Pre/Post Scripts

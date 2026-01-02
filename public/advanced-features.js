@@ -80,6 +80,7 @@ function renderCollectionRuns() {
         <button class="btn-small" onclick="rerunCollectionRun('${run.id}')">↻ Rerun</button>
         <button class="btn-small" onclick="exportCollectionRunById('${run.id}')">📥 JSON</button>
         <button class="btn-small" onclick="exportCollectionRunJUnitById('${run.id}')">🧾 JUnit</button>
+        <button class="btn-small" onclick="exportCollectionRunHtmlById('${run.id}')">🧾 HTML</button>
         <button class="btn-small" onclick="exportCollectionRunBundleById('${run.id}')">📦 Bundle</button>
         <button class="btn-small" onclick="createMocksFromRunById('${run.id}')">🎭 Mock</button>
       </div>
@@ -186,12 +187,95 @@ async function createCollectionModal() {
   }
 }
 
+function coerceCsvValue(value) {
+  const trimmed = (value ?? '').trim();
+  if (trimmed === '') return '';
+  if (trimmed === 'null') return null;
+  if (trimmed === 'true') return true;
+  if (trimmed === 'false') return false;
+  const numberValue = Number(trimmed);
+  if (!Number.isNaN(numberValue) && String(numberValue) === trimmed) return numberValue;
+  return trimmed;
+}
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      const next = line[i + 1];
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  values.push(current);
+  return values;
+}
+
+function parseCsvToObjects(text) {
+  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map(h => h.trim()).filter(Boolean);
+  if (headers.length === 0) return [];
+  return lines.slice(1).map(line => {
+    const values = parseCsvLine(line);
+    const row = {};
+    headers.forEach((key, index) => {
+      row[key] = coerceCsvValue(values[index] ?? '');
+    });
+    return row;
+  });
+}
+
+function parseIterationDataInput(input) {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return { data: [] };
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return { error: 'Iteration data must be a JSON array or CSV text.' };
+    }
+    return { data: parsed };
+  } catch (error) {
+    try {
+      const rows = parseCsvToObjects(trimmed);
+      if (rows.length === 0) {
+        return { error: 'CSV data must include a header row and at least one data row.' };
+      }
+      return { data: rows };
+    } catch (csvError) {
+      return { error: 'Iteration data must be valid JSON array or CSV.' };
+    }
+  }
+}
+
 async function runCollection(id) {
   try {
     const defaultEnv = getDefaultRunEnvironment();
-    const result = await appFormModal({
+    const modalFn = typeof showAppModal === 'function' ? showAppModal : appFormModal;
+    const modalPromise = modalFn({
       title: 'Run Collection',
       confirmText: 'Run',
+      bodyHtml: `
+        <div class="form-group">
+          <label class="form-label" for="iterationDataFile">Iteration data file (CSV or JSON)</label>
+          <input class="form-input" id="iterationDataFile" type="file" accept=".csv,.json" />
+          <div class="form-hint">CSV headers become variables. JSON should be an array of objects.</div>
+        </div>
+      `,
       fields: [
         {
           id: 'environment',
@@ -202,10 +286,35 @@ async function runCollection(id) {
           monospace: true,
           hint: 'Defaults to Global + Environment variables. Override as needed.'
         },
+        { id: 'stopOnError', label: 'On error', type: 'select', value: 'false', options: [
+          { value: 'false', label: 'Continue on error' },
+          { value: 'true', label: 'Stop on first error' }
+        ] },
         { id: 'iterations', label: 'Iteration count', type: 'number', value: 1 },
-        { id: 'iterationData', label: 'Iteration data (JSON array)', type: 'textarea', value: '', rows: 4, monospace: true }
+        { id: 'iterationData', label: 'Iteration data (JSON array or CSV)', type: 'textarea', value: '', rows: 4, monospace: true },
+        { id: 'retries', label: 'Retries per step', type: 'number', value: 0 },
+        { id: 'retryDelayMs', label: 'Retry delay (ms)', type: 'number', value: 250 }
       ]
     });
+    setTimeout(() => {
+      const overlay = document.querySelector('.modal-overlay[data-app-modal="true"]');
+      if (!overlay) return;
+      const fileInput = overlay.querySelector('#iterationDataFile');
+      const dataInput = overlay.querySelector('#iterationData');
+      if (!fileInput || !dataInput) return;
+      fileInput.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          dataInput.value = text.trim();
+        } catch (error) {
+          showNotification('Failed to read file: ' + error.message, 'error');
+        }
+      });
+    }, 0);
+
+    const result = await modalPromise;
     if (!result.confirmed) return;
 
     const envInput = (result.values.environment || '').trim();
@@ -226,22 +335,26 @@ async function runCollection(id) {
     }
 
     const dataInput = (result.values.iterationData || '').trim();
-    let iterationData = [];
-    if (dataInput) {
-      try {
-        const parsed = JSON.parse(dataInput);
-        if (!Array.isArray(parsed)) {
-          showNotification('Iteration data must be a JSON array of objects.', 'error');
-          return;
-        }
-        iterationData = parsed;
-      } catch (error) {
-        showNotification('Invalid iteration data JSON: ' + error.message, 'error');
-        return;
-      }
+    const parsedData = parseIterationDataInput(dataInput);
+    if (parsedData.error) {
+      showNotification(parsedData.error, 'error');
+      return;
+    }
+    const iterationData = parsedData.data || [];
+
+    const retries = Number(result.values.retries || 0);
+    const retryDelayMs = Number(result.values.retryDelayMs || 0);
+    if (!Number.isFinite(retries) || retries < 0) {
+      showNotification('Retries must be a non-negative number.', 'error');
+      return;
+    }
+    if (!Number.isFinite(retryDelayMs) || retryDelayMs < 0) {
+      showNotification('Retry delay must be a non-negative number.', 'error');
+      return;
     }
 
-    const runConfig = { environment, iterations, iterationData };
+    const stopOnError = String(result.values.stopOnError) === 'true';
+    const runConfig = { environment, iterations, iterationData, retries, retryDelayMs, stopOnError };
     const results = await runCollectionWithConfig(id, runConfig);
 
     const message = `✅ ${results.passed} passed, ❌ ${results.failed} failed, ⏭️ ${results.skipped} skipped`;
@@ -260,10 +373,12 @@ async function runCollectionWithConfig(collectionId, runConfig) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      stopOnError: false,
+      stopOnError: !!runConfig.stopOnError,
       environment: runConfig.environment || {},
       iterations: runConfig.iterations || 1,
-      iterationData: runConfig.iterationData || []
+      iterationData: runConfig.iterationData || [],
+      retries: runConfig.retries || 0,
+      retryDelayMs: runConfig.retryDelayMs || 0
     })
   });
 
@@ -354,6 +469,67 @@ ${testcases}
   downloadTextFile('collection-run-report.xml', xml, 'application/xml');
 }
 
+function exportCollectionRunHtml(results) {
+  const scenarios = results.scenarios || [];
+  const statusColor = results.failed > 0 ? '#ef4444' : '#22c55e';
+  const rows = scenarios.map(scenario => {
+    const status = scenario.status || 'unknown';
+    const duration = scenario.duration || 0;
+    const iter = scenario.iteration || 1;
+    return `
+      <tr>
+        <td>${escapeHtml(scenario.scenarioName || scenario.name || 'Scenario')}</td>
+        <td>${iter}</td>
+        <td>${status}</td>
+        <td>${duration} ms</td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Collection Run Report</title>
+    <style>
+      body { font-family: Inter, Arial, sans-serif; background: #0f111a; color: #e5e7eb; margin: 0; padding: 24px; }
+      .card { background: #161926; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); text-align: left; }
+      th { color: #9ca3af; font-weight: 600; }
+      .summary { display: flex; gap: 16px; flex-wrap: wrap; }
+      .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); font-size: 12px; }
+      .status { color: ${statusColor}; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Collection Run Report</h1>
+      <div class="summary">
+        <span class="pill">Collection: ${escapeHtml(results.collectionName || 'Collection')}</span>
+        <span class="pill">Status: <span class="status">${results.failed > 0 ? 'Failed' : 'Passed'}</span></span>
+        <span class="pill">Passed: ${results.passed}</span>
+        <span class="pill">Failed: ${results.failed}</span>
+        <span class="pill">Skipped: ${results.skipped}</span>
+        <span class="pill">Duration: ${results.duration || 0} ms</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top: 0;">Scenario Results</h2>
+      <table>
+        <thead>
+          <tr><th>Scenario</th><th>Iteration</th><th>Status</th><th>Duration</th></tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="4">No scenarios executed.</td></tr>'}</tbody>
+      </table>
+    </div>
+  </body>
+</html>`;
+
+  downloadTextFile('collection-run-report.html', html, 'text/html');
+}
+
 function getCollectionRunById(runId) {
   const runs = getCollectionRuns();
   return runs.find(run => run.id === runId)?.results || null;
@@ -393,6 +569,15 @@ function exportCollectionRunJUnitById(runId) {
     return;
   }
   exportCollectionRunJUnit(results);
+}
+
+function exportCollectionRunHtmlById(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  exportCollectionRunHtml(results);
 }
 
 async function createMocksFromRun(results) {
@@ -582,6 +767,7 @@ function showCollectionRunReport(results) {
         <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
         <button class="btn" onclick="exportCollectionRunReport(window.lastCollectionRunReport)">📥 Export JSON</button>
         <button class="btn" onclick="exportCollectionRunJUnit(window.lastCollectionRunReport)">🧾 Export JUnit</button>
+        <button class="btn" onclick="exportCollectionRunHtml(window.lastCollectionRunReport)">🧾 Export HTML</button>
         <button class="btn" onclick="exportCollectionRunBundle(window.lastCollectionRunReport)">📦 Export Bundle</button>
         <button class="btn" onclick="document.getElementById('collectionRunReportModal')?.remove()">Close</button>
       </div>

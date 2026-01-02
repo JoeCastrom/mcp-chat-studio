@@ -189,6 +189,8 @@ export class CollectionManager {
       stopOnError = false,
       delay = 0,
       sessionId = null,
+      retries = 0,
+      retryDelayMs = 0,
       iterations = 1,
       iterationData = []
     } = options;
@@ -197,6 +199,12 @@ export class CollectionManager {
       : 1;
     const dataRows = Array.isArray(iterationData) ? iterationData : [];
     const iterationCount = Math.max(parsedIterations, dataRows.length || 0, 1);
+    const maxRetries = Number.isFinite(Number(retries))
+      ? Math.max(0, parseInt(retries, 10))
+      : 0;
+    const retryDelay = Number.isFinite(Number(retryDelayMs))
+      ? Math.max(0, parseInt(retryDelayMs, 10))
+      : 0;
 
     const results = {
       collectionId,
@@ -210,6 +218,10 @@ export class CollectionManager {
       skipped: 0,
       iterations: iterationCount,
       iterationDataCount: dataRows.length,
+      retryPolicy: {
+        retries: maxRetries,
+        retryDelayMs: retryDelay
+      },
       scenarios: []
     };
 
@@ -246,6 +258,8 @@ export class CollectionManager {
             {
               stopOnError,
               sessionId,
+              retries: maxRetries,
+              retryDelayMs: retryDelay,
               preScripts: [
                 ...(collection.preScripts || []),
                 ...(scenario.preScripts || [])
@@ -379,11 +393,26 @@ export class CollectionManager {
       const stepStart = Date.now();
       let response = null;
       let errorMessage = null;
+      const maxRetries = Number.isFinite(Number(options.retries))
+        ? Math.max(0, parseInt(options.retries, 10))
+        : 0;
+      const retryDelayMs = Number.isFinite(Number(options.retryDelayMs))
+        ? Math.max(0, parseInt(options.retryDelayMs, 10))
+        : 0;
+      let attempts = 0;
 
-      try {
-        response = await mcpManager.callTool(step.server, step.tool, resolvedArgs, options.sessionId);
-      } catch (error) {
-        errorMessage = error.message;
+      for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+        attempts = attempt + 1;
+        try {
+          response = await mcpManager.callTool(step.server, step.tool, resolvedArgs, options.sessionId);
+          errorMessage = null;
+          break;
+        } catch (error) {
+          errorMessage = error.message;
+          if (attempt < maxRetries && retryDelayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+          }
+        }
       }
 
       const duration = Date.now() - stepStart;
@@ -440,6 +469,7 @@ export class CollectionManager {
         server: step.server,
         tool: step.tool,
         args: resolvedArgs,
+        attempts,
         duration,
         status: stepStatus,
         response: normalizedResponse,
