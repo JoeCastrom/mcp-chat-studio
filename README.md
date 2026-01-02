@@ -108,6 +108,7 @@ Three powerful new testing tools:
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
+- **🌐 Cross-Server Snapshot** - Run one tool across servers and diff output
 - **🔍 Resolved Preview** - See variable substitutions before execution
 
 ### 📋 Contract Testing
@@ -181,6 +182,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🌐 Matrix Runs** - Execute the same scenario across multiple servers with baseline diffs
 - **📊 Data Runs** - Replay scenarios against a JSON dataset
 - **📚 Dataset Library** - Save reusable data tables for scenarios
+- **🌐 Cross-Server Snapshots** - Compare live tool outputs across servers
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
 - **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit

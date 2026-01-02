@@ -2994,6 +2994,7 @@
         } else if (tabName === 'diff') {
           loadDiffServers();
           loadSchemaDiffServers();
+          loadCrossServerOptions();
         }
 
         if (tabName !== 'workflowsPanel' && tabName !== 'workflows') {
@@ -9158,6 +9159,8 @@ main().catch(console.error);
       // ADVANCED INSPECTOR - DIFF
       // ==========================================
       let diffToolsCache = [];
+      let crossServerToolsCache = [];
+      let crossServerServersCache = [];
 
       async function loadDiffServers() {
         const select = document.getElementById('diffServerSelect');
@@ -9174,6 +9177,37 @@ main().catch(console.error);
           }
         } catch (error) {
           console.error('Failed to load servers:', error);
+        }
+      }
+
+      async function loadCrossServerOptions() {
+        const toolSelect = document.getElementById('crossToolSelect');
+        const baselineSelect = document.getElementById('crossBaselineServerSelect');
+        if (!toolSelect || !baselineSelect) return;
+
+        try {
+          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await statusRes.json();
+          const servers = status.servers || status;
+          crossServerServersCache = Object.entries(servers || {})
+            .filter(([, info]) => info.connected || info.userConnected)
+            .map(([name]) => name);
+
+          baselineSelect.innerHTML = '<option value="">-- Auto baseline --</option>' +
+            crossServerServersCache.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+
+          const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
+          const data = await toolsRes.json();
+          const tools = data.tools || [];
+          crossServerToolsCache = tools.filter(tool =>
+            !tool.notConnected && crossServerServersCache.includes(tool.serverName)
+          );
+
+          const toolNames = Array.from(new Set(crossServerToolsCache.map(tool => tool.name))).sort();
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>' +
+            toolNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+        } catch (error) {
+          console.error('Failed to load cross-server options:', error);
         }
       }
 
@@ -9299,6 +9333,144 @@ main().catch(console.error);
         } finally {
           btn.disabled = false;
           btn.textContent = '🔀 Compare';
+        }
+      }
+
+      async function runCrossServerCompare() {
+        const toolName = document.getElementById('crossToolSelect')?.value;
+        const baselineServer = document.getElementById('crossBaselineServerSelect')?.value;
+        const argsText = document.getElementById('crossArgs')?.value.trim();
+
+        if (!toolName) {
+          appendMessage('error', 'Select a tool to compare.');
+          return;
+        }
+
+        let args = {};
+        if (argsText) {
+          try {
+            args = JSON.parse(argsText);
+          } catch (error) {
+            appendMessage('error', `Invalid JSON: ${error.message}`);
+            return;
+          }
+        }
+
+        const variables = getRuntimeVariables();
+        if (variables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before running.');
+          return;
+        }
+        if (variables && Object.keys(variables).length > 0) {
+          args = applyTemplateVariables(args, variables);
+        }
+
+        const serversWithTool = crossServerToolsCache
+          .filter(tool => tool.name === toolName)
+          .map(tool => tool.serverName);
+        const servers = crossServerServersCache.filter(name => serversWithTool.includes(name));
+
+        if (!servers.length) {
+          appendMessage('error', 'No connected servers expose this tool.');
+          return;
+        }
+
+        const baseline = baselineServer && servers.includes(baselineServer)
+          ? baselineServer
+          : servers[0];
+
+        const btn = document.getElementById('crossRunBtn');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = '⏳ Running...';
+        }
+
+        const resultsSection = document.getElementById('crossServerResultsSection');
+        const resultsEl = document.getElementById('crossServerResults');
+        const summaryEl = document.getElementById('crossServerSummary');
+        if (resultsSection) resultsSection.style.display = 'block';
+        if (resultsEl) {
+          resultsEl.innerHTML = '<div style="color: var(--text-muted)">Running across servers...</div>';
+        }
+
+        const results = [];
+        for (const serverName of servers) {
+          const startTime = performance.now();
+          try {
+            const response = await fetch('/api/mcp/call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                serverName,
+                toolName,
+                args
+              })
+            });
+            const data = await response.json();
+            const duration = Math.round(performance.now() - startTime);
+            const isError = data.error || data.result?.isError === true;
+            results.push({
+              server: serverName,
+              duration,
+              status: isError ? 'error' : 'success',
+              response: data.error || data.result
+            });
+          } catch (error) {
+            const duration = Math.round(performance.now() - startTime);
+            results.push({
+              server: serverName,
+              duration,
+              status: 'error',
+              response: { error: error.message }
+            });
+          }
+        }
+
+        const baselineResult = results.find(result => result.server === baseline);
+        const successCount = results.filter(r => r.status === 'success').length;
+        const errorCount = results.length - successCount;
+
+        if (summaryEl) {
+          summaryEl.textContent = `Baseline: ${baseline} • ✅ ${successCount} / ❌ ${errorCount}`;
+        }
+
+        if (resultsEl) {
+          resultsEl.innerHTML = results.map(result => {
+            let diffId = null;
+            let diffCount = null;
+            if (baselineResult && result.server !== baseline && baselineResult.status === 'success' && result.status === 'success') {
+              const diffList = jsonDiff(baselineResult.response ?? {}, result.response ?? {});
+              diffCount = diffList.length;
+              if (diffCount > 0) {
+                diffId = cacheDiffData(baselineResult.response ?? {}, result.response ?? {});
+              }
+            }
+
+            const statusIcon = result.status === 'success' ? '✅' : '❌';
+            return `
+              <details class="matrix-result" ${result.status === 'error' ? 'open' : ''}>
+                <summary>
+                  <span>${statusIcon} ${escapeHtml(result.server)}</span>
+                  <span style="color: var(--text-muted)">${result.duration}ms</span>
+                </summary>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0">
+                  <span class="pill">${result.status}</span>
+                  ${result.server === baseline ? '<span class="pill">Baseline</span>' : ''}
+                  ${diffCount !== null ? `<span class="pill">Δ ${diffCount}</span>` : ''}
+                  ${diffId ? `<button class="btn" onclick="showDiffById('${diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Δ</button>` : ''}
+                </div>
+                <pre style="background: var(--bg-card); padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; margin: 0; font-size: 0.7rem">${escapeHtml(JSON.stringify(result.response, null, 2))}</pre>
+              </details>
+            `;
+          }).join('');
+        }
+
+        appendMessage('system', `🌐 Cross-server snapshot completed for ${toolName}`);
+
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🌐 Run Across Servers';
         }
       }
 
@@ -9594,4 +9766,6 @@ main().catch(console.error);
       window.runScenarioMatrix = runScenarioMatrix;
       window.runScenarioDataset = runScenarioDataset;
       window.showDatasetManager = showDatasetManager;
+      window.loadCrossServerOptions = loadCrossServerOptions;
+      window.runCrossServerCompare = runCrossServerCompare;
 

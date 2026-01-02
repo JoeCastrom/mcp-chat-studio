@@ -1057,6 +1057,43 @@
               </div>
 
               <div class="inspector-section" style="margin-top: 20px">
+                <h3>🌐 Cross-Server Snapshot</h3>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                  Run the same tool across all connected servers and diff against a baseline.
+                </p>
+                <div class="inspector-toolbar" style="margin-bottom: 12px">
+                  <select class="form-select" id="crossToolSelect">
+                    <option value="">-- Select Tool --</option>
+                  </select>
+                  <select class="form-select" id="crossBaselineServerSelect">
+                    <option value="">-- Auto baseline --</option>
+                  </select>
+                </div>
+                <div style="margin-bottom: 12px">
+                  <label style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 4px">
+                    Args (applies to all servers):
+                  </label>
+                  <textarea
+                    id="crossArgs"
+                    class="form-control"
+                    rows="5"
+                    placeholder='{"param": "value"}'
+                    style="font-family: 'Courier New', monospace; font-size: 0.75rem"
+                  ></textarea>
+                </div>
+                <button class="btn primary" onclick="runCrossServerCompare()" id="crossRunBtn">
+                  🌐 Run Across Servers
+                </button>
+              </div>
+              <div class="inspector-section" id="crossServerResultsSection" style="display: none">
+                <h3 style="display: flex; justify-content: space-between; align-items: center">
+                  <span>📡 Server Outputs</span>
+                  <div id="crossServerSummary" style="font-size: 0.75rem"></div>
+                </h3>
+                <div id="crossServerResults" style="font-size: 0.75rem"></div>
+              </div>
+
+              <div class="inspector-section" style="margin-top: 20px">
                 <h3>🧬 Tool Schema Diff</h3>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
                   Compare input schemas across servers or against a saved baseline
