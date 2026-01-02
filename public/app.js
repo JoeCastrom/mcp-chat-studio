@@ -1700,11 +1700,43 @@
           console.error('Failed to load LLM config:', e);
         }
 
+        // Load session token for CLI usage (if authenticated)
+        try {
+          const tokenSection = document.getElementById('sessionTokenSection');
+          const tokenInput = document.getElementById('sessionTokenValue');
+          const statusRes = await fetch('/api/oauth/status', { credentials: 'include' });
+          const status = await statusRes.json();
+          if (status?.sessionId) {
+            if (tokenInput) tokenInput.value = status.sessionId;
+            if (tokenSection) tokenSection.style.display = '';
+          } else if (tokenSection) {
+            tokenSection.style.display = 'none';
+          }
+        } catch (e) {
+          console.warn('Failed to load session token:', e.message);
+          const tokenSection = document.getElementById('sessionTokenSection');
+          if (tokenSection) tokenSection.style.display = 'none';
+        }
+
         document.getElementById('settingsModal').classList.add('active');
       }
 
       function hideSettingsModal() {
         document.getElementById('settingsModal').classList.remove('active');
+      }
+
+      async function copySessionToken() {
+        const input = document.getElementById('sessionTokenValue');
+        if (!input || !input.value) {
+          appendMessage('error', 'No session token available.');
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(input.value);
+          appendMessage('system', '✅ Session token copied to clipboard.');
+        } catch (error) {
+          appendMessage('error', 'Failed to copy token: ' + error.message);
+        }
       }
 
       function onProviderChange() {

@@ -2325,6 +2325,23 @@ env:
             <div class="form-hint">Your OpenAI API key (stored in session only)</div>
           </div>
 
+          <div class="form-group" id="sessionTokenSection" style="display: none">
+            <label class="form-label">CLI Session Token</label>
+            <div style="display: flex; gap: var(--spacing-sm); align-items: center">
+              <input
+                type="text"
+                class="form-input"
+                id="sessionTokenValue"
+                readonly
+                style="font-family: 'JetBrains Mono', monospace"
+              />
+              <button type="button" class="btn" onclick="copySessionToken()">📋 Copy</button>
+            </div>
+            <div class="form-hint">
+              Use this in the CLI as <code>x-session-id</code> or <code>MCP_SESSION_TOKEN</code> to access protected MCP servers.
+            </div>
+          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn" onclick="hideSettingsModal()">Cancel</button>
             <button type="submit" class="btn primary">Save Settings</button>
