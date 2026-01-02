@@ -565,10 +565,16 @@
                   rows="6"
                   style="display: none; font-family: 'JetBrains Mono', monospace"
                   placeholder='{"param": "value"}'
+                  oninput="renderInspectorPreview()"
                 ></textarea>
                 <div class="inspector-form" id="inspectorForm">
                   <!-- Dynamic fields will be generated here -->
                 </div>
+                <details class="inspector-preview" id="inspectorPreviewSection" open>
+                  <summary>🔍 Resolved Preview</summary>
+                  <pre class="inspector-preview-body" id="inspectorPreviewBody">{}</pre>
+                  <div class="inspector-preview-meta" id="inspectorPreviewMeta"></div>
+                </details>
                 <div style="margin-top: var(--spacing-md); display: flex; gap: var(--spacing-sm)">
                   <button
                     class="btn primary"
@@ -593,6 +599,7 @@
                   rows="4"
                   style="font-family: 'JetBrains Mono', monospace"
                   placeholder='{"token": "YOUR_TOKEN", "env": {"userId": 123}}'
+                  oninput="renderInspectorPreview()"
                 ></textarea>
                 <div
                   id="inspectorVariablesStatus"

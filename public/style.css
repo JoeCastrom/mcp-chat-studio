@@ -1627,6 +1627,58 @@ kbd {
   color: var(--error);
 }
 
+.inspector-preview {
+  margin-top: var(--spacing-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+}
+
+.inspector-preview summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.inspector-preview summary::-webkit-details-marker {
+  display: none;
+}
+
+.inspector-preview-body {
+  margin: var(--spacing-sm) 0 0;
+  padding: var(--spacing-sm);
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: var(--radius-md);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.inspector-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.inspector-preview-pill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.inspector-preview-pill.warn {
+  color: #fcd34d;
+  border-color: rgba(252, 211, 77, 0.6);
+  background: rgba(252, 211, 77, 0.12);
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;

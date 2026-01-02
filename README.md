@@ -108,6 +108,7 @@ Three powerful new testing tools:
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
+- **🔍 Resolved Preview** - See variable substitutions before execution
 
 ### 📋 Contract Testing
 Consumer-driven contract testing for MCP servers:

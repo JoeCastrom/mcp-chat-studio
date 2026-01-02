@@ -2923,6 +2923,7 @@
           input.value = stored;
           updateInspectorVariablesStatus('Loaded saved variables');
         }
+        renderInspectorPreview();
       }
 
       function saveInspectorVariables() {
@@ -2933,6 +2934,7 @@
         if (!raw) {
           localStorage.removeItem(INSPECTOR_VARIABLES_KEY);
           updateInspectorVariablesStatus('Cleared variables');
+          renderInspectorPreview();
           return;
         }
 
@@ -2940,6 +2942,7 @@
           JSON.parse(raw);
           localStorage.setItem(INSPECTOR_VARIABLES_KEY, raw);
           updateInspectorVariablesStatus('Variables saved');
+          renderInspectorPreview();
         } catch (error) {
           updateInspectorVariablesStatus('Invalid JSON: ' + error.message, true);
         }
@@ -2951,6 +2954,7 @@
         input.value = '';
         localStorage.removeItem(INSPECTOR_VARIABLES_KEY);
         updateInspectorVariablesStatus('Cleared variables');
+        renderInspectorPreview();
       }
 
       function getInspectorVariables() {
@@ -3043,6 +3047,7 @@
           updated.environments[envName] = envVars;
           saveVariableStore(updated);
           appendMessage('system', `🧩 Saved variables for ${envName}`);
+          renderInspectorPreview();
         } catch (error) {
           appendMessage('error', `Failed to save variables: ${error.message}`);
         }
@@ -3084,6 +3089,127 @@
         return value;
       }
 
+      function collectVariablePlaceholders(value, collector) {
+        if (typeof value === 'string') {
+          const matches = value.matchAll(/{{\s*([^}]+)\s*}}/g);
+          for (const match of matches) {
+            const key = match[1]?.trim();
+            if (key) collector.add(key);
+          }
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(item => collectVariablePlaceholders(item, collector));
+          return;
+        }
+        if (value && typeof value === 'object') {
+          Object.values(value).forEach(val => collectVariablePlaceholders(val, collector));
+        }
+      }
+
+      function buildInspectorArgs(rawMode) {
+        const formEl = document.getElementById('inspectorForm');
+        const rawEl = document.getElementById('inspectorRawInput');
+        let args = {};
+
+        if (rawMode) {
+          const rawValue = rawEl?.value.trim() || '';
+          if (rawValue) {
+            try {
+              args = JSON.parse(rawValue);
+            } catch (error) {
+              return { error: `Invalid JSON input: ${error.message}` };
+            }
+          }
+        } else {
+          formEl.querySelectorAll('[data-param]').forEach(el => {
+            const param = el.dataset.param;
+            let value = el.value.trim();
+
+            if (!value) return;
+
+            const schema = selectedInspectorTool?.inputSchema?.properties?.[param];
+            if (schema) {
+              if (schema.type === 'number') {
+                value = parseFloat(value);
+              } else if (schema.type === 'integer') {
+                value = parseInt(value, 10);
+              } else if (schema.type === 'boolean') {
+                value = value === 'true';
+              } else if (schema.type === 'array' || schema.type === 'object') {
+                try {
+                  value = JSON.parse(value);
+                } catch {
+                  // Keep as string if parse fails
+                }
+              }
+            }
+
+            args[param] = value;
+          });
+        }
+
+        return { args };
+      }
+
+      function renderInspectorPreview() {
+        const previewSection = document.getElementById('inspectorPreviewSection');
+        const previewBody = document.getElementById('inspectorPreviewBody');
+        const previewMeta = document.getElementById('inspectorPreviewMeta');
+        if (!previewSection || !previewBody || !previewMeta) return;
+
+        if (!selectedInspectorTool) {
+          previewSection.style.display = 'none';
+          return;
+        }
+
+        previewSection.style.display = 'block';
+        const rawMode = document.getElementById('inspectorRawMode')?.checked;
+        const parsed = buildInspectorArgs(rawMode);
+        if (parsed.error) {
+          previewBody.textContent = `❌ ${parsed.error}`;
+          previewMeta.innerHTML = '';
+          return;
+        }
+
+        const variables = getRuntimeVariables();
+        if (variables === null) {
+          previewBody.textContent = '❌ Invalid variables JSON';
+          previewMeta.innerHTML = '';
+          return;
+        }
+
+        const placeholders = new Set();
+        collectVariablePlaceholders(parsed.args, placeholders);
+
+        const resolvedArgs = applyTemplateVariables(parsed.args, variables);
+        previewBody.textContent = JSON.stringify(resolvedArgs, null, 2);
+
+        const used = [];
+        const missing = [];
+        placeholders.forEach(key => {
+          const resolved = resolveVariablePath(key, variables);
+          if (resolved === undefined || resolved === null) {
+            missing.push(key);
+          } else {
+            used.push(key);
+          }
+        });
+
+        if (used.length === 0 && missing.length === 0) {
+          previewMeta.innerHTML = '<span class="inspector-preview-pill">No variables used</span>';
+          return;
+        }
+
+        const usedHtml = used.length > 0
+          ? `<span class="inspector-preview-pill">Used: ${escapeHtml(used.join(', '))}</span>`
+          : '';
+        const missingHtml = missing.length > 0
+          ? `<span class="inspector-preview-pill warn">Missing: ${escapeHtml(missing.join(', '))}</span>`
+          : '';
+        previewMeta.innerHTML = `${usedHtml}${missingHtml}`;
+      }
+
       function buildDefaultArgs(schema) {
         const defaults = {};
         if (!schema || !schema.properties) return defaults;
@@ -3109,6 +3235,7 @@
           rawEl.style.display = 'none';
           formEl.style.display = 'block';
         }
+        renderInspectorPreview();
       }
 
       function fillInspectorDefaults() {
@@ -3122,6 +3249,7 @@
           rawToggle.checked = true;
           toggleInspectorInputMode(true);
         }
+        renderInspectorPreview();
       }
 
       // Generate input form based on tool schema
@@ -3208,6 +3336,12 @@
           rawEl.value = JSON.stringify(buildDefaultArgs(schema), null, 2);
         }
         toggleInspectorInputMode(document.getElementById('inspectorRawMode')?.checked);
+
+        formEl.querySelectorAll('input, textarea, select').forEach(el => {
+          el.addEventListener('input', renderInspectorPreview);
+          el.addEventListener('change', renderInspectorPreview);
+        });
+        renderInspectorPreview();
       }
 
       // Clear inspector form
@@ -3223,6 +3357,7 @@
         });
         if (rawEl) rawEl.value = '';
         document.getElementById('inspectorResponseSection').style.display = 'none';
+        renderInspectorPreview();
       }
 
       // Execute tool from Inspector
@@ -3230,57 +3365,22 @@
         if (!selectedInspectorTool) return;
 
         const serverName = document.getElementById('inspectorServerSelect').value;
-        const formEl = document.getElementById('inspectorForm');
         const rawMode = document.getElementById('inspectorRawMode')?.checked;
-        const rawEl = document.getElementById('inspectorRawInput');
         const executeBtn = document.getElementById('inspectorExecuteBtn');
         const responseSection = document.getElementById('inspectorResponseSection');
         const responseStatus = document.getElementById('inspectorResponseStatus');
         const responseBody = document.getElementById('inspectorResponseBody');
 
-        // Collect form values
-        let args = {};
-        if (rawMode) {
-          const rawValue = rawEl?.value.trim() || '';
-          if (rawValue) {
-            try {
-              args = JSON.parse(rawValue);
-            } catch (error) {
-              responseSection.style.display = 'block';
-              responseStatus.textContent = '❌ Invalid JSON input';
-              responseStatus.className = 'inspector-status error';
-              responseBody.className = 'inspector-response error';
-              responseBody.textContent = error.message;
-              return;
-            }
-          }
-        } else {
-          formEl.querySelectorAll('[data-param]').forEach(el => {
-            const param = el.dataset.param;
-            let value = el.value.trim();
-
-            if (!value) return;
-
-            const schema = selectedInspectorTool.inputSchema?.properties?.[param];
-            if (schema) {
-              if (schema.type === 'number') {
-                value = parseFloat(value);
-              } else if (schema.type === 'integer') {
-                value = parseInt(value, 10);
-              } else if (schema.type === 'boolean') {
-                value = value === 'true';
-              } else if (schema.type === 'array' || schema.type === 'object') {
-                try {
-                  value = JSON.parse(value);
-                } catch {
-                  // Keep as string if parse fails
-                }
-              }
-            }
-
-            args[param] = value;
-          });
+        const parsedArgs = buildInspectorArgs(rawMode);
+        if (parsedArgs.error) {
+          responseSection.style.display = 'block';
+          responseStatus.textContent = '❌ Invalid input';
+          responseStatus.className = 'inspector-status error';
+          responseBody.className = 'inspector-response error';
+          responseBody.textContent = parsedArgs.error;
+          return;
         }
+        let args = parsedArgs.args;
 
         const variables = getRuntimeVariables();
         if (variables === null) {
