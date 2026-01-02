@@ -76,6 +76,7 @@ function renderCollectionRuns() {
       </div>
       <div class="collection-actions">
         <button class="btn-small" onclick="viewCollectionRunReport('${run.id}')">👁️ View</button>
+        <button class="btn-small" onclick="rerunCollectionRun('${run.id}')">↻ Rerun</button>
         <button class="btn-small" onclick="exportCollectionRunById('${run.id}')">📥 JSON</button>
         <button class="btn-small" onclick="exportCollectionRunJUnitById('${run.id}')">🧾 JUnit</button>
       </div>
@@ -237,22 +238,8 @@ async function runCollection(id) {
       }
     }
 
-    showNotification('Running collection...', 'info');
-    const res = await fetch(`/api/collections/${id}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stopOnError: false,
-        environment,
-        iterations,
-        iterationData
-      })
-    });
-
-    const results = await res.json();
-    if (!res.ok) {
-      throw new Error(results.error || 'Collection run failed');
-    }
+    const runConfig = { environment, iterations, iterationData };
+    const results = await runCollectionWithConfig(id, runConfig);
 
     const message = `✅ ${results.passed} passed, ❌ ${results.failed} failed, ⏭️ ${results.skipped} skipped`;
     showNotification(message, results.failed === 0 ? 'success' : 'warning');
@@ -262,6 +249,27 @@ async function runCollection(id) {
   } catch (error) {
     showNotification('Failed to run collection: ' + error.message, 'error');
   }
+}
+
+async function runCollectionWithConfig(collectionId, runConfig) {
+  showNotification('Running collection...', 'info');
+  const res = await fetch(`/api/collections/${collectionId}/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      stopOnError: false,
+      environment: runConfig.environment || {},
+      iterations: runConfig.iterations || 1,
+      iterationData: runConfig.iterationData || []
+    })
+  });
+
+  const results = await res.json();
+  if (!res.ok) {
+    throw new Error(results.error || 'Collection run failed');
+  }
+  results.runConfig = runConfig;
+  return results;
 }
 
 function escapeHtml(text) {
@@ -362,6 +370,21 @@ function exportCollectionRunJUnitById(runId) {
     return;
   }
   exportCollectionRunJUnit(results);
+}
+
+async function rerunCollectionRun(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  const runConfig = results.runConfig || { environment: {}, iterations: 1, iterationData: [] };
+  const fresh = await runCollectionWithConfig(results.collectionId, runConfig);
+  const message = `✅ ${fresh.passed} passed, ❌ ${fresh.failed} failed, ⏭️ ${fresh.skipped} skipped`;
+  showNotification(message, fresh.failed === 0 ? 'success' : 'warning');
+  recordCollectionRun(fresh);
+  renderCollectionRuns();
+  showCollectionRunReport(fresh);
 }
 
 function showCollectionRunReport(results) {
