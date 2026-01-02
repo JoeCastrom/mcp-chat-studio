@@ -5946,7 +5946,9 @@
               tool: step.tool,
               status: 'error',
               message: err.message,
-              schemaViolations: []
+              schemaViolations: [],
+              actual: null,
+              expected: step.expectedResponse
             });
           }
         }
@@ -6004,6 +6006,7 @@
         }
 
         const baseServer = stepServers[0];
+        const orderedServers = [baseServer, ...connectedServers.filter(server => server !== baseServer)];
         const serverPills = connectedServers.map(server => {
           const isBaseline = server === baseServer;
           return `<span class="pill"${isBaseline ? ' style="border-color: var(--accent); color: var(--accent)"' : ''}>${escapeHtml(server)}${isBaseline ? ' (baseline)' : ''}</span>`;
@@ -6036,15 +6039,38 @@
         resultsEl.innerHTML = `<div style="color: var(--text-muted)">🌐 Running matrix on ${connectedServers.length} server${connectedServers.length !== 1 ? 's' : ''}...</div>`;
 
         const matrixResults = [];
-        for (const serverName of connectedServers) {
+        for (const serverName of orderedServers) {
           const runResult = await runScenarioOnServer(steps, serverName, variables || {});
           matrixResults.push(runResult);
         }
 
+        const baselineResult = matrixResults.find(result => result.server === baseServer) || null;
+        const baselineSteps = baselineResult ? baselineResult.results : [];
+
+        const baselineDiffs = matrixResults.map(result => {
+          if (!baselineResult || result.server === baseServer) {
+            return { total: 0, stepDiffs: [] };
+          }
+
+          const stepDiffs = result.results.map((stepResult, index) => {
+            const baselineStep = baselineSteps[index];
+            if (!baselineStep || baselineStep.status === 'error' || stepResult.status === 'error') {
+              return { count: null, diffId: null };
+            }
+            const diffList = jsonDiff(baselineStep.actual ?? {}, stepResult.actual ?? {});
+            const count = diffList.length;
+            const diffId = count > 0 ? cacheDiffData(baselineStep.actual ?? {}, stepResult.actual ?? {}) : null;
+            return { count, diffId };
+          });
+
+          const total = stepDiffs.reduce((sum, item) => sum + (item.count || 0), 0);
+          return { total, stepDiffs };
+        });
+
         const passedServers = matrixResults.filter(r => r.failed === 0).length;
         const failedServers = matrixResults.length - passedServers;
 
-        const matrixHtml = matrixResults.map(result => {
+        const matrixHtml = matrixResults.map((result, resultIndex) => {
           const statusIcon = result.failed > 0 ? '❌' : '✅';
           const summaryBadges = [
             `<span class="pill">Steps: ${result.passed + result.failed}</span>`,
@@ -6053,8 +6079,11 @@
           ];
           if (result.diffCount > 0) summaryBadges.push(`<span class="pill">Δ ${result.diffCount}</span>`);
           if (result.assertionFailures > 0) summaryBadges.push(`<span class="pill">🔍 ${result.assertionFailures}</span>`);
+          if (result.server !== baseServer && baselineDiffs[resultIndex]?.total) {
+            summaryBadges.push(`<span class="pill">Δ baseline ${baselineDiffs[resultIndex].total}</span>`);
+          }
 
-          const stepHtml = result.results.map(r => {
+          const stepHtml = result.results.map((r, stepIndex) => {
             let diffId = null;
             if ((r.status === 'diff' || r.status === 'assertion_fail') && r.expected && r.actual) {
               diffId = cacheDiffData(r.expected, r.actual);
@@ -6063,6 +6092,7 @@
             if (r.assertionResults && r.assertionResults.length > 0) {
               assertId = cacheAssertionResults(r.assertionResults);
             }
+            const baselineDiff = baselineDiffs[resultIndex]?.stepDiffs?.[stepIndex] || null;
             return `
               <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
                 ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
@@ -6070,6 +6100,10 @@
                 ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
                 ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
                 ${diffId ? `<button class="btn" onclick="showDiffById('${diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+                ${baselineDiff && baselineDiff.count !== null ? `
+                  <span style="font-size: 0.65rem; color: var(--warning); margin-left: 4px">Δ baseline ${baselineDiff.count}</span>
+                  ${baselineDiff.diffId ? `<button class="btn" onclick="showDiffById('${baselineDiff.diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Δ</button>` : ''}
+                ` : ''}
                 ${r.schemaViolations && r.schemaViolations.length > 0 ? `
                   <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
                 ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
