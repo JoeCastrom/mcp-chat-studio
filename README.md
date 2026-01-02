@@ -176,6 +176,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
 - **🎬 History → Scenario** - Turn real tool calls into replayable test flows
 - **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
+- **🌐 Matrix Runs** - Execute the same scenario across multiple servers
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
@@ -306,6 +307,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Step capture** - Records tool name, args, response, timing, schema
 - **Save scenarios** - Name and save as JSON to localStorage
 - **History → Scenario** - Convert recent tool history into a scenario in one click
+- **Matrix runs** - Run one scenario across all connected servers
 - **Replay** - Run all steps with ✅/❌/🔶 pass/fail status
 - **Export** - Download scenarios as JSON for Git/CI integration
 

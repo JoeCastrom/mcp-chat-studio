@@ -1613,6 +1613,27 @@ kbd {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.matrix-result {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--bg-surface);
+  margin-bottom: 8px;
+}
+
+.matrix-result summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  list-style: none;
+}
+
+.matrix-result summary::-webkit-details-marker {
+  display: none;
+}
+
 .inspector-status {
   display: flex;
   align-items: center;

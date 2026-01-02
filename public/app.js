@@ -5678,6 +5678,9 @@
               <button class="btn" onclick="replayScenario('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px; background: var(--success); color: white">
                 ▶️ Replay
               </button>
+              <button class="btn" onclick="runScenarioMatrix('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+                🌐 Matrix
+              </button>
               <button class="btn" onclick="viewScenarioDetails('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
                 👁️ View
               </button>
@@ -5835,6 +5838,271 @@
         `;
 
         appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
+      }
+
+      async function runScenarioOnServer(steps, serverName, baseVariables) {
+        let passed = 0;
+        let failed = 0;
+        let diffCount = 0;
+        let assertionFailures = 0;
+        let totalTime = 0;
+        const results = [];
+        const runtimeVariables = { ...(baseVariables || {}) };
+
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+
+          try {
+            const startTime = performance.now();
+            const args = Object.keys(runtimeVariables).length > 0
+              ? applyTemplateVariables(step.args, runtimeVariables)
+              : step.args;
+
+            const response = await fetch('/api/mcp/call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                serverName,
+                toolName: step.tool,
+                args
+              })
+            });
+
+            const data = await response.json();
+            const duration = Math.round(performance.now() - startTime);
+            totalTime += duration;
+
+            const resultPayload = data.error || data.result;
+            const actualHash = hashString(JSON.stringify(resultPayload));
+            const isError = data.error || data.result?.isError === true;
+            const hashMatch = actualHash === step.responseHash;
+
+            let schemaViolations = [];
+            if (step.responseSchema && data.result && !isError) {
+              schemaViolations = validateSchema(data.result, step.responseSchema);
+            }
+
+            let assertionResults = [];
+            let assertionsFailed = 0;
+            if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+              for (const assertion of step.assertions) {
+                const result = evaluateSingleAssertion(data.result, assertion);
+                assertionResults.push({
+                  path: assertion.path,
+                  operator: assertion.operator,
+                  expected: assertion.value,
+                  actual: result.actualValue,
+                  passed: result.passed,
+                  message: result.message
+                });
+                if (!result.passed) assertionsFailed++;
+              }
+            }
+
+            let status = 'pass';
+            let message = '';
+            if (isError) {
+              status = 'error';
+              message = data.error || 'Error';
+            } else if (assertionsFailed > 0) {
+              status = 'assertion_fail';
+              message = `${assertionsFailed} assertion(s) failed`;
+            } else if (!hashMatch) {
+              status = 'diff';
+              message = 'Response differs from baseline';
+            }
+
+            if (status === 'pass') {
+              passed++;
+            } else {
+              failed++;
+              if (status === 'diff') diffCount++;
+              if (status === 'assertion_fail') assertionFailures++;
+            }
+
+            if (!isError) {
+              const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
+              if (Object.keys(extracted).length > 0) {
+                Object.assign(runtimeVariables, extracted);
+              }
+            }
+
+            results.push({
+              step: i + 1,
+              tool: step.tool,
+              status,
+              message,
+              duration,
+              expected: step.expectedResponse,
+              actual: data.result,
+              schemaViolations,
+              assertionResults
+            });
+          } catch (err) {
+            failed++;
+            results.push({
+              step: i + 1,
+              tool: step.tool,
+              status: 'error',
+              message: err.message,
+              schemaViolations: []
+            });
+          }
+        }
+
+        return {
+          server: serverName,
+          passed,
+          failed,
+          diffCount,
+          assertionFailures,
+          totalTime,
+          results
+        };
+      }
+
+      async function runScenarioMatrix(id) {
+        const scenario = sessionManager.getScenario(id);
+        if (!scenario) {
+          appendMessage('error', 'Scenario not found');
+          return;
+        }
+
+        const steps = scenario.steps || [];
+        if (steps.length === 0) {
+          await appAlert('This scenario has no steps yet.', { title: 'No Steps' });
+          return;
+        }
+
+        const stepServers = Array.from(new Set(steps.map(step => step.server).filter(Boolean)));
+        if (stepServers.length === 0) {
+          await appAlert('Scenario steps are missing server info.', { title: 'Missing Server' });
+          return;
+        }
+        if (stepServers.length > 1) {
+          await appAlert('Matrix runs require a single-server scenario. Use Collections for multi-server flows.', { title: 'Multiple Servers Detected' });
+          return;
+        }
+
+        let connectedServers = [];
+        try {
+          const res = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await res.json();
+          const servers = status.servers || status;
+          connectedServers = Object.entries(servers || {})
+            .filter(([, info]) => info?.connected || info?.userConnected)
+            .map(([name]) => name);
+        } catch (error) {
+          await appAlert('Failed to load MCP status. Make sure servers are running.', { title: 'Server Status Error' });
+          return;
+        }
+
+        if (!connectedServers.length) {
+          await appAlert('No connected MCP servers detected. Connect one to run the matrix.', { title: 'No Connected Servers' });
+          return;
+        }
+
+        const baseServer = stepServers[0];
+        const serverPills = connectedServers.map(server => {
+          const isBaseline = server === baseServer;
+          return `<span class="pill"${isBaseline ? ' style="border-color: var(--accent); color: var(--accent)"' : ''}>${escapeHtml(server)}${isBaseline ? ' (baseline)' : ''}</span>`;
+        }).join('');
+
+        const modalResult = await showAppModal({
+          title: 'Matrix Run',
+          message: `Run "${scenario.name}" across ${connectedServers.length} connected server(s)?`,
+          bodyHtml: `
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px">
+              Scenario built for <strong>${escapeHtml(baseServer)}</strong>. Each step will run against every connected server.
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px">${serverPills}</div>
+          `,
+          confirmText: 'Run',
+          cancelText: 'Cancel',
+          showCancel: true
+        });
+
+        if (!modalResult.confirmed) return;
+
+        const variables = getRuntimeVariables();
+        if (variables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before running.');
+          return;
+        }
+
+        const resultsEl = document.getElementById(`scenarioResults_${id}`);
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = `<div style="color: var(--text-muted)">🌐 Running matrix on ${connectedServers.length} server${connectedServers.length !== 1 ? 's' : ''}...</div>`;
+
+        const matrixResults = [];
+        for (const serverName of connectedServers) {
+          const runResult = await runScenarioOnServer(steps, serverName, variables || {});
+          matrixResults.push(runResult);
+        }
+
+        const passedServers = matrixResults.filter(r => r.failed === 0).length;
+        const failedServers = matrixResults.length - passedServers;
+
+        const matrixHtml = matrixResults.map(result => {
+          const statusIcon = result.failed > 0 ? '❌' : '✅';
+          const summaryBadges = [
+            `<span class="pill">Steps: ${result.passed + result.failed}</span>`,
+            `<span class="pill">✅ ${result.passed}</span>`,
+            `<span class="pill">❌ ${result.failed}</span>`
+          ];
+          if (result.diffCount > 0) summaryBadges.push(`<span class="pill">Δ ${result.diffCount}</span>`);
+          if (result.assertionFailures > 0) summaryBadges.push(`<span class="pill">🔍 ${result.assertionFailures}</span>`);
+
+          const stepHtml = result.results.map(r => {
+            let diffId = null;
+            if ((r.status === 'diff' || r.status === 'assertion_fail') && r.expected && r.actual) {
+              diffId = cacheDiffData(r.expected, r.actual);
+            }
+            let assertId = null;
+            if (r.assertionResults && r.assertionResults.length > 0) {
+              assertId = cacheAssertionResults(r.assertionResults);
+            }
+            return `
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
+                ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
+                <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
+                ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
+                ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
+                ${diffId ? `<button class="btn" onclick="showDiffById('${diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+                ${r.schemaViolations && r.schemaViolations.length > 0 ? `
+                  <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
+                ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
+                ${assertId ? `
+                  <span style="font-size: 0.65rem; margin-left: 4px; ${r.assertionResults.every(a => a.passed) ? 'color: var(--success)' : 'color: var(--error)'}">
+                    🔍 ${r.assertionResults.filter(a => a.passed).length}/${r.assertionResults.length} assertions
+                  </span>
+                  <button class="btn" onclick="showAssertionResultsById('${assertId}')" style="font-size: 0.6rem; padding: 1px 4px">Details</button>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+
+          return `
+            <details class="matrix-result">
+              <summary>
+                <span>${statusIcon} ${escapeHtml(result.server)}</span>
+                <span style="color: var(--text-muted)">${result.totalTime}ms total</span>
+              </summary>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px">${summaryBadges.join('')}</div>
+              <div>${stepHtml || '<div style="color: var(--text-muted)">No steps executed.</div>'}</div>
+            </details>
+          `;
+        }).join('');
+
+        resultsEl.innerHTML = `
+          <div style="margin-bottom: 8px">
+            <strong>Matrix Results:</strong>
+            <span style="color: var(--success)">${passedServers} passed</span> /
+            <span style="color: var(--error)">${failedServers} failed</span>
+          </div>
+          ${matrixHtml}
+        `;
       }
 
       function normalizeExtractList(extractConfig) {
@@ -8834,4 +9102,5 @@ main().catch(console.error);
       window.getLocalScenarios = () => sessionManager.getScenarios();
       window.createScenarioFromHistory = createScenarioFromHistory;
       window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
+      window.runScenarioMatrix = runScenarioMatrix;
 
