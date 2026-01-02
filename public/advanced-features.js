@@ -1552,6 +1552,13 @@ function exportCurrentSchemaSnapshot() {
   downloadJsonFile('schema-snapshot-current.json', lastSchemaSnapshot);
 }
 
+function copySchemaDiffCommand() {
+  const command = 'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate';
+  navigator.clipboard.writeText(command)
+    .then(() => showNotification('CI command copied to clipboard.', 'success'))
+    .catch(error => showNotification('Failed to copy command: ' + error.message, 'error'));
+}
+
 function showSchemaDiffModal(diff, baseline, current) {
   lastSchemaDiff = diff;
   lastSchemaSnapshot = current;
