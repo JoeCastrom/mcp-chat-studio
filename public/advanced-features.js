@@ -33,6 +33,83 @@ function saveCollectionSnapshots(snapshots) {
   localStorage.setItem(COLLECTION_SNAPSHOTS_KEY, JSON.stringify(snapshots));
 }
 
+function renderSnapshotLibraryList() {
+  const listEl = document.getElementById('snapshotLibraryList');
+  if (!listEl) return;
+
+  const snapshots = getCollectionSnapshots();
+  if (snapshots.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No snapshots saved yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = snapshots.map(snapshot => `
+    <div class="snapshot-card">
+      <div>
+        <strong>${escapeHtml(snapshot.collectionName || 'Collection')}</strong>
+        <div style="font-size: 0.7rem; color: var(--text-muted)">
+          ${new Date(snapshot.timestamp).toLocaleString()} • ${snapshot.results?.total || 0} scenarios
+        </div>
+      </div>
+      <div style="display: flex; gap: 6px">
+        <button class="btn" onclick="showSnapshotReport('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">👁️ View</button>
+        <button class="btn" onclick="exportSnapshotById('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">📤 Export</button>
+        <button class="btn" onclick="deleteSnapshot('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showSnapshotLibrary() {
+  const existing = document.getElementById('snapshotLibraryModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay active';
+  modal.id = 'snapshotLibraryModal';
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="modal" style="max-width: 760px; max-height: 85vh">
+      <div class="modal-header">
+        <h2 class="modal-title">📸 Run Snapshots</h2>
+        <button class="modal-close" onclick="closeSnapshotLibrary()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+          <div style="font-size: 0.8rem; color: var(--text-muted)">
+            Deterministic snapshots capture tools, mocks, env vars, and run outputs.
+          </div>
+          <button class="btn" onclick="importCollectionSnapshot()">📥 Import Snapshot</button>
+        </div>
+        <div id="snapshotLibraryList" style="display: flex; flex-direction: column; gap: 8px"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeSnapshotLibrary()">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  renderSnapshotLibraryList();
+}
+
+function closeSnapshotLibrary() {
+  const modal = document.getElementById('snapshotLibraryModal');
+  if (modal) modal.remove();
+}
+
+function deleteSnapshot(snapshotId) {
+  const snapshots = getCollectionSnapshots();
+  const filtered = snapshots.filter(snapshot => snapshot.id !== snapshotId);
+  saveCollectionSnapshots(filtered);
+  renderSnapshotLibraryList();
+  showNotification('Snapshot deleted.', 'success');
+}
+
 function matchSnapshotCollection(snapshot, collectionId, collectionName) {
   if (!snapshot) return false;
   if (collectionId && snapshot.collectionId === collectionId) return true;
@@ -51,6 +128,18 @@ function getLatestSnapshotForCollection(collectionId, collectionName) {
 function getSnapshotById(snapshotId) {
   const snapshots = getCollectionSnapshots();
   return snapshots.find(snapshot => snapshot.id === snapshotId) || null;
+}
+
+function exportSnapshotById(snapshotId) {
+  const snapshot = getSnapshotById(snapshotId);
+  if (!snapshot) {
+    showNotification('Snapshot not found.', 'error');
+    return;
+  }
+  const timestamp = (snapshot.timestamp || new Date().toISOString()).replace(/[:.]/g, '-');
+  const name = snapshot.collectionName ? snapshot.collectionName.replace(/[^a-z0-9]/gi, '_') : 'collection';
+  downloadJsonFile(`snapshot-${name}-${timestamp}.json`, snapshot);
+  showNotification('Snapshot exported.', 'success');
 }
 
 async function fetchSnapshotResource(url) {
@@ -108,6 +197,41 @@ function clearRunSnapshot(results) {
   const filtered = snapshots.filter(snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName));
   saveCollectionSnapshots(filtered);
   showNotification('Snapshot cleared.', 'success');
+}
+
+function importCollectionSnapshot() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const snapshot = parsed?.results ? parsed : (Array.isArray(parsed) ? parsed[0] : null);
+      if (!snapshot || !snapshot.results) {
+        showNotification('Invalid snapshot file.', 'error');
+        return;
+      }
+
+      if (!snapshot.id) snapshot.id = `snapshot_${Date.now()}`;
+      snapshot.timestamp = snapshot.timestamp || new Date().toISOString();
+      snapshot.collectionId = snapshot.collectionId || snapshot.results?.collectionId;
+      snapshot.collectionName = snapshot.collectionName || snapshot.results?.collectionName;
+
+      const snapshots = getCollectionSnapshots();
+      const filtered = snapshots.filter(existing => !matchSnapshotCollection(existing, snapshot.collectionId, snapshot.collectionName));
+      filtered.unshift(snapshot);
+      saveCollectionSnapshots(filtered.slice(0, 20));
+      renderSnapshotLibraryList();
+      renderCollectionRuns();
+      showNotification('Snapshot imported.', 'success');
+    } catch (error) {
+      showNotification('Failed to import snapshot: ' + error.message, 'error');
+    }
+  };
+  input.click();
 }
 
 function showSnapshotReport(snapshotOrId) {
@@ -1116,6 +1240,7 @@ function showCollectionRunReport(results) {
         <button class="btn" onclick="saveRunSnapshot(window.lastCollectionRunReport)">📸 Save Snapshot</button>
         ${snapshotEntry ? `
           <button class="btn" onclick="showSnapshotReport('${snapshotEntry.id}')">🎬 Replay Snapshot</button>
+          <button class="btn" onclick="exportSnapshotById('${snapshotEntry.id}')">📤 Export Snapshot</button>
           <button class="btn" onclick="driftCheckSnapshot(window.lastCollectionRunReport)">🔍 Drift Check</button>
           <button class="btn" onclick="clearRunSnapshot(window.lastCollectionRunReport)">🧹 Clear Snapshot</button>
         ` : ''}
@@ -1905,6 +2030,12 @@ async function exportToolStats() {
     showNotification('Failed to export: ' + error.message, 'error');
   }
 }
+
+window.showSnapshotLibrary = showSnapshotLibrary;
+window.importCollectionSnapshot = importCollectionSnapshot;
+window.showSnapshotReport = showSnapshotReport;
+window.exportSnapshotById = exportSnapshotById;
+window.deleteSnapshot = deleteSnapshot;
 
 // ==========================================
 // MOCK SERVERS MANAGER

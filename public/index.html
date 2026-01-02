@@ -1654,7 +1654,11 @@
             <div class="inspector-section">
               <div style="display: flex; justify-content: space-between; align-items: center">
                 <h4>🧾 Recent Runs</h4>
-                <button class="btn" onclick="clearCollectionRuns()">Clear</button>
+                <div style="display: flex; gap: 6px">
+                  <button class="btn" onclick="showSnapshotLibrary()">📸 Snapshots</button>
+                  <button class="btn" onclick="importCollectionSnapshot()">📥 Import Snapshot</button>
+                  <button class="btn" onclick="clearCollectionRuns()">Clear</button>
+                </div>
               </div>
               <div id="collectionRunsList" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px"></div>
             </div>
