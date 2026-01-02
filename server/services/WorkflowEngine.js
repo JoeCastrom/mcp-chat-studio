@@ -104,7 +104,7 @@ export class WorkflowEngine {
   }
 
   // Execution Logic
-  async executeWorkflow(workflowId, inputData = {}, llmConfig = {}) {
+  async executeWorkflow(workflowId, inputData = {}, llmConfig = {}, sessionId = null) {
     const workflow = this.getWorkflow(workflowId);
     if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
@@ -174,7 +174,7 @@ export class WorkflowEngine {
 
       try {
         console.log(`[Workflow] Executing node ${node.id} (${node.type})`);
-        const result = await this.executeNode(node, context, llmClient);
+        const result = await this.executeNode(node, context, llmClient, sessionId);
         results[node.id] = result;
         context.steps[node.id] = result;
         context.lastNodeId = node.id;
@@ -212,7 +212,7 @@ export class WorkflowEngine {
     };
   }
 
-  async executeNode(node, context, llmClient) {
+  async executeNode(node, context, llmClient, sessionId = null) {
     // Variable substitution in node data
     const data = this.substituteVariables(node.data, context);
 
@@ -243,11 +243,13 @@ export class WorkflowEngine {
         }
         let toolDef = null;
         try {
-          const { tools } = await this.mcpManager.listTools(data.server);
+          const { tools } = await this.mcpManager.listTools(data.server, sessionId);
           toolDef = (tools || []).find(tool => tool.name === data.tool) || null;
         } catch (error) {
           toolDef = null;
         }
+        const properties = toolDef?.inputSchema?.properties || null;
+        const additionalProps = toolDef?.inputSchema?.additionalProperties;
         const required = toolDef?.inputSchema?.required || [];
         if (required.length > 0) {
           const missing = required.filter(key => !(key in args));
@@ -255,10 +257,28 @@ export class WorkflowEngine {
             throw new Error(`Missing required args: ${missing.join(', ')}`);
           }
         }
-        return await this.mcpManager.callTool(data.server, data.tool, args);
+        if (properties && additionalProps === false) {
+          const unknown = Object.keys(args).filter(key => !(key in properties));
+          if (unknown.length > 0) {
+            throw new Error(`Unexpected args: ${unknown.join(', ')}`);
+          }
+        }
+        return await this.mcpManager.callTool(data.server, data.tool, args, sessionId);
 
       case 'llm':
-        if (!data.prompt) throw new Error('LLM node missing prompt');
+        let prompt = data.prompt;
+        if (!prompt || String(prompt).trim().length === 0) {
+          if (context.lastNodeId && context.steps[context.lastNodeId] !== undefined) {
+            const prevOutput = context.steps[context.lastNodeId];
+            if (typeof prevOutput === 'string') {
+              prompt = prevOutput;
+            } else {
+              prompt = `Result: ${JSON.stringify(prevOutput)}`;
+            }
+          } else {
+            throw new Error('LLM node missing prompt');
+          }
+        }
         // If no specific client provided, we need one (could fetch default from config)
         if (!llmClient) {
           // Fallback to reading config file to create default client
@@ -270,7 +290,7 @@ export class WorkflowEngine {
         if (data.systemPrompt) {
           messages.push({ role: 'system', content: data.systemPrompt });
         }
-        messages.push({ role: 'user', content: data.prompt });
+        messages.push({ role: 'user', content: prompt });
 
         const response = await llmClient.chat(messages, {});
         const content = response?.choices?.[0]?.message?.content;

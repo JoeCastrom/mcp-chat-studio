@@ -3,7 +3,7 @@
 **The Ultimate Testing Platform for MCP Servers**
 
 Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI and a powerful Workspace mode.  
-**Record scenarios** • **Workspace canvas** • **Workflow export (Python + Node)** • **Mock servers** • **Docs generator** • **Zero config with Ollama**
+**Record scenarios** • **Collections + run reports** • **Workspace canvas** • **Workflow export (Python + Node)** • **Mock servers** • **Docs generator** • **Zero config with Ollama**
 
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square)
@@ -172,6 +172,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🎯 Built for MCP Development** - Test and debug MCP servers without writing code
 - **🔧 8 LLM Providers** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
+- **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
@@ -428,6 +429,7 @@ mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit
 
 - **Dev/Staging/Prod** - Switch between environments
 - **Auto-save config** - Per-environment settings
+- **Global + env variables** - Shared and environment-scoped variables
 - **Quick switching** - Sidebar dropdown
 
 ---
@@ -894,6 +896,17 @@ Results show as **📋 Schema OK** or **📋 N issues**.
 - **Single**: Click **📦 Export** on a scenario
 - **All**: Click **📦 Export All**
 - Format: JSON (version-controllable in Git)
+
+### 📚 Collections + Run Reports
+
+Group multiple scenarios and run them like Postman collections.
+
+- **Add scenarios** to collections with one click
+- **Run with iterations** + environment variables
+- **Run history** with one-click rerun
+- **Run report** shows pass/fail + timing
+- **Export** JSON, JUnit, or a full run bundle
+- **Mock from run** to generate offline test servers
 
 ### 🧩 Pre/Post Scripts
 

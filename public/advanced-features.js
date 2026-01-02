@@ -39,6 +39,7 @@ function recordCollectionRun(results) {
     },
     results
   };
+  results.runId = entry.id;
   runs.unshift(entry);
   saveCollectionRuns(runs.slice(0, 20));
 }
@@ -79,6 +80,8 @@ function renderCollectionRuns() {
         <button class="btn-small" onclick="rerunCollectionRun('${run.id}')">↻ Rerun</button>
         <button class="btn-small" onclick="exportCollectionRunById('${run.id}')">📥 JSON</button>
         <button class="btn-small" onclick="exportCollectionRunJUnitById('${run.id}')">🧾 JUnit</button>
+        <button class="btn-small" onclick="exportCollectionRunBundleById('${run.id}')">📦 Bundle</button>
+        <button class="btn-small" onclick="createMocksFromRunById('${run.id}')">🎭 Mock</button>
       </div>
     </div>
   `).join('');
@@ -307,6 +310,17 @@ function exportCollectionRunReport(results) {
   downloadTextFile('collection-run-report.json', JSON.stringify(results, null, 2), 'application/json');
 }
 
+function exportCollectionRunBundle(results) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const name = slugifyName(results.collectionName || 'collection');
+  const filename = `collection-run-${name}-${timestamp}.json`;
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    run: results
+  };
+  downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json');
+}
+
 function exportCollectionRunJUnit(results) {
   const scenarios = results.scenarios || [];
   const totalTime = scenarios.reduce((sum, s) => sum + (s.duration || 0), 0) / 1000;
@@ -363,6 +377,15 @@ function exportCollectionRunById(runId) {
   exportCollectionRunReport(results);
 }
 
+function exportCollectionRunBundleById(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  exportCollectionRunBundle(results);
+}
+
 function exportCollectionRunJUnitById(runId) {
   const results = getCollectionRunById(runId);
   if (!results) {
@@ -372,12 +395,111 @@ function exportCollectionRunJUnitById(runId) {
   exportCollectionRunJUnit(results);
 }
 
+async function createMocksFromRun(results) {
+  const steps = (results.scenarios || []).flatMap(s => s.steps || []);
+  const servers = Array.from(new Set(steps.map(step => step.server).filter(Boolean)));
+
+  if (servers.length === 0) {
+    showNotification('No steps available for mock generation.', 'error');
+    return;
+  }
+
+  const filterResult = await appFormModal({
+    title: 'Generate Mocks from Run',
+    confirmText: 'Generate',
+    fields: [
+      {
+        id: 'serverFilter',
+        label: 'Server (optional)',
+        type: 'select',
+        options: [{ value: '', label: 'All servers' }, ...servers.map(server => ({ value: server, label: server }))]
+      }
+    ]
+  });
+
+  if (!filterResult.confirmed) return;
+  const serverFilter = filterResult.values.serverFilter;
+
+  let toolDefs = [];
+  try {
+    const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
+    const toolsData = await toolsRes.json();
+    toolDefs = toolsData.tools || [];
+  } catch (error) {
+    console.warn('Failed to load tool schemas for mocks:', error);
+  }
+
+  const grouped = new Map();
+  steps.forEach(step => {
+    if (!step.server || !step.tool) return;
+    if (serverFilter && step.server !== serverFilter) return;
+    if (step.status !== 'passed') return;
+    if (!grouped.has(step.server)) {
+      grouped.set(step.server, new Map());
+    }
+    grouped.get(step.server).set(step.tool, step.response);
+  });
+
+  if (grouped.size === 0) {
+    showNotification('No successful steps found for mock generation.', 'error');
+    return;
+  }
+
+  for (const [serverName, toolMap] of grouped.entries()) {
+    const tools = [];
+    for (const [toolName, response] of toolMap.entries()) {
+      const def = toolDefs.find(t => t.serverName === serverName && t.name === toolName);
+      tools.push({
+        name: toolName,
+        description: def?.description || `Recorded from ${serverName}`,
+        inputSchema: def?.inputSchema || { type: 'object', properties: {} },
+        response
+      });
+    }
+
+    try {
+      await fetch('/api/mocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: `Mock: ${results.collectionName || serverName} (${serverName})`,
+          description: `Auto-generated from run ${results.collectionName || ''}`.trim(),
+          tools,
+          resources: [],
+          prompts: [],
+          delay: 0,
+          errorRate: 0
+        })
+      });
+    } catch (error) {
+      console.error('Failed to create mock from run:', error);
+    }
+  }
+
+  await loadMockServers();
+  showNotification('Mock servers generated from run!', 'success');
+}
+
+function createMocksFromRunById(runId) {
+  const results = getCollectionRunById(runId);
+  if (!results) {
+    showNotification('Run report not found.', 'error');
+    return;
+  }
+  createMocksFromRun(results);
+}
+
 async function rerunCollectionRun(runId) {
   const results = getCollectionRunById(runId);
   if (!results) {
     showNotification('Run report not found.', 'error');
     return;
   }
+  await rerunCollectionFromReport(results);
+}
+
+async function rerunCollectionFromReport(results) {
   const runConfig = results.runConfig || { environment: {}, iterations: 1, iterationData: [] };
   const fresh = await runCollectionWithConfig(results.collectionId, runConfig);
   const message = `✅ ${fresh.passed} passed, ❌ ${fresh.failed} failed, ⏭️ ${fresh.skipped} skipped`;
@@ -456,8 +578,11 @@ function showCollectionRunReport(results) {
         </div>
       </div>
       <div class="modal-actions">
+        <button class="btn" onclick="rerunCollectionFromReport(window.lastCollectionRunReport)">↻ Rerun</button>
+        <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
         <button class="btn" onclick="exportCollectionRunReport(window.lastCollectionRunReport)">📥 Export JSON</button>
         <button class="btn" onclick="exportCollectionRunJUnit(window.lastCollectionRunReport)">🧾 Export JUnit</button>
+        <button class="btn" onclick="exportCollectionRunBundle(window.lastCollectionRunReport)">📦 Export Bundle</button>
         <button class="btn" onclick="document.getElementById('collectionRunReportModal')?.remove()">Close</button>
       </div>
     </div>

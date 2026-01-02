@@ -649,6 +649,14 @@ function normalizeWorkflowState() {
     if (normalized.data && typeof normalized.data.args === 'object') {
       normalized.data.args = JSON.stringify(normalized.data.args, null, 2);
     }
+    if (normalized.type === 'llm') {
+      if (!normalized.data.systemPrompt || String(normalized.data.systemPrompt).trim().length === 0) {
+        normalized.data.systemPrompt = 'Analyze the tool output and summarize the result.';
+      }
+      if (!normalized.data.prompt || String(normalized.data.prompt).trim().length === 0) {
+        normalized.data.prompt = 'Result: {{prev.output}}';
+      }
+    }
     return normalized;
   });
   workflowState.edges = Array.isArray(workflowState.edges) ? workflowState.edges : [];

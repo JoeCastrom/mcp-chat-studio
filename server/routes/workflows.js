@@ -11,6 +11,10 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function getSessionId(req) {
+  return req.headers['x-session-id'] || req.cookies?.sessionId || req.sessionID || null;
+}
+
 // Helper to load LLM config for execution
 function loadLLMConfig() {
   try {
@@ -133,7 +137,8 @@ router.post('/:id/execute', async (req, res) => {
     // Use provided config or fallback to file-based load
     const configToUse = llmConfig || loadLLMConfig();
     
-    const result = await engine.executeWorkflow(req.params.id, input, configToUse);
+    const sessionId = getSessionId(req);
+    const result = await engine.executeWorkflow(req.params.id, input, configToUse, sessionId);
     res.json(result);
   } catch (error) {
     console.error('Workflow execution failed:', error);
