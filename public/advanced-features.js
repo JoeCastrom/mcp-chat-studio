@@ -10,6 +10,7 @@
 let currentCollection = null;
 let collections = [];
 const COLLECTION_RUNS_KEY = 'mcp_chat_studio_collection_runs';
+const COLLECTION_GOLDEN_KEY = 'mcp_chat_studio_collection_golden';
 
 function getCollectionRuns() {
   try {
@@ -17,6 +18,57 @@ function getCollectionRuns() {
   } catch (error) {
     return [];
   }
+}
+
+function getGoldenBaselines() {
+  try {
+    return JSON.parse(localStorage.getItem(COLLECTION_GOLDEN_KEY) || '{}');
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveGoldenBaselines(baselines) {
+  localStorage.setItem(COLLECTION_GOLDEN_KEY, JSON.stringify(baselines));
+}
+
+function getGoldenKey(collectionId, collectionName) {
+  if (collectionId) return `id:${collectionId}`;
+  if (collectionName) return `name:${collectionName}`;
+  return null;
+}
+
+function getGoldenBaselineForCollection(collectionId, collectionName) {
+  const baselines = getGoldenBaselines();
+  const key = getGoldenKey(collectionId, collectionName);
+  if (!key) return null;
+  return baselines[key] || null;
+}
+
+function getGoldenBaselineForRun(results) {
+  return getGoldenBaselineForCollection(results?.collectionId, results?.collectionName);
+}
+
+function setGoldenBaseline(results) {
+  const key = getGoldenKey(results?.collectionId, results?.collectionName);
+  if (!key || !results) return;
+  const baselines = getGoldenBaselines();
+  baselines[key] = {
+    runId: results.runId,
+    collectionId: results.collectionId,
+    collectionName: results.collectionName,
+    timestamp: results.endTime || new Date().toISOString(),
+    results
+  };
+  saveGoldenBaselines(baselines);
+}
+
+function clearGoldenBaseline(results) {
+  const key = getGoldenKey(results?.collectionId, results?.collectionName);
+  if (!key) return;
+  const baselines = getGoldenBaselines();
+  delete baselines[key];
+  saveGoldenBaselines(baselines);
 }
 
 function findPreviousCollectionRun(currentResults) {
@@ -69,6 +121,43 @@ function computeRunDelta(currentResults, previousEntry) {
   return delta;
 }
 
+function renderDeltaBlock(delta, title, badgeText) {
+  if (!delta) return '';
+  const formatDelta = (value) => {
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value}`;
+  };
+  const newFailures = delta.newFailures.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
+  const recovered = delta.recovered.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
+  const moreNew = delta.newFailures.length > 3 ? `+${delta.newFailures.length - 3} more` : '';
+  const moreRecovered = delta.recovered.length > 3 ? `+${delta.recovered.length - 3} more` : '';
+
+  return `
+    <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface)">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+        <strong style="font-size: 0.85rem">${escapeHtml(title)}</strong>
+        <span style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(badgeText || '')}</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--text-muted)">
+        <span>Passed: ${formatDelta(delta.passed)}</span>
+        <span>Failed: ${formatDelta(delta.failed)}</span>
+        <span>Skipped: ${formatDelta(delta.skipped)}</span>
+        <span>Duration: ${formatDelta(delta.duration)}ms</span>
+      </div>
+      ${delta.newFailures.length > 0 ? `
+        <div style="margin-top: 8px; font-size: 0.75rem; color: var(--error); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
+          <span>New failures:</span> ${newFailures} ${moreNew ? `<span class="pill">${moreNew}</span>` : ''}
+        </div>
+      ` : ''}
+      ${delta.recovered.length > 0 ? `
+        <div style="margin-top: 6px; font-size: 0.75rem; color: var(--success); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
+          <span>Recovered:</span> ${recovered} ${moreRecovered ? `<span class="pill">${moreRecovered}</span>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function buildScenarioKey(scenario) {
   return `${scenario.scenarioName || scenario.name || 'Scenario'} (iter ${scenario.iteration || 1})`;
 }
@@ -114,11 +203,18 @@ function renderCollectionRuns() {
     return;
   }
 
-  list.innerHTML = runs.map(run => `
+  list.innerHTML = runs.map(run => {
+    const golden = getGoldenBaselineForCollection(run.collectionId, run.collectionName);
+    const isGolden = golden && golden.runId === run.id;
+    const goldenBadge = isGolden ? '<span class="pill" style="border-color: var(--accent); color: var(--accent)">⭐ Golden</span>' : '';
+    return `
     <div class="collection-card" style="padding: 10px">
       <div class="collection-header">
         <h3>${escapeHtml(run.collectionName || 'Collection')}</h3>
-        <span class="badge">${run.summary?.total || 0} scenarios</span>
+        <div style="display: flex; gap: 6px; align-items: center">
+          ${goldenBadge}
+          <span class="badge">${run.summary?.total || 0} scenarios</span>
+        </div>
       </div>
       <div class="collection-meta">
         <span>${new Date(run.timestamp).toLocaleString()}</span>
@@ -139,7 +235,8 @@ function renderCollectionRuns() {
         <button class="btn-small" onclick="createMocksFromRunById('${run.id}')">🎭 Mock</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function selectCollection(id) {
@@ -748,8 +845,29 @@ async function rerunCollectionFromReport(results) {
   showCollectionRunReport(fresh);
 }
 
+function refreshCollectionRunReport(results) {
+  const modal = document.getElementById('collectionRunReportModal');
+  if (modal) modal.remove();
+  showCollectionRunReport(results);
+}
+
+function markGoldenFromReport(results) {
+  setGoldenBaseline(results);
+  renderCollectionRuns();
+  showNotification('Golden baseline saved.', 'success');
+  refreshCollectionRunReport(results);
+}
+
+function clearGoldenFromReport(results) {
+  clearGoldenBaseline(results);
+  renderCollectionRuns();
+  showNotification('Golden baseline cleared.', 'success');
+  refreshCollectionRunReport(results);
+}
+
 function showCollectionRunReport(results) {
   window.lastCollectionRunReport = results;
+  const goldenEntry = getGoldenBaselineForRun(results);
   const modal = document.createElement('div');
   modal.className = 'modal-overlay active';
   modal.id = 'collectionRunReportModal';
@@ -807,42 +925,37 @@ function showCollectionRunReport(results) {
       </div>
       <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
         ${(() => {
+          const blocks = [];
+          const goldenEntry = getGoldenBaselineForRun(results);
+          if (goldenEntry) {
+            const goldenDelta = computeRunDelta(results, {
+              timestamp: goldenEntry.timestamp,
+              results: goldenEntry.results
+            });
+            blocks.push(renderDeltaBlock(
+              goldenDelta,
+              `⭐ Golden baseline · ${new Date(goldenEntry.timestamp).toLocaleString()}`,
+              'Golden baseline'
+            ));
+          } else {
+            blocks.push(`
+              <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px dashed var(--border); background: var(--bg-surface); font-size: 0.75rem; color: var(--text-muted)">
+                No golden baseline yet. Use ⭐ Set Golden to lock this run.
+              </div>
+            `);
+          }
+
           const previousEntry = findPreviousCollectionRun(results);
           const delta = computeRunDelta(results, previousEntry);
-          if (!delta) return '';
-          const formatDelta = (value) => {
-            const sign = value > 0 ? '+' : '';
-            return `${sign}${value}`;
-          };
-          const newFailures = delta.newFailures.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
-          const recovered = delta.recovered.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
-          const moreNew = delta.newFailures.length > 3 ? `+${delta.newFailures.length - 3} more` : '';
-          const moreRecovered = delta.recovered.length > 3 ? `+${delta.recovered.length - 3} more` : '';
+          if (delta) {
+            blocks.push(renderDeltaBlock(
+              delta,
+              `Δ Regression vs ${new Date(delta.previousTimestamp).toLocaleString()}`,
+              'Auto compare'
+            ));
+          }
 
-          return `
-            <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface)">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                <strong style="font-size: 0.85rem">Δ Regression vs ${new Date(delta.previousTimestamp).toLocaleString()}</strong>
-                <span style="font-size: 0.7rem; color: var(--text-muted)">Auto compare</span>
-              </div>
-              <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--text-muted)">
-                <span>Passed: ${formatDelta(delta.passed)}</span>
-                <span>Failed: ${formatDelta(delta.failed)}</span>
-                <span>Skipped: ${formatDelta(delta.skipped)}</span>
-                <span>Duration: ${formatDelta(delta.duration)}ms</span>
-              </div>
-              ${delta.newFailures.length > 0 ? `
-                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--error); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
-                  <span>New failures:</span> ${newFailures} ${moreNew ? `<span class="pill">${moreNew}</span>` : ''}
-                </div>
-              ` : ''}
-              ${delta.recovered.length > 0 ? `
-                <div style="margin-top: 6px; font-size: 0.75rem; color: var(--success); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
-                  <span>Recovered:</span> ${recovered} ${moreRecovered ? `<span class="pill">${moreRecovered}</span>` : ''}
-                </div>
-              ` : ''}
-            </div>
-          `;
+          return blocks.join('');
         })()}
         <div style="display: flex; gap: 16px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px">
           <span>✅ ${results.passed} passed</span>
@@ -857,6 +970,12 @@ function showCollectionRunReport(results) {
       <div class="modal-actions">
         <button class="btn" onclick="rerunCollectionFromReport(window.lastCollectionRunReport)">↻ Rerun</button>
         <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
+        ${goldenEntry ? `
+          <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Update Golden</button>
+          <button class="btn" onclick="clearGoldenFromReport(window.lastCollectionRunReport)">🧹 Clear Golden</button>
+        ` : `
+          <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Set Golden</button>
+        `}
         <button class="btn" onclick="exportCollectionRunReport(window.lastCollectionRunReport)">📥 Export JSON</button>
         <button class="btn" onclick="exportCollectionRunJUnit(window.lastCollectionRunReport)">🧾 Export JUnit</button>
         <button class="btn" onclick="exportCollectionRunHtml(window.lastCollectionRunReport)">🧾 Export HTML</button>

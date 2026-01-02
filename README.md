@@ -186,6 +186,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
 - **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
+- **⭐ Golden Baselines** - Mark trusted runs and diff against them
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
@@ -938,6 +939,7 @@ Group multiple scenarios and run them like Postman collections.
 - **Run history** with one-click rerun
 - **Run report** shows pass/fail + timing
 - **Regression delta** vs previous run (new failures + recoveries)
+- **Golden baseline** runs for trusted comparisons
 - **Export** JSON, JUnit, HTML, or a full run bundle
 - **Mock from run** to generate offline test servers
 
