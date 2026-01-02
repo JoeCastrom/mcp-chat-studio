@@ -1367,6 +1367,10 @@ function updateSchemaDiffBadge(summary) {
   const badge = document.getElementById('schemaDiffBadge');
   if (!badge || !summary) return;
 
+  const summaryText = document.getElementById('schemaDiffSummaryText');
+  const generatedAt = summary.generatedAt || new Date().toISOString();
+  const timestamp = new Date(generatedAt).toLocaleString();
+
   const { added, removed, changed, totalChanges } = summary;
   badge.style.display = 'inline-block';
   badge.classList.remove('badge-success', 'badge-warning', 'badge-danger');
@@ -1380,7 +1384,10 @@ function updateSchemaDiffBadge(summary) {
   }
 
   badge.title = `Added: ${added}, Removed: ${removed}, Changed: ${changed}`;
-  localStorage.setItem('schemaDiffSummary', JSON.stringify(summary));
+  if (summaryText) {
+    summaryText.textContent = `Last diff: ${totalChanges} change(s) · ${timestamp} (added ${added}, removed ${removed}, changed ${changed})`;
+  }
+  localStorage.setItem('schemaDiffSummary', JSON.stringify({ ...summary, generatedAt }));
 }
 
 function loadSchemaDiffBadge() {
