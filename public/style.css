@@ -1679,6 +1679,18 @@ kbd {
   background: rgba(252, 211, 77, 0.12);
 }
 
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  font-size: 0.7rem;
+  color: var(--text-primary);
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;

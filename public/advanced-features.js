@@ -19,6 +19,60 @@ function getCollectionRuns() {
   }
 }
 
+function findPreviousCollectionRun(currentResults) {
+  if (!currentResults) return null;
+  const runs = getCollectionRuns();
+  const currentId = currentResults.runId;
+  const collectionId = currentResults.collectionId;
+  const collectionName = currentResults.collectionName;
+  const filtered = runs.filter(run => {
+    if (currentId && run.id === currentId) return false;
+    if (collectionId && run.collectionId === collectionId) return true;
+    if (!collectionId && collectionName && run.collectionName === collectionName) return true;
+    return false;
+  });
+  if (filtered.length === 0) return null;
+  filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return filtered[0];
+}
+
+function computeRunDelta(currentResults, previousEntry) {
+  if (!currentResults || !previousEntry?.results) return null;
+  const previousResults = previousEntry.results;
+  const delta = {
+    previousTimestamp: previousEntry.timestamp,
+    passed: currentResults.passed - (previousResults.passed || 0),
+    failed: currentResults.failed - (previousResults.failed || 0),
+    skipped: currentResults.skipped - (previousResults.skipped || 0),
+    duration: (currentResults.duration || 0) - (previousResults.duration || 0),
+    newFailures: [],
+    recovered: []
+  };
+
+  const prevMap = new Map();
+  (previousResults.scenarios || []).forEach(scenario => {
+    const key = buildScenarioKey(scenario);
+    prevMap.set(key, scenario.status);
+  });
+
+  (currentResults.scenarios || []).forEach(scenario => {
+    const key = buildScenarioKey(scenario);
+    const prevStatus = prevMap.get(key);
+    if (scenario.status === 'failed' && prevStatus && prevStatus !== 'failed') {
+      delta.newFailures.push(key);
+    }
+    if (scenario.status === 'passed' && prevStatus === 'failed') {
+      delta.recovered.push(key);
+    }
+  });
+
+  return delta;
+}
+
+function buildScenarioKey(scenario) {
+  return `${scenario.scenarioName || scenario.name || 'Scenario'} (iter ${scenario.iteration || 1})`;
+}
+
 function saveCollectionRuns(runs) {
   localStorage.setItem(COLLECTION_RUNS_KEY, JSON.stringify(runs));
 }
@@ -752,6 +806,44 @@ function showCollectionRunReport(results) {
         </button>
       </div>
       <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
+        ${(() => {
+          const previousEntry = findPreviousCollectionRun(results);
+          const delta = computeRunDelta(results, previousEntry);
+          if (!delta) return '';
+          const formatDelta = (value) => {
+            const sign = value > 0 ? '+' : '';
+            return `${sign}${value}`;
+          };
+          const newFailures = delta.newFailures.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
+          const recovered = delta.recovered.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
+          const moreNew = delta.newFailures.length > 3 ? `+${delta.newFailures.length - 3} more` : '';
+          const moreRecovered = delta.recovered.length > 3 ? `+${delta.recovered.length - 3} more` : '';
+
+          return `
+            <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface)">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                <strong style="font-size: 0.85rem">Δ Regression vs ${new Date(delta.previousTimestamp).toLocaleString()}</strong>
+                <span style="font-size: 0.7rem; color: var(--text-muted)">Auto compare</span>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--text-muted)">
+                <span>Passed: ${formatDelta(delta.passed)}</span>
+                <span>Failed: ${formatDelta(delta.failed)}</span>
+                <span>Skipped: ${formatDelta(delta.skipped)}</span>
+                <span>Duration: ${formatDelta(delta.duration)}ms</span>
+              </div>
+              ${delta.newFailures.length > 0 ? `
+                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--error); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
+                  <span>New failures:</span> ${newFailures} ${moreNew ? `<span class="pill">${moreNew}</span>` : ''}
+                </div>
+              ` : ''}
+              ${delta.recovered.length > 0 ? `
+                <div style="margin-top: 6px; font-size: 0.75rem; color: var(--success); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
+                  <span>Recovered:</span> ${recovered} ${moreRecovered ? `<span class="pill">${moreRecovered}</span>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        })()}
         <div style="display: flex; gap: 16px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px">
           <span>✅ ${results.passed} passed</span>
           <span>❌ ${results.failed} failed</span>

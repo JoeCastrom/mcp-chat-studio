@@ -908,6 +908,7 @@ Group multiple scenarios and run them like Postman collections.
 - **CSV/JSON iteration data** for data-driven testing
 - **Run history** with one-click rerun
 - **Run report** shows pass/fail + timing
+- **Regression delta** vs previous run (new failures + recoveries)
 - **Export** JSON, JUnit, HTML, or a full run bundle
 - **Mock from run** to generate offline test servers
 
