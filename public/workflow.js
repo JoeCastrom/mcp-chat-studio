@@ -377,6 +377,7 @@ function createNodeElement(node) {
             oninput="updateNodeData('${node.id}', 'args', this.value)"
             style="height: 60px;" id="args_input_${node.id}">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : (node.data.args || '')}</textarea>
         </div>
+        <div id="tool_hint_${node.id}" class="tool-schema-hint">Select a tool to see required args.</div>
       </div>
     `;
     setTimeout(() => populateServerSelect(node.id, node.data.server), 0);
@@ -940,6 +941,9 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
       select.innerHTML = '<option value="">Select Tool</option>' + 
         tools.map(t => `<option value="${t.name}" ${t.name === selectedTool ? 'selected' : ''}>${t.name}</option>`).join('');
     }
+    if (selectedTool) {
+      updateToolSchemaHint(nodeId, selectedTool);
+    }
   } catch (e) {
     console.error('Failed to load tools for node', e);
   }
@@ -947,6 +951,7 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
 
 function handleToolSelection(nodeId, toolName) {
   updateNodeData(nodeId, 'tool', toolName);
+  updateToolSchemaHint(nodeId, toolName);
   const node = workflowState.nodes.find(n => n.id === nodeId);
   if (!node) return;
   const existingArgs = node.data?.args;
@@ -962,6 +967,24 @@ function handleToolSelection(nodeId, toolName) {
   node.data.args = json;
   const textarea = document.getElementById(`args_input_${nodeId}`);
   if (textarea) textarea.value = json;
+}
+
+function updateToolSchemaHint(nodeId, toolName) {
+  const node = workflowState.nodes.find(n => n.id === nodeId);
+  const hintEl = document.getElementById(`tool_hint_${nodeId}`);
+  if (!node || !hintEl) return;
+  if (!toolName || !node.data?.server) {
+    hintEl.textContent = 'Select a tool to see required args.';
+    return;
+  }
+  const tools = toolSchemaCache[node.data.server] || [];
+  const tool = tools.find(t => t.name === toolName);
+  if (!tool?.inputSchema) {
+    hintEl.textContent = 'No schema available for this tool.';
+    return;
+  }
+  const schemaSummary = summarizeToolSchema(tool.inputSchema);
+  hintEl.textContent = schemaSummary || 'No required args.';
 }
 
 function buildArgsTemplate(schema) {
@@ -1038,6 +1061,16 @@ style.textContent = `
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
     position: absolute;
     z-index: 10;
+  }
+
+  .tool-schema-hint {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 8px;
+    border-radius: 6px;
+    line-height: 1.4;
   }
   
   /* Disable all transitions during drag for smooth movement */
