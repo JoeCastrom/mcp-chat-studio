@@ -954,6 +954,27 @@
                     Continue on error
                   </label>
                 </div>
+                <div style="margin-bottom: 12px">
+                  <h4 style="margin: 0 0 6px 0; font-size: 0.8rem">🧪 Fuzz Generator</h4>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.75rem">
+                    <label style="display: flex; align-items: center; gap: 4px">
+                      Variants
+                      <input id="fuzzVariantCount" type="number" value="12" min="1" max="50" style="width: 70px" />
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 4px">
+                      <input type="checkbox" id="fuzzIncludeInvalid" checked />
+                      Include invalid cases
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 4px">
+                      <input type="checkbox" id="fuzzEdgeBias" checked />
+                      Edge-case bias
+                    </label>
+                    <button class="btn" onclick="generateFuzzCases()">🧪 Generate Inputs</button>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px">
+                    Builds inputs from the tool schema (boundary values, empty strings, nulls, type mismatches).
+                  </div>
+                </div>
                 <button class="btn primary" onclick="runBulkTest()" id="bulkTestRunBtn">
                   ▶️ Run Bulk Test
                 </button>

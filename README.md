@@ -109,6 +109,7 @@ Three powerful new testing tools:
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
 - **🌐 Cross-Server Snapshot** - Run one tool across servers and diff output
+- **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
 - **🔍 Resolved Preview** - See variable substitutions before execution
 
 ### 📋 Contract Testing

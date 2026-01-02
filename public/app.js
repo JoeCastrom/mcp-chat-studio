@@ -9040,6 +9040,138 @@ main().catch(console.error);
         }
       }
 
+      function buildFuzzValue(type, options = {}) {
+        const { edgeBias = true, includeInvalid = true } = options;
+        const values = [];
+        const add = (val) => values.push(val);
+
+        switch (type) {
+          case 'string':
+            add('');
+            if (edgeBias) {
+              add(' ');
+              add('0');
+              add('⚡');
+              add('long_' + 'x'.repeat(32));
+            }
+            add('example');
+            if (includeInvalid) add(123);
+            break;
+          case 'number':
+          case 'integer':
+            add(0);
+            if (edgeBias) {
+              add(1);
+              add(-1);
+              add(Number.MAX_SAFE_INTEGER);
+              add(Number.MIN_SAFE_INTEGER);
+            }
+            add(42);
+            if (includeInvalid) add('NaN');
+            break;
+          case 'boolean':
+            add(true);
+            add(false);
+            if (includeInvalid) add('true');
+            break;
+          case 'array':
+            add([]);
+            if (edgeBias) add([1, 2, 3]);
+            if (includeInvalid) add({});
+            break;
+          case 'object':
+            add({});
+            if (edgeBias) add({ example: 'value' });
+            if (includeInvalid) add([]);
+            break;
+          default:
+            add(null);
+            if (includeInvalid) add('unknown');
+            break;
+        }
+
+        return values;
+      }
+
+      function buildFuzzCases(schema, options = {}) {
+        if (!schema || typeof schema !== 'object') return [];
+        const properties = schema.properties || {};
+        const required = schema.required || [];
+        const keys = Object.keys(properties);
+        if (keys.length === 0) return [{}];
+
+        const perKeyValues = keys.map(key => {
+          const propSchema = properties[key] || {};
+          const type = propSchema.type || 'string';
+          const values = buildFuzzValue(type, options);
+          return { key, values, required: required.includes(key) };
+        });
+
+        const cases = [];
+        const base = {};
+        perKeyValues.forEach(entry => {
+          if (entry.required) {
+            base[entry.key] = entry.values[0];
+          }
+        });
+        cases.push({ ...base });
+
+        perKeyValues.forEach(entry => {
+          entry.values.forEach(value => {
+            cases.push({ ...base, [entry.key]: value });
+          });
+        });
+
+        if (options.includeInvalid) {
+          perKeyValues.filter(entry => entry.required).forEach(entry => {
+            const missing = { ...base };
+            delete missing[entry.key];
+            cases.push(missing);
+          });
+        }
+
+        const unique = [];
+        const seen = new Set();
+        cases.forEach(item => {
+          const key = JSON.stringify(item);
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(item);
+          }
+        });
+
+        return unique;
+      }
+
+      function generateFuzzCases() {
+        const serverName = document.getElementById('bulkTestServerSelect').value;
+        const toolName = document.getElementById('bulkTestToolSelect').value;
+        if (!serverName || !toolName) {
+          appendMessage('error', 'Select a server and tool first.');
+          return;
+        }
+
+        const toolDef = bulkTestCache.find(tool => tool.serverName === serverName && tool.name === toolName);
+        if (!toolDef) {
+          appendMessage('error', 'Tool schema not found.');
+          return;
+        }
+
+        const count = Math.min(50, Math.max(1, Number(document.getElementById('fuzzVariantCount')?.value || 12)));
+        const includeInvalid = document.getElementById('fuzzIncludeInvalid')?.checked ?? true;
+        const edgeBias = document.getElementById('fuzzEdgeBias')?.checked ?? true;
+
+        const cases = buildFuzzCases(toolDef.inputSchema || {}, { includeInvalid, edgeBias });
+        const sliced = cases.slice(0, count);
+
+        const textarea = document.getElementById('bulkTestInputs');
+        if (textarea) {
+          textarea.value = JSON.stringify(sliced, null, 2);
+        }
+
+        appendMessage('system', `🧪 Generated ${sliced.length} fuzz inputs from schema.`);
+      }
+
       async function runBulkTest() {
         const serverName = document.getElementById('bulkTestServerSelect').value;
         const toolName = document.getElementById('bulkTestToolSelect').value;
@@ -9768,4 +9900,5 @@ main().catch(console.error);
       window.showDatasetManager = showDatasetManager;
       window.loadCrossServerOptions = loadCrossServerOptions;
       window.runCrossServerCompare = runCrossServerCompare;
+      window.generateFuzzCases = generateFuzzCases;
 
