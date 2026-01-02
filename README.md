@@ -174,6 +174,8 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🎯 Built for MCP Development** - Test and debug MCP servers without writing code
 - **🔧 8 LLM Providers** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
+- **🎬 History → Scenario** - Turn real tool calls into replayable test flows
+- **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
 - **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
@@ -303,6 +305,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Recording** - Click "🔴 Start Recording" to capture tool executions
 - **Step capture** - Records tool name, args, response, timing, schema
 - **Save scenarios** - Name and save as JSON to localStorage
+- **History → Scenario** - Convert recent tool history into a scenario in one click
 - **Replay** - Run all steps with ✅/❌/🔶 pass/fail status
 - **Export** - Download scenarios as JSON for Git/CI integration
 
@@ -312,6 +315,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Color-coded** - 🔴 missing, 🟢 added, 🟡 changed, 🟠 type change
 - **Side-by-side view** - Modal shows baseline vs current
 - **Breaking change detection** - Flags structural changes
+- **History re-run** - Diff a new run against any past tool call
 
 ### 📋 Schema Validation
 

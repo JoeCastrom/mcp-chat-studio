@@ -5303,6 +5303,7 @@
                 <div style="margin-top: 8px">
                   <button class="btn" onclick="event.stopPropagation(); copyHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">📋 Copy</button>
                   <button class="btn" onclick="event.stopPropagation(); replayHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔄 Replay in Inspector</button>
+                  <button class="btn" onclick="event.stopPropagation(); rerunHistoryEntryDiff(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔁 Re-run + Diff</button>
                 </div>
               </div>
             </div>
@@ -5350,6 +5351,55 @@
           }, 500);
 
           appendMessage('system', `🔄 Loaded ${entry.tool} request in Inspector - select the tool and execute`);
+        }
+      }
+
+      async function rerunHistoryEntryDiff(idx) {
+        const history = sessionManager.getToolHistory();
+        const entry = history[idx];
+        if (!entry) {
+          showNotification('History entry not found.', 'error');
+          return;
+        }
+        if (!entry.server || !entry.tool) {
+          showNotification('History entry is missing server or tool.', 'error');
+          return;
+        }
+
+        const startTime = performance.now();
+        try {
+          const response = await fetch('/api/mcp/call', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              serverName: entry.server,
+              toolName: entry.tool,
+              args: entry.request || {}
+            })
+          });
+
+          const data = await response.json();
+          const duration = Math.round(performance.now() - startTime);
+          const result = data.error || data.result;
+
+          sessionManager.logToolExecution({
+            timestamp: new Date().toISOString(),
+            server: entry.server,
+            tool: entry.tool,
+            request: entry.request || {},
+            response: result,
+            duration,
+            success: !data.error && data.result?.isError !== true,
+            meta: { source: 'history-diff', baseline: entry.timestamp }
+          });
+          toolExecutionHistory = sessionManager.getToolHistory();
+          refreshHistoryPanel();
+
+          showDiff(entry.response ?? {}, result ?? {});
+          showNotification('Re-run completed. Showing diff.', data.error ? 'warning' : 'success');
+        } catch (error) {
+          showNotification(`Re-run failed: ${error.message}`, 'error');
         }
       }
 
@@ -5504,6 +5554,95 @@
         document.getElementById('recordingStatus').textContent = 'Scenario saved! Start a new recording.';
         refreshScenariosPanel();
         appendMessage('system', `💾 Scenario "${name}" saved with ${scenario.steps.length} steps.`);
+      }
+
+      async function createScenarioFromHistory() {
+        const history = sessionManager.getToolHistory();
+        if (!history.length) {
+          await appAlert('No tool executions recorded yet.', { title: 'No History' });
+          return;
+        }
+
+        const maxCount = history.length;
+        const defaultCount = Math.min(maxCount, 5);
+        const result = await appFormModal({
+          title: 'Create Scenario from History',
+          confirmText: 'Create',
+          fields: [
+            {
+              id: 'name',
+              label: 'Scenario name',
+              required: true,
+              value: `History ${new Date().toLocaleTimeString()}`,
+              placeholder: 'History replay'
+            },
+            {
+              id: 'count',
+              label: 'Recent calls to include',
+              type: 'number',
+              required: true,
+              value: defaultCount,
+              hint: `Up to ${maxCount} call${maxCount !== 1 ? 's' : ''} available.`,
+              validate: (value) => {
+                if (!Number.isFinite(value) || value <= 0) return 'Enter a number greater than 0';
+                if (value > maxCount) return `Only ${maxCount} call${maxCount !== 1 ? 's' : ''} available`;
+                return '';
+              }
+            },
+            {
+              id: 'includeFailures',
+              label: 'Include failed calls',
+              type: 'select',
+              value: 'no',
+              options: [
+                { value: 'no', label: 'Only successful calls' },
+                { value: 'yes', label: 'Include failures' }
+              ]
+            }
+          ]
+        });
+
+        if (!result.confirmed) return;
+
+        const name = (result.values.name || '').trim();
+        if (!name) return;
+
+        const includeFailures = result.values.includeFailures === 'yes';
+        const source = includeFailures ? history : history.filter(entry => entry.success);
+        if (!source.length) {
+          await appAlert('No successful calls found in history.', { title: 'No Steps' });
+          return;
+        }
+
+        const count = Math.min(Number(result.values.count) || source.length, source.length);
+        const entries = source.slice(0, count).reverse();
+        const steps = entries.map(entry => {
+          const response = entry.response ?? {};
+          return {
+            server: entry.server,
+            tool: entry.tool,
+            args: entry.request ?? {},
+            expectedResponse: response,
+            responseHash: hashString(JSON.stringify(response)),
+            responseSchema: inferSchema(response),
+            timing: entry.duration,
+            success: entry.success
+          };
+        });
+
+        const scenario = {
+          name,
+          steps,
+          metadata: {
+            source: 'history',
+            createdFromHistory: true,
+            createdAt: new Date().toISOString()
+          }
+        };
+
+        sessionManager.saveScenario(scenario);
+        refreshScenariosPanel();
+        showNotification(`Scenario "${name}" created from ${steps.length} call${steps.length !== 1 ? 's' : ''}.`, 'success');
       }
 
       // Refresh scenarios panel
@@ -8693,4 +8832,6 @@ main().catch(console.error);
       window.runSchemaDiff = runSchemaDiff;
       window.getToolExecutionHistory = () => toolExecutionHistory;
       window.getLocalScenarios = () => sessionManager.getScenarios();
+      window.createScenarioFromHistory = createScenarioFromHistory;
+      window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
 
