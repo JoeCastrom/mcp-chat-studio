@@ -5681,6 +5681,9 @@
               <button class="btn" onclick="runScenarioMatrix('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
                 🌐 Matrix
               </button>
+              <button class="btn" onclick="runScenarioDataset('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+                📊 Data Run
+              </button>
               <button class="btn" onclick="viewScenarioDetails('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
                 👁️ View
               </button>
@@ -5838,6 +5841,261 @@
         `;
 
         appendMessage('system', `🧪 Scenario "${scenario.name}" completed: ${passed} passed, ${failed} failed`);
+      }
+
+      async function runScenarioDataset(id) {
+        const scenario = sessionManager.getScenario(id);
+        if (!scenario) {
+          appendMessage('error', 'Scenario not found');
+          return;
+        }
+        if (!scenario.steps || scenario.steps.length === 0) {
+          await appAlert('This scenario has no steps yet.', { title: 'No Steps' });
+          return;
+        }
+
+        const result = await appFormModal({
+          title: 'Scenario Data Run',
+          confirmText: 'Run',
+          fields: [
+            {
+              id: 'dataset',
+              label: 'Dataset (JSON array)',
+              type: 'textarea',
+              value: '[]',
+              rows: 6,
+              monospace: true,
+              hint: 'Example: [{"userId":1,"email":"a@b.com"},{"userId":2,"email":"b@b.com"}]'
+            },
+            {
+              id: 'stopOnError',
+              label: 'On failure',
+              type: 'select',
+              value: 'no',
+              options: [
+                { value: 'no', label: 'Continue all iterations' },
+                { value: 'yes', label: 'Stop on first failure' }
+              ]
+            },
+            {
+              id: 'maxIterations',
+              label: 'Max iterations (optional)',
+              type: 'number',
+              value: '',
+              placeholder: 'Leave blank to run all rows'
+            }
+          ]
+        });
+
+        if (!result.confirmed) return;
+
+        let dataset = [];
+        const datasetInput = (result.values.dataset || '').trim();
+        try {
+          if (!datasetInput) {
+            await appAlert('Provide a JSON array of objects.', { title: 'Missing Dataset' });
+            return;
+          }
+          const parsed = JSON.parse(datasetInput);
+          if (Array.isArray(parsed)) {
+            dataset = parsed;
+          } else if (parsed && typeof parsed === 'object') {
+            dataset = [parsed];
+          } else {
+            throw new Error('Dataset must be a JSON array of objects.');
+          }
+        } catch (error) {
+          await appAlert(`Invalid dataset JSON: ${error.message}`, { title: 'Invalid Dataset' });
+          return;
+        }
+
+        if (dataset.length === 0) {
+          await appAlert('Dataset is empty.', { title: 'No Rows' });
+          return;
+        }
+
+        const maxIterations = Number(result.values.maxIterations);
+        if (Number.isFinite(maxIterations) && maxIterations > 0) {
+          dataset = dataset.slice(0, maxIterations);
+        }
+
+        const baseVariables = getRuntimeVariables();
+        if (baseVariables === null) {
+          appendMessage('error', 'Invalid Variables JSON. Fix it before running.');
+          return;
+        }
+
+        const resultsEl = document.getElementById(`scenarioResults_${id}`);
+        resultsEl.style.display = 'block';
+        resultsEl.innerHTML = `<div style="color: var(--text-muted)">📊 Running ${dataset.length} dataset row${dataset.length !== 1 ? 's' : ''}...</div>`;
+
+        const stopOnError = result.values.stopOnError === 'yes';
+        let totalPassed = 0;
+        let totalFailed = 0;
+        const iterationResults = [];
+
+        for (let rowIndex = 0; rowIndex < dataset.length; rowIndex++) {
+          const rawRow = dataset[rowIndex];
+          const row = rawRow && typeof rawRow === 'object' && !Array.isArray(rawRow) ? rawRow : { value: rawRow };
+          const runtimeVariables = { ...(baseVariables || {}), ...(row || {}) };
+          let passed = 0;
+          let failed = 0;
+          const results = [];
+          let totalTime = 0;
+
+          for (let i = 0; i < scenario.steps.length; i++) {
+            const step = scenario.steps[i];
+
+            try {
+              const startTime = performance.now();
+              const args = Object.keys(runtimeVariables).length > 0
+                ? applyTemplateVariables(step.args, runtimeVariables)
+                : step.args;
+              const response = await fetch('/api/mcp/call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  serverName: step.server,
+                  toolName: step.tool,
+                  args
+                })
+              });
+
+              const data = await response.json();
+              const duration = Math.round(performance.now() - startTime);
+              totalTime += duration;
+              const actualHash = hashString(JSON.stringify(data.result || data.error));
+              const isError = data.error || data.result?.isError === true;
+              const hashMatch = actualHash === step.responseHash;
+
+              let schemaViolations = [];
+              if (step.responseSchema && data.result && !isError) {
+                schemaViolations = validateSchema(data.result, step.responseSchema);
+              }
+
+              let assertionResults = [];
+              let assertionsFailed = 0;
+              if (step.assertions && step.assertions.length > 0 && data.result && !isError) {
+                for (const assertion of step.assertions) {
+                  const result = evaluateSingleAssertion(data.result, assertion);
+                  assertionResults.push({
+                    path: assertion.path,
+                    operator: assertion.operator,
+                    expected: assertion.value,
+                    actual: result.actualValue,
+                    passed: result.passed,
+                    message: result.message
+                  });
+                  if (!result.passed) assertionsFailed++;
+                }
+              }
+
+              if (isError) {
+                failed++;
+                results.push({ step: i + 1, tool: step.tool, status: 'error', message: data.error || 'Error', duration, schemaViolations: [], assertionResults: [] });
+              } else if (assertionsFailed > 0) {
+                failed++;
+                results.push({ step: i + 1, tool: step.tool, status: 'assertion_fail', message: `${assertionsFailed} assertion(s) failed`, duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
+              } else if (!hashMatch) {
+                failed++;
+                results.push({ step: i + 1, tool: step.tool, status: 'diff', message: 'Response differs from baseline', duration, expected: step.expectedResponse, actual: data.result, schemaViolations, assertionResults });
+              } else {
+                passed++;
+                results.push({ step: i + 1, tool: step.tool, status: 'pass', duration, schemaViolations, assertionResults });
+              }
+
+              if (!isError) {
+                const extracted = extractScenarioVariables(data.result, step.extract || step.variables);
+                if (Object.keys(extracted).length > 0) {
+                  Object.assign(runtimeVariables, extracted);
+                }
+              }
+            } catch (err) {
+              failed++;
+              results.push({ step: i + 1, tool: step.tool, status: 'error', message: err.message, schemaViolations: [] });
+            }
+
+            if (stopOnError && failed > 0) break;
+          }
+
+          const iterationStatus = failed > 0 ? 'failed' : 'passed';
+          if (iterationStatus === 'passed') {
+            totalPassed++;
+          } else {
+            totalFailed++;
+          }
+
+          iterationResults.push({
+            index: rowIndex + 1,
+            row,
+            passed,
+            failed,
+            totalTime,
+            status: iterationStatus,
+            results
+          });
+
+          if (stopOnError && failed > 0) break;
+        }
+
+        const iterationHtml = iterationResults.map(iteration => {
+          const statusIcon = iteration.status === 'passed' ? '✅' : '❌';
+          const rowJson = JSON.stringify(iteration.row || {});
+          const rowPreview = rowJson.length > 140 ? `${rowJson.slice(0, 140)}…` : rowJson;
+          const stepHtml = iteration.results.map(r => {
+            let diffId = null;
+            if ((r.status === 'diff' || r.status === 'assertion_fail') && r.expected && r.actual) {
+              diffId = cacheDiffData(r.expected, r.actual);
+            }
+            let assertId = null;
+            if (r.assertionResults && r.assertionResults.length > 0) {
+              assertId = cacheAssertionResults(r.assertionResults);
+            }
+            return `
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 4px; margin-bottom: 2px">
+                ${r.status === 'pass' ? '✅' : r.status === 'diff' ? '🔶' : r.status === 'assertion_fail' ? '🔴' : '❌'}
+                <strong>${r.step}.</strong> ${escapeHtml(r.tool)}
+                ${r.duration ? `<span style="color: var(--text-muted)">(${r.duration}ms)</span>` : ''}
+                ${r.message ? `<span style="color: var(--error); font-size: 0.7rem">${escapeHtml(r.message)}</span>` : ''}
+                ${diffId ? `<button class="btn" onclick="showDiffById('${diffId}')" style="font-size: 0.6rem; padding: 1px 4px">View Diff</button>` : ''}
+                ${r.schemaViolations && r.schemaViolations.length > 0 ? `
+                  <span style="color: var(--warning); font-size: 0.65rem; margin-left: 4px">📋 ${r.schemaViolations.length} schema issue${r.schemaViolations.length !== 1 ? 's' : ''}</span>
+                ` : r.status === 'pass' && r.schemaViolations ? '<span style="color: var(--success); font-size: 0.65rem">📋 Schema OK</span>' : ''}
+                ${assertId ? `
+                  <span style="font-size: 0.65rem; margin-left: 4px; ${r.assertionResults.every(a => a.passed) ? 'color: var(--success)' : 'color: var(--error)'}">
+                    🔍 ${r.assertionResults.filter(a => a.passed).length}/${r.assertionResults.length} assertions
+                  </span>
+                  <button class="btn" onclick="showAssertionResultsById('${assertId}')" style="font-size: 0.6rem; padding: 1px 4px">Details</button>
+                ` : ''}
+              </div>
+            `;
+          }).join('');
+
+          return `
+            <details class="matrix-result" ${iteration.status === 'failed' ? 'open' : ''}>
+              <summary>
+                <span>${statusIcon} Iteration ${iteration.index}</span>
+                <span style="color: var(--text-muted)">${iteration.totalTime}ms</span>
+              </summary>
+              <div style="font-size: 0.7rem; color: var(--text-muted); margin: 6px 0">${escapeHtml(rowPreview)}</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px">
+                <span class="pill">✅ ${iteration.passed}</span>
+                <span class="pill">❌ ${iteration.failed}</span>
+              </div>
+              <div>${stepHtml}</div>
+            </details>
+          `;
+        }).join('');
+
+        resultsEl.innerHTML = `
+          <div style="margin-bottom: 8px">
+            <strong>Data Run:</strong>
+            <span style="color: var(--success)">${totalPassed} passed</span> /
+            <span style="color: var(--error)">${totalFailed} failed</span>
+          </div>
+          ${iterationHtml}
+        `;
       }
 
       async function runScenarioOnServer(steps, serverName, baseVariables) {
@@ -6286,6 +6544,7 @@
                 <strong>💡 How to use:</strong>
                 <ul style="margin: 8px 0 0 16px; color: var(--text-muted)">
                   <li><strong>▶️ Replay</strong> - Re-run all steps, compare responses</li>
+                  <li><strong>📊 Data Run</strong> - Run with a dataset JSON array</li>
                   <li><strong>🔶 Diff</strong> - Click "View Diff" if response differs from baseline</li>
                   <li><strong>📋 Schema</strong> - Validates response structure (type, required fields)</li>
                 </ul>
@@ -6293,6 +6552,7 @@
             </div>
             <div class="modal-actions">
               <button class="btn" onclick="closeScenarioDetailsModal()">Close</button>
+              <button class="btn" onclick="closeScenarioDetailsModal(); runScenarioDataset('${scenario.id}')">📊 Data Run</button>
               <button class="btn" style="background: var(--success); color: white" onclick="closeScenarioDetailsModal(); replayScenario('${scenario.id}')">▶️ Replay</button>
             </div>
           </div>
@@ -9137,4 +9397,5 @@ main().catch(console.error);
       window.createScenarioFromHistory = createScenarioFromHistory;
       window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
       window.runScenarioMatrix = runScenarioMatrix;
+      window.runScenarioDataset = runScenarioDataset;
 
