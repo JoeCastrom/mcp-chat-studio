@@ -1734,6 +1734,42 @@ kbd {
   background: var(--error);
 }
 
+.schema-watch-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.schema-watch-status {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.schema-watch-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schema-watch-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+}
+
+.schema-watch-item strong {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;

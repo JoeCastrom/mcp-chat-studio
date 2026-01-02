@@ -1785,6 +1785,28 @@
                 CI hint: use <code>mcp-test schema diff --gate</code> to fail builds when schemas change.
               </p>
             </div>
+            <div class="inspector-section">
+              <h4>Schema Watch</h4>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
+                Auto-detect schema drift while you test. Great for catching silent changes early.
+              </p>
+              <div class="schema-watch-controls">
+                <button class="btn" onclick="captureSchemaWatchBaseline()">📌 Set Baseline</button>
+                <button class="btn" onclick="checkSchemaWatch()">🔎 Check Now</button>
+                <button class="btn" onclick="clearSchemaWatchBaseline()">🗑️ Clear</button>
+                <label class="toggle" style="font-size: 0.75rem">
+                  <input
+                    type="checkbox"
+                    id="schemaWatchToggle"
+                    onchange="toggleSchemaWatch(this.checked)"
+                  />
+                  <span class="switch"></span>
+                  <span>Auto watch</span>
+                </label>
+              </div>
+              <div id="schemaWatchStatus" class="schema-watch-status"></div>
+              <div id="schemaWatchList" class="schema-watch-list"></div>
+            </div>
             <div id="contractsList" style="display: flex; flex-direction: column; gap: 12px"></div>
           </div>
         </div>

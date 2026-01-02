@@ -1959,6 +1959,14 @@ async function deleteScript(id) {
 let contracts = [];
 let lastSchemaSnapshot = null;
 let lastSchemaDiff = null;
+const SCHEMA_WATCH_KEY = 'mcp_chat_studio_schema_watch';
+let schemaWatchState = {
+  enabled: false,
+  baseline: null,
+  lastCheck: null,
+  offlineServers: []
+};
+let schemaWatchInterval = null;
 
 async function loadContracts() {
   try {
@@ -1967,6 +1975,7 @@ async function loadContracts() {
     contracts = data.contracts || [];
     renderContractsList();
     loadSchemaDiffBadge();
+    initSchemaWatch();
   } catch (error) {
     console.error('Failed to load contracts:', error);
   }
@@ -2092,6 +2101,253 @@ function stableStringify(value) {
     return `{${keys.map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+function loadSchemaWatchState() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SCHEMA_WATCH_KEY) || '{}');
+    schemaWatchState = {
+      enabled: Boolean(stored.enabled),
+      baseline: stored.baseline || null,
+      lastCheck: stored.lastCheck || null,
+      offlineServers: stored.offlineServers || []
+    };
+  } catch (error) {
+    schemaWatchState = { enabled: false, baseline: null, lastCheck: null, offlineServers: [] };
+  }
+}
+
+function saveSchemaWatchState() {
+  localStorage.setItem(SCHEMA_WATCH_KEY, JSON.stringify(schemaWatchState));
+}
+
+function startSchemaWatchInterval() {
+  if (schemaWatchInterval) clearInterval(schemaWatchInterval);
+  if (!schemaWatchState.enabled || !schemaWatchState.baseline) return;
+  schemaWatchInterval = setInterval(() => {
+    checkSchemaWatch({ silent: true });
+  }, 120000);
+}
+
+async function fetchConnectedServers() {
+  try {
+    const res = await fetch('/api/mcp/status', { credentials: 'include' });
+    const status = await res.json();
+    const servers = status.servers || status;
+    return new Set(
+      Object.entries(servers || {})
+        .filter(([, info]) => info?.connected || info?.userConnected)
+        .map(([name]) => name)
+    );
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function snapshotToolMap(snapshot, connectedServers = null) {
+  const tools = Array.isArray(snapshot)
+    ? snapshot
+    : snapshot?.tools || [];
+  const map = new Map();
+  const filtered = connectedServers
+    ? tools.filter(tool => connectedServers.has(tool.serverName))
+    : tools;
+  filtered.forEach(tool => {
+    const key = `${tool.serverName}__${tool.name}`;
+    const schema = tool.inputSchema || { type: 'object', properties: {} };
+    const hash = stableStringify(schema);
+    map.set(key, {
+      key,
+      serverName: tool.serverName,
+      name: tool.name,
+      description: tool.description || '',
+      inputSchema: schema,
+      hash
+    });
+  });
+  return map;
+}
+
+function diffSchemaMaps(baselineMap, currentMap) {
+  const added = [];
+  const removed = [];
+  const changed = [];
+
+  currentMap.forEach((tool, key) => {
+    const previous = baselineMap.get(key);
+    if (!previous) {
+      added.push(tool);
+      return;
+    }
+    if (previous.hash !== tool.hash) {
+      changed.push({ tool, previous });
+    }
+  });
+
+  baselineMap.forEach((tool, key) => {
+    if (!currentMap.has(key)) {
+      removed.push(tool);
+    }
+  });
+
+  return {
+    summary: {
+      added: added.length,
+      removed: removed.length,
+      changed: changed.length,
+      totalChanges: added.length + removed.length + changed.length
+    },
+    added,
+    removed,
+    changed
+  };
+}
+
+async function captureSchemaWatchBaseline() {
+  try {
+    const snapshot = await fetchSchemaSnapshot();
+    schemaWatchState.baseline = snapshot;
+    schemaWatchState.lastCheck = null;
+    saveSchemaWatchState();
+    renderSchemaWatch();
+    startSchemaWatchInterval();
+    showNotification('Schema baseline captured.', 'success');
+  } catch (error) {
+    showNotification('Failed to capture baseline: ' + error.message, 'error');
+  }
+}
+
+async function checkSchemaWatch(options = {}) {
+  if (!schemaWatchState.baseline) {
+    renderSchemaWatch();
+    if (!options.silent) {
+      showNotification('Set a baseline before checking.', 'error');
+    }
+    return;
+  }
+
+  const connectedServers = await fetchConnectedServers();
+  const currentSnapshot = await fetchSchemaSnapshot();
+  const baselineMap = snapshotToolMap(schemaWatchState.baseline, connectedServers);
+  const currentMap = snapshotToolMap(currentSnapshot, connectedServers);
+  const diff = diffSchemaMaps(baselineMap, currentMap);
+
+  const baselineServers = new Set(
+    (schemaWatchState.baseline?.tools || []).map(tool => tool.serverName)
+  );
+  const offlineServers = Array.from(baselineServers).filter(server => !connectedServers.has(server));
+
+  schemaWatchState.lastCheck = {
+    checkedAt: new Date().toISOString(),
+    diff
+  };
+  schemaWatchState.offlineServers = offlineServers;
+  saveSchemaWatchState();
+  renderSchemaWatch();
+
+  if (diff.summary.totalChanges > 0 && !options.silent) {
+    showNotification(`Schema drift detected: ${diff.summary.totalChanges} change(s)`, 'warning');
+  } else if (!options.silent) {
+    showNotification('Schema watch: no changes detected.', 'success');
+  }
+}
+
+function clearSchemaWatchBaseline() {
+  schemaWatchState.baseline = null;
+  schemaWatchState.lastCheck = null;
+  schemaWatchState.offlineServers = [];
+  saveSchemaWatchState();
+  renderSchemaWatch();
+  showNotification('Schema watch baseline cleared.', 'success');
+}
+
+function toggleSchemaWatch(enabled) {
+  schemaWatchState.enabled = Boolean(enabled);
+  saveSchemaWatchState();
+  renderSchemaWatch();
+  startSchemaWatchInterval();
+}
+
+function renderSchemaWatch() {
+  const statusEl = document.getElementById('schemaWatchStatus');
+  const listEl = document.getElementById('schemaWatchList');
+  const toggle = document.getElementById('schemaWatchToggle');
+  if (!statusEl || !listEl || !toggle) return;
+
+  toggle.checked = schemaWatchState.enabled;
+  if (!schemaWatchState.baseline) {
+    statusEl.textContent = 'No baseline set yet. Capture a baseline to start watching.';
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const capturedAt = new Date(schemaWatchState.baseline.capturedAt).toLocaleString();
+  statusEl.textContent = `Baseline captured: ${capturedAt}.`;
+
+  if (schemaWatchState.offlineServers?.length) {
+    statusEl.textContent += ` Offline: ${schemaWatchState.offlineServers.join(', ')}.`;
+  }
+
+  const lastCheck = schemaWatchState.lastCheck;
+  if (!lastCheck) {
+    listEl.innerHTML = '<div style="color: var(--text-muted)">No check run yet.</div>';
+    return;
+  }
+
+  const diff = lastCheck.diff;
+  const summary = diff.summary || { added: 0, removed: 0, changed: 0, totalChanges: 0 };
+  const timestamp = new Date(lastCheck.checkedAt).toLocaleString();
+
+  listEl.innerHTML = `
+    <div class="schema-watch-item">
+      <div>
+        <strong>Last check</strong>
+        <div style="font-size: 0.7rem; color: var(--text-muted)">${timestamp}</div>
+      </div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap">
+        <span class="pill">Added: ${summary.added}</span>
+        <span class="pill">Removed: ${summary.removed}</span>
+        <span class="pill">Changed: ${summary.changed}</span>
+      </div>
+    </div>
+    ${diff.added.slice(0, 3).map(tool => `
+      <div class="schema-watch-item">
+        <div>
+          <strong>➕ ${escapeHtml(tool.name)}</strong>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(tool.serverName)}</div>
+        </div>
+        <span class="pill">New</span>
+      </div>
+    `).join('')}
+    ${diff.changed.slice(0, 3).map(entry => `
+      <div class="schema-watch-item">
+        <div>
+          <strong>✏️ ${escapeHtml(entry.tool.name)}</strong>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(entry.tool.serverName)}</div>
+        </div>
+        <span class="pill">Changed</span>
+      </div>
+    `).join('')}
+    ${diff.removed.slice(0, 3).map(tool => `
+      <div class="schema-watch-item">
+        <div>
+          <strong>➖ ${escapeHtml(tool.name)}</strong>
+          <div style="font-size: 0.7rem; color: var(--text-muted)">${escapeHtml(tool.serverName)}</div>
+        </div>
+        <span class="pill">Removed</span>
+      </div>
+    `).join('')}
+    ${(diff.added.length + diff.changed.length + diff.removed.length) === 0
+      ? '<div style="color: var(--text-muted)">No changes detected.</div>'
+      : ''
+    }
+  `;
+}
+
+function initSchemaWatch() {
+  loadSchemaWatchState();
+  renderSchemaWatch();
+  startSchemaWatchInterval();
 }
 
 function diffSchemaSnapshots(baselineSnapshot, currentSnapshot) {

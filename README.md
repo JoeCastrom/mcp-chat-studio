@@ -116,6 +116,7 @@ Consumer-driven contract testing for MCP servers:
 - **Multiple assertions** - Schema, contains, equals, response time, custom
 - **Auto-generation** - Generate contracts from tool schemas
 - **Version tracking** - Track contract changes over time
+- **Schema Watch** - Live drift detection with optional background checks
 
 ### 📊 Tool Explorer & Analytics
 Real-time usage statistics and performance metrics:
@@ -177,6 +178,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🧭 Workspace Mode** - Floating panels, zoom, mini-map, and command palette
 - **📊 Response Diffing** - Semantic JSON comparison with color-coded changes
 - **📋 Schema Validation** - Contract testing with auto-inferred schemas
+- **🔔 Schema Watch** - Detect live schema drift across connected servers
 - **📦 Workflow Export** - Generate Python or Node.js scripts from workflows
 - **📚 Docs Generator** - Publish MCP documentation in one click
 - **📦 Project Bundles** - Export/import full test setups (collections, mocks, envs)
@@ -274,6 +276,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Response time limits** - Performance SLAs
 - **Custom assertions** - Path-based queries with operators
 - **Auto-generation** - Create contracts from tool schemas
+- **Schema Watch** - Live drift detection with on-demand or auto checks
 - **Version tracking** - Contract versioning and updates
 - **CRUD API** - Full contract lifecycle management
 - **Test reporting** - Detailed pass/fail with error messages
@@ -316,6 +319,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Contract testing** - Validates responses against saved schema
 - **Inline results** - Shows "📋 Schema OK" or "📋 N issues"
 - **Violation details** - Missing fields, type mismatches, extra fields
+- **Schema Watch** - Keep a baseline and surface drift during live testing
 
 ### 🔒 Flexible Authentication
 
@@ -412,6 +416,8 @@ mcp-test schema snapshot --out ./schema-baseline.json
 # Compare snapshots and fail on change
 mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate
 ```
+
+In the UI, use **Schema Watch** under Contracts to auto-detect drift during live testing.
 
 ### ⚙️ Mock MCP Server Generator
 
