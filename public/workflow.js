@@ -790,6 +790,129 @@ async function saveWorkflow() {
   }
 }
 
+async function ensureToolSchemaCache() {
+  try {
+    const res = await fetch('/api/mcp/tools');
+    const data = await res.json();
+    const tools = Array.isArray(data.tools) ? data.tools : [];
+    const grouped = {};
+    tools.forEach(tool => {
+      if (!grouped[tool.serverName]) grouped[tool.serverName] = [];
+      grouped[tool.serverName].push(tool);
+    });
+    Object.entries(grouped).forEach(([server, list]) => {
+      toolSchemaCache[server] = list;
+    });
+  } catch (error) {
+    console.warn('Failed to load tool schemas for validation:', error.message);
+  }
+}
+
+async function getToolDef(serverName, toolName) {
+  if (!serverName || !toolName) return null;
+  if (!toolSchemaCache[serverName]) {
+    await ensureToolSchemaCache();
+  }
+  const tools = toolSchemaCache[serverName] || [];
+  return tools.find(tool => tool.name === toolName) || null;
+}
+
+function parseToolArgs(rawArgs) {
+  if (rawArgs === undefined || rawArgs === null) {
+    return { value: {}, error: null };
+  }
+  if (typeof rawArgs === 'object') {
+    if (Array.isArray(rawArgs)) {
+      return { value: null, error: 'Args must be a JSON object (not an array).' };
+    }
+    return { value: rawArgs, error: null };
+  }
+  const text = String(rawArgs).trim();
+  if (!text) {
+    return { value: {}, error: null };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { value: null, error: 'Args must be a JSON object.' };
+    }
+    return { value: parsed, error: null };
+  } catch (error) {
+    return { value: null, error: `Args JSON is invalid: ${error.message}` };
+  }
+}
+
+async function validateWorkflowBeforeRun() {
+  const issues = [];
+  const incomingMap = {};
+  workflowState.edges.forEach(edge => {
+    if (!incomingMap[edge.to]) incomingMap[edge.to] = [];
+    incomingMap[edge.to].push(edge.from);
+  });
+
+  await ensureToolSchemaCache();
+
+  for (const node of workflowState.nodes) {
+    if (node.type === 'tool') {
+      const server = node.data?.server;
+      const tool = node.data?.tool;
+      if (!server) {
+        issues.push({ nodeId: node.id, message: 'Select a server for this tool node.' });
+        continue;
+      }
+      if (!tool) {
+        issues.push({ nodeId: node.id, message: 'Select a tool for this tool node.' });
+        continue;
+      }
+
+      const parsed = parseToolArgs(node.data?.args);
+      if (parsed.error) {
+        issues.push({ nodeId: node.id, message: parsed.error });
+        continue;
+      }
+
+      const toolDef = await getToolDef(server, tool);
+      if (!toolDef?.inputSchema) {
+        continue;
+      }
+      const properties = toolDef.inputSchema.properties || {};
+      const required = Array.isArray(toolDef.inputSchema.required) ? toolDef.inputSchema.required : [];
+      const additionalProps = toolDef.inputSchema.additionalProperties;
+
+      const missing = required.filter(key => !(key in parsed.value));
+      if (missing.length > 0) {
+        issues.push({
+          nodeId: node.id,
+          message: `Missing required args: ${missing.join(', ')}`
+        });
+      }
+
+      if (additionalProps === false) {
+        const unknown = Object.keys(parsed.value).filter(key => !(key in properties));
+        if (unknown.length > 0) {
+          issues.push({
+            nodeId: node.id,
+            message: `Unexpected args: ${unknown.join(', ')}`
+          });
+        }
+      }
+    }
+
+    if (node.type === 'llm') {
+      const prompt = String(node.data?.prompt || '').trim();
+      const hasIncoming = (incomingMap[node.id] || []).length > 0;
+      if (!prompt && !hasIncoming) {
+        issues.push({
+          nodeId: node.id,
+          message: 'LLM node needs a prompt or an incoming node output.'
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 async function runWorkflow() {
   normalizeWorkflowId();
   if (!workflowState.currentId) {
@@ -803,6 +926,20 @@ async function runWorkflow() {
   const logContent = document.getElementById('workflowLogContent');
   logsPanel.style.display = 'flex';
   logContent.innerHTML = '<div style="color: var(--text-muted);">Executing...</div>';
+
+  const issues = await validateWorkflowBeforeRun();
+  if (issues.length > 0) {
+    clearNodeStatuses();
+    issues.forEach(issue => setNodeStatus(issue.nodeId, 'error'));
+    logContent.innerHTML = `
+      <div style="color: var(--error); font-weight: 600; margin-bottom: 8px;">⚠️ Fix these before running:</div>
+      <ul style="margin: 0; padding-left: 18px; color: var(--text-secondary); font-size: 0.85rem;">
+        ${issues.map(issue => `<li><strong>${escapeHtml(issue.nodeId)}</strong> — ${escapeHtml(issue.message)}</li>`).join('')}
+      </ul>
+    `;
+    showToast(`Workflow blocked: ${issues.length} issue(s) to fix.`, 'warning');
+    return;
+  }
   
   // Set all nodes to pending status
   clearNodeStatuses();

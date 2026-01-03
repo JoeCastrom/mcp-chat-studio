@@ -412,6 +412,21 @@ body::before {
   color: var(--text-secondary);
 }
 
+.workspace-menu-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 8px;
+}
+
+.provider-menu-popover {
+  min-width: 220px;
+}
+
+.provider-menu-item.active {
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -2026,6 +2041,25 @@ kbd {
   font-size: 0.7rem;
   color: var(--text-muted);
   margin-top: var(--spacing-xs);
+}
+
+.provider-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.provider-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  font-size: 0.78rem;
+  color: var(--text-primary);
 }
 
 .modal-actions {

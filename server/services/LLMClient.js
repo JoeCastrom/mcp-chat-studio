@@ -8,11 +8,11 @@ import axios from 'axios';
 export class LLMClient {
   constructor(config) {
     const normalized = (config && config.llm) ? config.llm : (config || {});
-    this.config = normalized;
-    this.provider = this.config.provider || 'ollama'; // Default to Ollama
+    this.applyConfig(normalized);
 
     // Generic API keys (provider-specific take priority)
     this.apiKey =
+      this.config.api_key ||
       process.env.LLM_API_KEY ||
       process.env.OPENAI_API_KEY ||
       process.env.ANTHROPIC_API_KEY ||
@@ -27,7 +27,25 @@ export class LLMClient {
     this.azureApiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview';
     this.azureDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
 
+    this.authToken = null;
+    this.authTokenExpiresAt = 0;
+
     console.log(`[LLMClient] Initialized with provider: ${this.provider}`);
+  }
+
+  applyConfig(config) {
+    this.config = config || {};
+    this.provider = this.config.provider || 'ollama';
+  }
+
+  updateConfig(config) {
+    const normalized = (config && config.llm) ? config.llm : (config || {});
+    this.applyConfig(normalized);
+    if (this.config.api_key) {
+      this.apiKey = this.config.api_key;
+    }
+    this.authToken = null;
+    this.authTokenExpiresAt = 0;
   }
 
   /**
@@ -39,36 +57,49 @@ export class LLMClient {
 
     switch (this.provider) {
       case 'openai':
-        if (!process.env.OPENAI_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.OPENAI_API_KEY && !process.env.LLM_API_KEY)
           errors.push('OPENAI_API_KEY is missing');
         break;
       case 'anthropic':
-        if (!process.env.ANTHROPIC_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.ANTHROPIC_API_KEY && !process.env.LLM_API_KEY)
           errors.push('ANTHROPIC_API_KEY is missing');
         break;
       case 'gemini':
-        if (!process.env.GOOGLE_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.GOOGLE_API_KEY && !process.env.LLM_API_KEY)
           errors.push('GOOGLE_API_KEY is missing');
         break;
       case 'azure':
-        if (!process.env.AZURE_OPENAI_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.AZURE_OPENAI_API_KEY && !process.env.LLM_API_KEY)
           errors.push('AZURE_OPENAI_API_KEY is missing');
         if (!this.azureEndpoint) errors.push('AZURE_OPENAI_ENDPOINT is missing');
         if (!this.azureDeployment)
           warnings.push('AZURE_OPENAI_DEPLOYMENT not set, using model name');
         break;
       case 'groq':
-        if (!process.env.GROQ_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.GROQ_API_KEY && !process.env.LLM_API_KEY)
           errors.push('GROQ_API_KEY is missing');
         break;
       case 'together':
-        if (!process.env.TOGETHER_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.TOGETHER_API_KEY && !process.env.LLM_API_KEY)
           errors.push('TOGETHER_API_KEY is missing');
         break;
       case 'openrouter':
-        if (!process.env.OPENROUTER_API_KEY && !process.env.LLM_API_KEY)
+        if (!this.config.api_key && !process.env.OPENROUTER_API_KEY && !process.env.LLM_API_KEY)
           errors.push('OPENROUTER_API_KEY is missing');
         break;
+      case 'custom': {
+        const auth = this.config.auth || {};
+        if (auth.type === 'client_credentials') {
+          if (!auth.auth_url) errors.push('LLM auth_url is missing');
+          if (!auth.client_id) errors.push('LLM auth client_id is missing');
+          if (!auth.client_secret) errors.push('LLM auth client_secret is missing');
+        } else if (auth.type === 'bearer') {
+          if (!this.config.api_key && !process.env.LLM_API_KEY) {
+            warnings.push('Custom LLM API key is not set');
+          }
+        }
+        break;
+      }
       case 'ollama':
         // Ollama doesn't require API key by default
         break;
@@ -81,23 +112,24 @@ export class LLMClient {
    * Get the appropriate API key for the provider
    */
   getApiKey() {
+    const configKey = this.config.api_key || this.apiKey;
     switch (this.provider) {
       case 'openai':
-        return process.env.OPENAI_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.OPENAI_API_KEY || process.env.LLM_API_KEY;
       case 'anthropic':
-        return process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY;
       case 'gemini':
-        return process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY;
       case 'azure':
-        return process.env.AZURE_OPENAI_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.AZURE_OPENAI_API_KEY || process.env.LLM_API_KEY;
       case 'groq':
-        return process.env.GROQ_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.GROQ_API_KEY || process.env.LLM_API_KEY;
       case 'together':
-        return process.env.TOGETHER_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.TOGETHER_API_KEY || process.env.LLM_API_KEY;
       case 'openrouter':
-        return process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY;
+        return configKey || process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY;
       default:
-        return this.apiKey;
+        return configKey || process.env.LLM_API_KEY;
     }
   }
 
@@ -137,16 +169,60 @@ export class LLMClient {
     }
   }
 
+  async getAuthToken() {
+    const auth = this.config.auth || {};
+    if (auth.type !== 'client_credentials' || !auth.auth_url) {
+      return null;
+    }
+
+    const now = Date.now();
+    if (this.authToken && now < this.authTokenExpiresAt - 60 * 1000) {
+      return this.authToken;
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: auth.client_id || '',
+      client_secret: auth.client_secret || ''
+    });
+    if (auth.scope) params.append('scope', auth.scope);
+    if (auth.audience) params.append('audience', auth.audience);
+
+    const response = await axios.post(auth.auth_url, params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 10000
+    });
+
+    const token = response.data?.access_token;
+    if (!token) {
+      throw new Error('Auth response missing access_token');
+    }
+
+    const expiresIn = Number(response.data?.expires_in || 3600);
+    this.authToken = token;
+    this.authTokenExpiresAt = Date.now() + expiresIn * 1000;
+    return token;
+  }
+
   /**
    * Build headers for the request based on provider
    */
-  getHeaders() {
+  async getHeaders() {
     const headers = {
       'Content-Type': 'application/json',
     };
     const apiKey = this.getApiKey();
+    const auth = this.config.auth || {};
 
     switch (this.provider) {
+      case 'custom':
+        if (auth.type === 'client_credentials') {
+          const token = await this.getAuthToken();
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+        } else if ((auth.type === 'bearer' || !auth.type) && apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+        break;
       case 'anthropic':
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
@@ -419,7 +495,7 @@ export class LLMClient {
         );
 
         const axiosConfig = {
-          headers: this.getHeaders(),
+          headers: await this.getHeaders(),
           timeout: 60000,
         };
 
@@ -471,7 +547,7 @@ export class LLMClient {
 
     const endpoint = this.getChatEndpoint();
     const axiosConfig = {
-      headers: this.getHeaders(),
+      headers: await this.getHeaders(),
       responseType: 'stream',
       timeout: 120000,
     };

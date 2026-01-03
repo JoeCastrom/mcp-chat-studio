@@ -867,6 +867,7 @@
         const popover = document.getElementById('workspaceMenuPopover');
         const toggle = document.getElementById('workspaceMenuToggle');
         if (!popover || !toggle) return;
+        closeProviderMenu();
         const isOpen = popover.classList.contains('open');
         if (isOpen) {
           closeWorkspaceMenu();
@@ -1713,19 +1714,322 @@
       // SETTINGS MODAL FUNCTIONS
       // ==========================================
 
+      const LLM_PROVIDER_VISIBILITY_KEY = 'mcp_llm_provider_visibility';
+      let llmAllowedProviders = null;
+
+      async function loadLLMConfig() {
+        const response = await fetch('/api/llm/config', { credentials: 'include' });
+        const config = await response.json();
+        llmAllowedProviders = Array.isArray(config.allowedProviders)
+          ? config.allowedProviders
+          : null;
+        if (config?.provider) {
+          const visibility = loadProviderVisibility();
+          visibility[config.provider] = true;
+          saveProviderVisibility(visibility);
+        }
+        return config;
+      }
+
+      function loadProviderVisibility() {
+        try {
+          const raw = localStorage.getItem(LLM_PROVIDER_VISIBILITY_KEY);
+          const parsed = raw ? JSON.parse(raw) : {};
+          return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function saveProviderVisibility(map) {
+        localStorage.setItem(LLM_PROVIDER_VISIBILITY_KEY, JSON.stringify(map));
+      }
+
+      function getProviderOptions() {
+        const select = document.getElementById('llmProvider');
+        if (!select) return [];
+        return Array.from(select.options)
+          .map(option => ({
+            value: option.value,
+            label: option.textContent?.trim() || option.value
+          }))
+          .filter(option => option.value);
+      }
+
+      function getAllowedProviderSet() {
+        if (Array.isArray(llmAllowedProviders) && llmAllowedProviders.length > 0) {
+          return new Set(llmAllowedProviders);
+        }
+        return null;
+      }
+
+      function updateProviderSummary(providerValue) {
+        const summaryEl = document.getElementById('llmProviderSummary');
+        const select = document.getElementById('llmProvider');
+        if (!summaryEl || !select) return;
+        const option = Array.from(select.options).find(opt => opt.value === providerValue);
+        summaryEl.textContent = option ? option.textContent?.trim() || option.value : providerValue || 'Unknown';
+      }
+
+      function getVisibleProviderOptions() {
+        const options = getProviderOptions();
+        const allowedSet = getAllowedProviderSet();
+        const visibility = loadProviderVisibility();
+        const current = document.getElementById('llmProvider')?.value;
+        return options.filter(option => {
+          const allowed = !allowedSet || allowedSet.has(option.value);
+          const visible = visibility[option.value] !== false || option.value === current;
+          return allowed && visible;
+        });
+      }
+
+      function renderProviderMenuItems(selectedProvider) {
+        const popover = document.getElementById('providerMenuPopover');
+        if (!popover) return;
+
+        const visibleOptions = getVisibleProviderOptions();
+        if (visibleOptions.length === 0) {
+          popover.innerHTML = `
+            <div class="form-hint" style="padding: 8px 12px">No visible providers.</div>
+            <div class="workspace-menu-divider"></div>
+            <button class="workspace-menu-item" onclick="showSettingsModal()">
+              <span class="menu-icon">⚙️</span>
+              <span class="menu-content">
+                <span class="menu-title">LLM Settings</span>
+                <span class="menu-hint">Enable providers</span>
+              </span>
+            </button>
+          `;
+          return;
+        }
+
+        popover.innerHTML = visibleOptions
+          .map(option => {
+            const isActive = option.value === selectedProvider;
+            const label = option.label;
+            const match = label.match(/^(\S+)\s+(.*)$/);
+            const icon = match ? match[1] : '🤖';
+            const title = match ? match[2] : label;
+            return `
+              <button
+                class="workspace-menu-item provider-menu-item${isActive ? ' active' : ''}"
+                data-provider="${escapeHtml(option.value)}"
+              >
+                <span class="menu-icon">${escapeHtml(icon)}</span>
+                <span class="menu-content">
+                  <span class="menu-title">${escapeHtml(title)}</span>
+                  <span class="menu-hint">${isActive ? 'Current provider' : 'Switch provider'}</span>
+                </span>
+              </button>
+            `;
+          })
+          .join('');
+
+        popover.innerHTML += `
+          <div class="workspace-menu-divider"></div>
+          <button class="workspace-menu-item" onclick="showSettingsModal()">
+            <span class="menu-icon">⚙️</span>
+            <span class="menu-content">
+              <span class="menu-title">LLM Settings</span>
+              <span class="menu-hint">Visibility, auth, model</span>
+            </span>
+          </button>
+        `;
+
+        popover.querySelectorAll('[data-provider]').forEach(button => {
+          button.addEventListener('click', () => {
+            selectLLMProvider(button.dataset.provider);
+          });
+        });
+      }
+
+      function renderProviderVisibilityOptions() {
+        const container = document.getElementById('llmProviderVisibility');
+        if (!container) return;
+
+        const options = getProviderOptions();
+        const allowedSet = getAllowedProviderSet();
+        const visibility = loadProviderVisibility();
+        const currentProvider = document.getElementById('llmProvider')?.value;
+        const available = allowedSet ? options.filter(option => allowedSet.has(option.value)) : options;
+
+        container.innerHTML = available
+          .map(option => {
+            const isCurrent = option.value === currentProvider;
+            const checked = visibility[option.value] !== false || isCurrent;
+            return `
+            <label style="display: flex; gap: 8px; align-items: center; font-size: 0.78rem">
+              <input
+                type="checkbox"
+                data-provider="${escapeHtml(option.value)}"
+                ${checked ? 'checked' : ''}
+                ${isCurrent ? 'disabled' : ''}
+              />
+              <span>${escapeHtml(option.label)}${isCurrent ? ' (current)' : ''}</span>
+            </label>
+          `;
+          }).join('');
+
+        container.querySelectorAll('input[type="checkbox"]').forEach(input => {
+          input.addEventListener('change', () => {
+            const map = loadProviderVisibility();
+            map[input.dataset.provider] = input.checked;
+            saveProviderVisibility(map);
+            applyProviderVisibility();
+            renderProviderMenuItems(document.getElementById('llmProvider')?.value);
+          });
+        });
+
+        const hint = document.getElementById('llmProviderVisibilityHint');
+        if (hint && allowedSet) {
+          hint.textContent = `Admin allow-list enforced: ${Array.from(allowedSet).join(', ')}`;
+        } else if (hint) {
+          hint.textContent = 'Hide providers you don’t use. Admin allow-lists always apply.';
+        }
+      }
+
+      function applyProviderVisibility() {
+        const select = document.getElementById('llmProvider');
+        if (!select) return;
+
+        const options = Array.from(select.options);
+        const allowedSet = getAllowedProviderSet();
+        const visibility = loadProviderVisibility();
+        const current = select.value;
+        let firstVisible = '';
+
+        options.forEach(option => {
+          const isAllowed = !allowedSet || allowedSet.has(option.value);
+          const isVisible = isAllowed && (visibility[option.value] !== false || option.value === current);
+          option.hidden = !isVisible;
+          option.disabled = !isVisible;
+          if (isVisible && !firstVisible) {
+            firstVisible = option.value;
+          }
+        });
+
+        const isCurrentAllowed = !allowedSet || allowedSet.has(current);
+        if (!isCurrentAllowed) {
+          select.value = firstVisible || '';
+          onProviderChange(false);
+        }
+
+        const providerPopover = document.getElementById('providerMenuPopover');
+        if (providerPopover && providerPopover.classList.contains('open')) {
+          renderProviderMenuItems(select.value);
+        }
+      }
+
+      function resetProviderVisibility() {
+        localStorage.removeItem(LLM_PROVIDER_VISIBILITY_KEY);
+        renderProviderVisibilityOptions();
+        applyProviderVisibility();
+        renderProviderMenuItems(document.getElementById('llmProvider')?.value);
+      }
+
+      async function toggleProviderMenu(forceOpen = false) {
+        const popover = document.getElementById('providerMenuPopover');
+        const toggle = document.getElementById('modelBadge');
+        if (!popover || !toggle) return;
+        closeWorkspaceMenu();
+
+        const isOpen = popover.classList.contains('open');
+        if (isOpen && !forceOpen) {
+          closeProviderMenu();
+          return;
+        }
+
+        try {
+          const config = await loadLLMConfig();
+          const provider = config.provider || 'ollama';
+          const select = document.getElementById('llmProvider');
+          if (select) {
+            select.value = provider;
+          }
+          applyProviderVisibility();
+          updateProviderSummary(document.getElementById('llmProvider')?.value);
+          renderProviderMenuItems(document.getElementById('llmProvider')?.value);
+        } catch (error) {
+          console.error('Failed to load LLM providers:', error);
+        }
+
+        popover.classList.add('open');
+        toggle.setAttribute('aria-expanded', 'true');
+      }
+
+      function openProviderMenu() {
+        toggleProviderMenu(true);
+      }
+
+      function closeProviderMenu() {
+        const popover = document.getElementById('providerMenuPopover');
+        const toggle = document.getElementById('modelBadge');
+        if (popover) popover.classList.remove('open');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+
+      function openProviderMenuFromSettings() {
+        hideSettingsModal();
+        openProviderMenu();
+      }
+
+      async function selectLLMProvider(provider) {
+        if (!provider) return;
+        try {
+          const response = await fetch('/api/llm/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ provider }),
+          });
+          const data = await response.json();
+          if (data.error) {
+            appendMessage('error', `Failed to switch provider: ${data.error}`);
+            return;
+          }
+          const select = document.getElementById('llmProvider');
+          if (select) {
+            select.value = provider;
+          }
+          const visibility = loadProviderVisibility();
+          visibility[provider] = true;
+          saveProviderVisibility(visibility);
+          onProviderChange(false);
+          updateProviderSummary(provider);
+          renderProviderMenuItems(provider);
+          updateModelBadge();
+          closeProviderMenu();
+        } catch (error) {
+          appendMessage('error', `Failed to switch provider: ${error.message}`);
+        }
+      }
+
       async function showSettingsModal() {
+        closeProviderMenu();
         // Load current LLM config
         try {
-          const response = await fetch('/api/llm/config', { credentials: 'include' });
-          const config = await response.json();
+          const config = await loadLLMConfig();
 
           document.getElementById('llmProvider').value = config.provider || 'ollama';
           document.getElementById('llmModel').value = config.model || '';
           document.getElementById('llmTemperature').value = config.temperature || 0.7;
           document.getElementById('tempValue').textContent = config.temperature || 0.7;
           document.getElementById('llmBaseUrl').value = config.base_url || '';
-
-          onProviderChange();
+          document.getElementById('llmApiKey').value = '';
+          document.getElementById('llmClearApiKey').checked = false;
+          const authTypeValue = config.auth_type
+            || (config.provider === 'custom' && config.hasApiKey ? 'bearer' : 'none');
+          document.getElementById('llmAuthType').value = authTypeValue;
+          document.getElementById('llmAuthUrl').value = config.auth_url || '';
+          document.getElementById('llmAuthClientId').value = config.auth_client_id || '';
+          document.getElementById('llmAuthClientSecret').value = '';
+          document.getElementById('llmClearAuthSecret').checked = false;
+          document.getElementById('llmAuthScope').value = config.auth_scope || '';
+          document.getElementById('llmAuthAudience').value = config.auth_audience || '';
+          renderProviderVisibilityOptions();
+          applyProviderVisibility();
+          onProviderChange(false);
+          updateProviderSummary(document.getElementById('llmProvider').value);
         } catch (e) {
           console.error('Failed to load LLM config:', e);
         }
@@ -2264,67 +2568,181 @@
         loadInspectorVariables();
       }
 
-      function onProviderChange() {
+      function onProviderChange(resetBaseUrl = true) {
         const provider = document.getElementById('llmProvider').value;
+        updateProviderSummary(provider);
         const hintEl = document.getElementById('providerHint');
         const apiKeyGroup = document.getElementById('apiKeyGroup');
         const modelInput = document.getElementById('llmModel');
         const baseUrlInput = document.getElementById('llmBaseUrl');
+        const authSection = document.getElementById('llmAuthSection');
+        const authFields = document.getElementById('llmAuthFields');
+        const ollamaGroup = document.getElementById('ollamaModelGroup');
+        const modelGroup = document.getElementById('llmModelGroup');
 
         // Clear base URL when switching providers to use correct default
-        baseUrlInput.value = '';
+        if (resetBaseUrl) {
+          baseUrlInput.value = '';
+        }
 
         switch (provider) {
           case 'ollama':
             hintEl.textContent = 'Local LLM server - no API key needed';
             apiKeyGroup.style.display = 'none';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'llama3.2, mistral, codellama...';
             baseUrlInput.placeholder = 'http://localhost:11434/v1';
+            if (ollamaGroup) {
+              ollamaGroup.style.display = 'block';
+              loadOllamaModels();
+            }
+            if (modelGroup) modelGroup.style.display = 'none';
             break;
           case 'openai':
             hintEl.textContent = 'OpenAI API - requires OPENAI_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'gpt-4o, gpt-4, gpt-3.5-turbo...';
             baseUrlInput.placeholder = 'https://api.openai.com/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'anthropic':
             hintEl.textContent = 'Anthropic Claude - requires ANTHROPIC_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'claude-3-5-sonnet-20241022...';
             baseUrlInput.placeholder = 'https://api.anthropic.com/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'gemini':
             hintEl.textContent = 'Google Gemini - requires GOOGLE_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'gemini-1.5-pro, gemini-1.5-flash...';
             baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com/v1beta';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'azure':
             hintEl.textContent = 'Azure OpenAI - requires AZURE_OPENAI_API_KEY & ENDPOINT';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'gpt-4o, gpt-4...';
             baseUrlInput.placeholder = 'https://your-resource.openai.azure.com';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'groq':
             hintEl.textContent = 'Groq (Ultra-fast) - requires GROQ_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'llama-3.3-70b-versatile, mixtral-8x7b...';
             baseUrlInput.placeholder = 'https://api.groq.com/openai/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'together':
             hintEl.textContent = 'Together AI - requires TOGETHER_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'meta-llama/Llama-3.3-70B-Instruct-Turbo...';
             baseUrlInput.placeholder = 'https://api.together.xyz/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
           case 'openrouter':
             hintEl.textContent = 'OpenRouter (100+ models) - requires OPENROUTER_API_KEY';
             apiKeyGroup.style.display = 'block';
+            if (authSection) authSection.style.display = 'none';
+            if (authFields) authFields.style.display = 'none';
             modelInput.placeholder = 'anthropic/claude-3.5-sonnet, openai/gpt-4o...';
             baseUrlInput.placeholder = 'https://openrouter.ai/api/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
+            break;
+          case 'custom':
+            hintEl.textContent = 'Custom OpenAI-compatible endpoint';
+            if (authSection) authSection.style.display = 'block';
+            onLLMAuthTypeChange();
+            modelInput.placeholder = 'gpt-4, llama3.1, custom-model';
+            baseUrlInput.placeholder = 'https://your-llm.example.com/v1';
+            if (ollamaGroup) ollamaGroup.style.display = 'none';
+            if (modelGroup) modelGroup.style.display = 'block';
             break;
         }
       }
+
+      function onLLMAuthTypeChange() {
+        const provider = document.getElementById('llmProvider').value;
+        const authType = document.getElementById('llmAuthType').value;
+        const authFields = document.getElementById('llmAuthFields');
+        const apiKeyGroup = document.getElementById('apiKeyGroup');
+        if (provider !== 'custom') return;
+        if (apiKeyGroup) {
+          apiKeyGroup.style.display = authType === 'bearer' ? 'block' : 'none';
+        }
+        if (authFields) {
+          authFields.style.display = authType === 'client_credentials' ? 'block' : 'none';
+        }
+      }
+
+      async function loadOllamaModels() {
+        const provider = document.getElementById('llmProvider')?.value;
+        if (provider !== 'ollama') return;
+        const select = document.getElementById('ollamaModelSelect');
+        const hint = document.getElementById('ollamaModelHint');
+        if (!select || !hint) return;
+
+        select.innerHTML = '<option value="">Loading models...</option>';
+        select.disabled = true;
+
+        const baseUrlInput = document.getElementById('llmBaseUrl')?.value.trim();
+        const url = baseUrlInput
+          ? `/api/llm/models?base_url=${encodeURIComponent(baseUrlInput)}`
+          : '/api/llm/models';
+
+        try {
+          const res = await fetch(url, { credentials: 'include' });
+          const data = await res.json();
+          const models = Array.isArray(data.models) ? data.models : [];
+          const currentModel = document.getElementById('llmModel')?.value.trim();
+
+          select.innerHTML = '<option value="">Select installed model</option>' +
+            models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
+          select.disabled = false;
+
+          if (currentModel && models.includes(currentModel)) {
+            select.value = currentModel;
+          }
+
+          if (models.length === 0) {
+            hint.textContent = 'No Ollama models found. Run `ollama pull <model>` then refresh.';
+          } else {
+            hint.textContent = `Found ${models.length} installed model${models.length > 1 ? 's' : ''}.`;
+          }
+        } catch (error) {
+          select.innerHTML = '<option value="">Failed to load models</option>';
+          select.disabled = true;
+          hint.textContent = `Could not fetch models: ${error.message}`;
+        }
+      }
+
+      document.getElementById('ollamaModelSelect')?.addEventListener('change', e => {
+        const value = e.target.value;
+        if (value) {
+          const modelInput = document.getElementById('llmModel');
+          if (modelInput) modelInput.value = value;
+        }
+      });
 
       async function saveSettings(event) {
         event.preventDefault();
@@ -2334,6 +2752,14 @@
         const temperature = parseFloat(document.getElementById('llmTemperature').value);
         const base_url = document.getElementById('llmBaseUrl').value.trim();
         const api_key = document.getElementById('llmApiKey').value.trim();
+        const clear_api_key = document.getElementById('llmClearApiKey').checked;
+        const auth_type = document.getElementById('llmAuthType').value;
+        const auth_url = document.getElementById('llmAuthUrl').value.trim();
+        const auth_client_id = document.getElementById('llmAuthClientId').value.trim();
+        const auth_client_secret = document.getElementById('llmAuthClientSecret').value.trim();
+        const auth_scope = document.getElementById('llmAuthScope').value.trim();
+        const auth_audience = document.getElementById('llmAuthAudience').value.trim();
+        const clear_auth_secret = document.getElementById('llmClearAuthSecret').checked;
 
         if (!model) {
           appendMessage('error', 'Model name is required');
@@ -2343,6 +2769,17 @@
         const payload = { provider, model, temperature };
         if (base_url) payload.base_url = base_url;
         if (api_key) payload.api_key = api_key;
+        if (clear_api_key) payload.clear_api_key = true;
+
+        if (provider === 'custom') {
+          payload.auth_type = auth_type;
+          payload.auth_url = auth_url;
+          payload.auth_client_id = auth_client_id;
+          payload.auth_client_secret = auth_client_secret;
+          payload.auth_scope = auth_scope;
+          payload.auth_audience = auth_audience;
+          if (clear_auth_secret) payload.clear_auth_secret = true;
+        }
 
         try {
           const response = await fetch('/api/llm/config', {
@@ -2371,6 +2808,15 @@
         document.getElementById('tempValue').textContent = e.target.value;
       });
 
+      document.getElementById('llmModel')?.addEventListener('input', e => {
+        const provider = document.getElementById('llmProvider')?.value;
+        if (provider !== 'ollama') return;
+        const select = document.getElementById('ollamaModelSelect');
+        if (!select) return;
+        const value = e.target.value.trim();
+        select.value = value && Array.from(select.options).some(opt => opt.value === value) ? value : '';
+      });
+
       // Close modals on Escape key
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
@@ -2380,6 +2826,10 @@
           }
           if (document.getElementById('settingsModal').classList.contains('active')) {
             hideSettingsModal();
+          }
+          closeProviderMenu();
+          if (document.getElementById('oauthSettingsModal').classList.contains('active')) {
+            hideOAuthSettingsModal();
           }
           if (document.getElementById('confirmDeleteModal').classList.contains('active')) {
             hideConfirmDeleteModal();
@@ -2394,6 +2844,10 @@
         const menu = document.getElementById('workspaceMenu');
         if (menu && !menu.contains(e.target)) {
           closeWorkspaceMenu();
+        }
+        const providerMenu = document.getElementById('providerMenu');
+        if (providerMenu && !providerMenu.contains(e.target)) {
+          closeProviderMenu();
         }
       });
 
@@ -2703,6 +3157,7 @@
             groq: '⚡',
             together: '🤝',
             openrouter: '🌐',
+            custom: '🧩',
           };
 
           document.getElementById('modelProvider').textContent =
@@ -2738,6 +3193,7 @@
             groq: '⚡',
             together: '🤝',
             openrouter: '🌐',
+            custom: '🧩',
           };
 
           const iconEl = document.getElementById('workflowModelIcon');
@@ -10288,4 +10744,5 @@ main().catch(console.error);
       window.hideOAuthSettingsModal = hideOAuthSettingsModal;
       window.saveOAuthSettings = saveOAuthSettings;
       window.disableOAuthConfig = disableOAuthConfig;
+      window.resetProviderVisibility = resetProviderVisibility;
 

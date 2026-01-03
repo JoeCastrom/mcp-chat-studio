@@ -29,14 +29,22 @@
       <div class="header-actions">
         <div class="header-cluster">
           <!-- Model Badge -->
-          <div
-            id="modelBadge"
-            class="model-badge"
-            onclick="showSettingsModal()"
-            title="Click to change LLM settings"
-          >
-            <span id="modelProvider">🦙</span>
-            <span id="modelName">llama3.1:8b</span>
+          <div class="workspace-menu provider-menu" id="providerMenu">
+            <div
+              id="modelBadge"
+              class="model-badge provider-menu-toggle"
+              role="button"
+              tabindex="0"
+              onclick="toggleProviderMenu()"
+              onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); toggleProviderMenu(); }"
+              title="Click to switch LLM provider"
+              aria-expanded="false"
+              aria-haspopup="true"
+            >
+              <span id="modelProvider">🦙</span>
+              <span id="modelName">llama3.1:8b</span>
+            </div>
+            <div class="workspace-menu-popover provider-menu-popover" id="providerMenuPopover" role="menu"></div>
           </div>
 
           <!-- Token Usage Badge -->
@@ -1435,7 +1443,7 @@
                 <!-- LLM Model Indicator -->
                 <div
                   id="workflowModelBadge"
-                  onclick="showSettingsModal()"
+                  onclick="openProviderMenu()"
                   style="
                     display: flex;
                     align-items: center;
@@ -1447,7 +1455,7 @@
                     cursor: pointer;
                     font-size: 0.7rem;
                   "
-                  title="LLM nodes will use this model. Click to change."
+                  title="LLM nodes will use this provider. Click to switch."
                 >
                   <span id="workflowModelIcon">🦙</span>
                   <span id="workflowModelName">Loading...</span>
@@ -2468,8 +2476,20 @@ env:
 
         <form id="settingsForm" onsubmit="saveSettings(event)">
           <div class="form-group">
-            <label class="form-label">Provider *</label>
-            <select class="form-select" id="llmProvider" onchange="onProviderChange()">
+            <label class="form-label">Provider</label>
+            <div class="provider-summary-row">
+              <div class="provider-summary" id="llmProviderSummary">🦙 Ollama (Local)</div>
+              <button type="button" class="btn" onclick="openProviderMenuFromSettings()">Change</button>
+            </div>
+            <div class="form-hint">Switch providers from the model badge or this button.</div>
+            <select
+              class="form-select"
+              id="llmProvider"
+              onchange="onProviderChange()"
+              style="display: none"
+              aria-hidden="true"
+              tabindex="-1"
+            >
               <option value="ollama">🦙 Ollama (Local)</option>
               <option value="openai">🤖 OpenAI</option>
               <option value="anthropic">🎭 Anthropic Claude</option>
@@ -2478,14 +2498,40 @@ env:
               <option value="groq">⚡ Groq</option>
               <option value="together">🤝 Together AI</option>
               <option value="openrouter">🌐 OpenRouter</option>
+              <option value="custom">🧩 Custom (OpenAI-compatible)</option>
             </select>
             <div class="form-hint" id="providerHint">Local LLM server - no API key needed</div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="llmProviderVisibilityGroup">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center">
+              <span>Visible Providers</span>
+              <button type="button" class="btn" onclick="resetProviderVisibility()" style="font-size: 0.65rem; padding: 2px 8px">
+                Reset
+              </button>
+            </label>
+            <div
+              id="llmProviderVisibility"
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px"
+            ></div>
+            <div class="form-hint" id="llmProviderVisibilityHint">
+              Hide providers you don't use. Admin allow-lists always apply.
+            </div>
+          </div>
+
+          <div class="form-group" id="llmModelGroup">
             <label class="form-label">Model *</label>
             <input type="text" class="form-input" id="llmModel" placeholder="llama2" />
             <div class="form-hint">Model name (e.g., llama2, gpt-4, mistral)</div>
+          </div>
+
+          <div class="form-group" id="ollamaModelGroup" style="display: none">
+            <label class="form-label">Installed Ollama Models</label>
+            <div style="display: flex; gap: var(--spacing-sm); align-items: center">
+              <select class="form-select" id="ollamaModelSelect"></select>
+              <button type="button" class="btn" onclick="loadOllamaModels()">Refresh</button>
+            </div>
+            <div class="form-hint" id="ollamaModelHint">Select an installed Ollama model.</div>
           </div>
 
           <div class="form-group">
@@ -2519,7 +2565,47 @@ env:
           <div class="form-group" id="apiKeyGroup" style="display: none">
             <label class="form-label">API Key</label>
             <input type="password" class="form-input" id="llmApiKey" placeholder="sk-..." />
-            <div class="form-hint">Your OpenAI API key (stored in session only)</div>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 6px">
+              <input type="checkbox" id="llmClearApiKey" />
+              Clear stored API key
+            </label>
+            <div class="form-hint">Stored locally when saved from the UI</div>
+          </div>
+
+          <div class="form-group" id="llmAuthSection" style="display: none">
+            <label class="form-label">Authentication</label>
+            <select class="form-select" id="llmAuthType" onchange="onLLMAuthTypeChange()">
+              <option value="none">None</option>
+              <option value="bearer">Bearer (API Key)</option>
+              <option value="client_credentials">OAuth Client Credentials</option>
+            </select>
+          </div>
+
+          <div id="llmAuthFields" style="display: none">
+            <div class="form-group">
+              <label class="form-label">Auth URL</label>
+              <input type="text" class="form-input" id="llmAuthUrl" placeholder="https://auth.example.com/oauth/token" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Client ID</label>
+              <input type="text" class="form-input" id="llmAuthClientId" placeholder="client-id" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Client Secret</label>
+              <input type="password" class="form-input" id="llmAuthClientSecret" placeholder="Leave blank to keep current" />
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 6px">
+                <input type="checkbox" id="llmClearAuthSecret" />
+                Clear stored client secret
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Scope (optional)</label>
+              <input type="text" class="form-input" id="llmAuthScope" placeholder="scope1 scope2" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Audience (optional)</label>
+              <input type="text" class="form-input" id="llmAuthAudience" placeholder="api://your-resource" />
+            </div>
           </div>
 
           <div class="form-group" id="sessionTokenSection" style="display: none">

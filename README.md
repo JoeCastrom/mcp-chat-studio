@@ -45,6 +45,7 @@ npm run dev
 
 **That's it!** You now have a complete MCP testing platform running locally.
 Toggle **Classic / Workspace** in the header to pick your workflow.
+Use the **model badge** in the header to switch LLM providers; the **⚙️ Settings** button handles model/auth tuning.
 
 ---
 
@@ -62,7 +63,7 @@ Toggle **Classic / Workspace** in the header to pick your workflow.
 | Custom assertions (14 operators) |       ✅        |        ❌        |        ❌        |
 | Low-level MCP debugging          |       ✅        |        ❌        |        ❌        |
 | Mock server generator            |       ✅        |        ❌        |        ❌        |
-| 8 LLM providers                  |       ✅        | ❌ (Claude only) | ❌ (OpenAI only) |
+| 9 LLM providers + custom         |       ✅        | ❌ (Claude only) | ❌ (OpenAI only) |
 | Local/no API keys needed         |   ✅ (Ollama)   |        ❌        |        ❌        |
 | Multi-environment profiles       |       ✅        |        ❌        |        ❌        |
 | Session branching                |       ✅        |        ❌        |        ❌        |
@@ -96,6 +97,7 @@ Generate workflows from a natural-language goal:
 - **Tool-aware prompts** - Uses connected MCP tools as context
 - **One-click generate** - Creates a workflow you can edit and run
 - **Works with Workspace and Classic modes**
+- **Preflight validation** - Catch missing tool args and invalid JSON before execution
 
 ### 📦 Workflow Export
 Turn visual flows into runnable scripts:
@@ -179,7 +181,9 @@ Create production-ready MCP servers without writing boilerplate code!
 ## ✨ Why MCP Chat Studio?
 
 - **🎯 Built for MCP Development** - Test and debug MCP servers without writing code
-- **🔧 8 LLM Providers** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter
+- **🔧 9 LLM Providers + Custom** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter + Custom
+- **🧠 Ollama model picker** - UI dropdown of locally installed models (auto-detected)
+- **🔄 Provider Switcher** - Swap LLMs from the model badge and manage visible providers in one place
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
 - **🎬 History → Scenario** - Turn real tool calls into replayable test flows
 - **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
@@ -250,6 +254,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Azure OpenAI** - Enterprise Azure deployments
 - **Groq** - Ultra-fast inference (Mixtral, LLaMA)
 - **Together AI** - Open-source models
+- **Custom LLM** - OpenAI-compatible endpoints with optional OAuth token fetch
 - **Real-time streaming** with typing effect
 
 ### 🔧 MCP Tool Management
@@ -589,7 +594,18 @@ curl http://localhost:3082/api/health
 
 ### LLM Providers
 
-MCP Chat Studio supports **8 LLM providers**. Configure in `config.yaml`:
+MCP Chat Studio supports **9 LLM providers + Custom**. Configure in `config.yaml` or from the UI (⚙️):
+
+UI changes are saved locally in `data/llm-config.json` (including optional auth settings).
+
+#### Provider Visibility (optional)
+
+Hide providers per-user in the UI, or enforce a server allow-list:
+
+```bash
+# Only show/allow these providers in the UI
+LLM_ALLOWED_PROVIDERS=ollama,openai,custom
+```
 
 #### Ollama (Local - Default)
 
@@ -680,6 +696,23 @@ llm:
 # .env
 TOGETHER_API_KEY=your-key
 ```
+
+#### Custom (OpenAI-compatible)
+
+```yaml
+llm:
+  provider: custom
+  model: your-model
+  base_url: "https://your-llm.example.com/v1"
+  auth:
+    type: client_credentials
+    auth_url: "https://your-idp.example.com/oauth/token"
+    client_id: "${LLM_CLIENT_ID}"
+    client_secret: "${LLM_CLIENT_SECRET}"
+    scope: "scope1 scope2"
+```
+
+Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).
 
 #### OpenRouter (100+ Models)
 

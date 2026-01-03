@@ -5,8 +5,35 @@
 
 import express from 'express';
 import { getLLMClient } from '../services/LLMClient.js';
+import { loadPersistedLLMConfig, savePersistedLLMConfig } from '../services/LLMConfigStore.js';
 
 const router = express.Router();
+const VALID_PROVIDERS = [
+  'ollama',
+  'openai',
+  'anthropic',
+  'gemini',
+  'azure',
+  'groq',
+  'together',
+  'openrouter',
+  'custom'
+];
+
+function getAllowedProviders() {
+  const raw = process.env.LLM_ALLOWED_PROVIDERS || process.env.LLM_PROVIDER_ALLOWLIST;
+  if (!raw) return null;
+  const normalized = String(raw).trim().toLowerCase();
+  if (!normalized || normalized === '*' || normalized === 'all') {
+    return null;
+  }
+  const list = normalized
+    .split(/[\s,]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter(item => VALID_PROVIDERS.includes(item));
+  return list.length > 0 ? list : null;
+}
 
 /**
  * GET /api/llm/config
@@ -23,7 +50,14 @@ router.get('/config', (req, res) => {
       // Only return explicit base_url if set, not the computed default
       base_url: llmClient.config.base_url || '',
       // Don't expose API keys
-      hasApiKey: !!llmClient.apiKey,
+      hasApiKey: !!(llmClient.config.api_key || llmClient.apiKey),
+      auth_type: llmClient.config.auth?.type || 'none',
+      auth_url: llmClient.config.auth?.auth_url || '',
+      auth_client_id: llmClient.config.auth?.client_id || '',
+      auth_scope: llmClient.config.auth?.scope || '',
+      auth_audience: llmClient.config.auth?.audience || '',
+      hasAuthSecret: !!llmClient.config.auth?.client_secret,
+      allowedProviders: getAllowedProviders(),
     });
   } catch (error) {
     console.error('[LLM/Config] Error:', error.message);
@@ -37,11 +71,31 @@ router.get('/config', (req, res) => {
  */
 router.post('/config', async (req, res) => {
   try {
-    const { provider, model, temperature, base_url, api_key } = req.body;
+    const {
+      provider,
+      model,
+      temperature,
+      base_url,
+      api_key,
+      clear_api_key,
+      auth_type,
+      auth_url,
+      auth_client_id,
+      auth_client_secret,
+      auth_scope,
+      auth_audience,
+      clear_auth_secret
+    } = req.body;
     const llmClient = getLLMClient();
+    const persisted = await loadPersistedLLMConfig();
+    const existing = persisted || llmClient.config || {};
 
     // Supported providers
-    const validProviders = ['ollama', 'openai', 'anthropic', 'gemini', 'azure', 'groq', 'together', 'openrouter'];
+    const validProviders = VALID_PROVIDERS;
+    const allowedProviders = getAllowedProviders();
+    if (provider && allowedProviders && !allowedProviders.includes(provider)) {
+      return res.status(403).json({ error: `Provider "${provider}" is disabled by server policy` });
+    }
 
     // Update provider
     if (provider && validProviders.includes(provider)) {
@@ -76,8 +130,39 @@ router.post('/config', async (req, res) => {
     // Update API key
     if (api_key) {
       llmClient.apiKey = api_key;
+      llmClient.config.api_key = api_key;
       console.log(`[LLM/Config] API key updated`);
+    } else if (clear_api_key) {
+      delete llmClient.config.api_key;
+      llmClient.apiKey = null;
     }
+
+    const nextAuth = { ...(existing.auth || {}), ...(llmClient.config.auth || {}) };
+    if (auth_type) nextAuth.type = auth_type;
+    if (auth_url !== undefined) nextAuth.auth_url = auth_url;
+    if (auth_client_id !== undefined) nextAuth.client_id = auth_client_id;
+    if (auth_scope !== undefined) nextAuth.scope = auth_scope;
+    if (auth_audience !== undefined) nextAuth.audience = auth_audience;
+    if (auth_client_secret) {
+      nextAuth.client_secret = auth_client_secret;
+    } else if (clear_auth_secret) {
+      delete nextAuth.client_secret;
+    }
+
+    llmClient.config.auth = nextAuth;
+    llmClient.updateConfig({
+      ...existing,
+      ...llmClient.config,
+      provider: llmClient.provider,
+      auth: nextAuth
+    });
+
+    await savePersistedLLMConfig({
+      ...existing,
+      ...llmClient.config,
+      provider: llmClient.provider,
+      auth: nextAuth
+    });
 
     res.json({
       success: true,
@@ -106,7 +191,8 @@ router.get('/models', async (req, res) => {
     // For Ollama, we can query available models
     if (llmClient.provider === 'ollama') {
       try {
-        const baseUrl = llmClient.config.base_url || 'http://localhost:11434';
+        const override = typeof req.query.base_url === 'string' ? req.query.base_url.trim() : '';
+        const baseUrl = override || llmClient.config.base_url || 'http://localhost:11434';
         const response = await fetch(`${baseUrl}/api/tags`);
         const data = await response.json();
         const models = data.models?.map(m => m.name) || [];
@@ -134,6 +220,7 @@ router.get('/models', async (req, res) => {
         'google/gemini-pro-1.5',
         'meta-llama/llama-3.3-70b-instruct',
       ],
+      custom: [],
     };
 
     const models = providerModels[llmClient.provider] || [];

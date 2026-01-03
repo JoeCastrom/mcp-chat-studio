@@ -23,6 +23,7 @@ import { createLLMClient } from './services/LLMClient.js';
 import { createOAuthManager, getOAuthManager } from './services/OAuthManager.js';
 import { loadPersistedServers } from './services/MCPConfigStore.js';
 import { loadPersistedOAuthConfig } from './services/OAuthConfigStore.js';
+import { loadPersistedLLMConfig } from './services/LLMConfigStore.js';
 import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
@@ -390,6 +391,10 @@ async function start() {
     const persistedOAuth = await loadPersistedOAuthConfig();
     if (persistedOAuth !== null) {
       config.oauth = persistedOAuth;
+    }
+    const persistedLLM = await loadPersistedLLMConfig();
+    if (persistedLLM !== null) {
+      config.llm = { ...(config.llm || {}), ...persistedLLM };
     }
     const persistedServers = await loadPersistedServers();
     if (persistedServers && Object.keys(persistedServers).length > 0) {
