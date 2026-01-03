@@ -652,13 +652,23 @@
                 <h3>📤 Response</h3>
                 <div class="inspector-response-header" id="inspectorResponseHeader">
                   <div class="inspector-status" id="inspectorResponseStatus"></div>
-                  <button
-                    class="btn"
-                    onclick="copyInspectorResponse()"
-                    style="font-size: 0.7rem; padding: 2px 8px"
-                  >
-                    📋 Copy JSON
-                  </button>
+                  <div style="display: flex; gap: 6px">
+                    <button
+                      class="btn"
+                      onclick="runInspectorMatrix()"
+                      style="font-size: 0.7rem; padding: 2px 8px"
+                      title="Run this tool across connected servers (requires 2+ servers for heatmap)"
+                    >
+                      🌐 Run Matrix
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="copyInspectorResponse()"
+                      style="font-size: 0.7rem; padding: 2px 8px"
+                    >
+                      📋 Copy JSON
+                    </button>
+                  </div>
                 </div>
                 <div class="inspector-response" id="inspectorResponseBody"></div>
               </div>
@@ -997,7 +1007,14 @@
                       onclick="exportBulkTestResults()"
                       style="font-size: 0.65rem; padding: 2px 6px"
                     >
-                      📥 Export
+                      📥 Export JSON
+                    </button>
+                    <button
+                      class="btn"
+                      onclick="exportBulkTestResultsText()"
+                      style="font-size: 0.65rem; padding: 2px 6px"
+                    >
+                      📄 Export TXT
                     </button>
                     <button
                       class="btn"
@@ -1025,6 +1042,7 @@
                     font-size: 0.75rem;
                   "
                 ></div>
+                <div id="bulkTestHeatmap" style="margin-bottom: 12px"></div>
                 <div
                   id="bulkTestResults"
                   style="max-height: 400px; overflow-y: auto; font-size: 0.75rem"
@@ -1899,6 +1917,7 @@
                 <button class="btn" onclick="exportSchemaSnapshot()">📥 Export Snapshot</button>
                 <button class="btn" onclick="compareSchemaSnapshot()">🔍 Compare Snapshot</button>
                 <button class="btn" onclick="copySchemaDiffCommand()">📋 Copy CI Command</button>
+                <button class="btn" onclick="exportSchemaGatePack()">🚦 Export Gate</button>
               </div>
               <p id="schemaDiffSummaryText" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px">
                 No schema diff has been run yet.
@@ -2795,6 +2814,37 @@ env:
           >
             Delete
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="assistant-widget" id="assistantWidget">
+      <button class="assistant-toggle" id="assistantToggle" title="Studio Assistant">
+        🧭
+      </button>
+      <div class="assistant-panel" id="assistantPanel">
+        <div class="assistant-header">
+          <div>
+            <div class="assistant-title">Studio Assistant</div>
+            <div class="assistant-context" id="assistantContextLabel">Context: Ready</div>
+          </div>
+          <div class="assistant-actions">
+            <button class="assistant-icon-btn" onclick="showAssistantCommands()" title="Commands">?</button>
+            <button class="assistant-icon-btn" onclick="toggleAssistantDock()" title="Dock left/right">↔</button>
+            <button class="assistant-icon-btn" onclick="toggleAssistantPopout()" title="Pop out">🗗</button>
+            <button class="assistant-icon-btn" onclick="toggleAssistantSize()" title="Resize">⤢</button>
+            <button class="assistant-icon-btn" onclick="clearAssistantChat()" title="Clear chat">🧹</button>
+            <button class="assistant-icon-btn" onclick="showSettingsModal()" title="LLM Settings">⚙️</button>
+            <button class="assistant-icon-btn" onclick="toggleAssistant(false)" title="Close">✕</button>
+          </div>
+        </div>
+        <div class="assistant-body" id="assistantMessages"></div>
+        <div class="assistant-input">
+          <textarea id="assistantInput" rows="2" placeholder="Ask about workflows, contracts, or workspace..."></textarea>
+          <button class="btn primary" id="assistantSendBtn" onclick="sendAssistantMessage()">Send</button>
+        </div>
+        <div class="assistant-footer">
+          Uses your current LLM settings. Configure in <strong>⚙️ LLM Settings</strong>.
         </div>
       </div>
     </div>

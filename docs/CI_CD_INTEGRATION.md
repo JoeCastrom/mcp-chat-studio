@@ -107,6 +107,15 @@ Make it executable:
 chmod +x .git/hooks/pre-commit
 ```
 
+## Collection Run Gates (Fail CI on Regressions)
+
+From a Collection Run Report, click **🚦 Export Gate** to download `collection-run-gate.json`,
+then use the gate checker to fail your pipeline if regressions appear:
+
+```bash
+node scripts/collection-gate.js ./collection-run-gate.json
+```
+
 ## Azure Pipelines
 
 ### azure-pipelines.yml

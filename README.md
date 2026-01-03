@@ -109,10 +109,13 @@ Turn visual flows into runnable scripts:
 Three powerful new testing tools:
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
+- **🔥 Bulk Test Heatmap** - Visualize latency spread across inputs + export JSON with heatmap data
 - **🎬 Fuzz Fail → Scenario** - Save failing cases as replayable scenarios
 - **📚 Failure Datasets** - Store bulk-test failures as dataset rows for data runs
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
 - **🌐 Cross-Server Snapshot** - Run one tool across servers and diff output
+- **🌐 One-click Matrix** - Run a tool across servers from the Inspector response
+- **🕘 History → Matrix** - Launch a cross-server compare directly from past runs
 - **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
 - **🔍 Resolved Preview** - See variable substitutions before execution
 - **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env
@@ -124,6 +127,7 @@ Consumer-driven contract testing for MCP servers:
 - **Auto-generation** - Generate contracts from tool schemas
 - **Version tracking** - Track contract changes over time
 - **Schema Watch** - Live drift detection with optional background checks
+- **Schema CI Gate** - One-click baseline export + CI fail-on-change command
 
 ### 📊 Tool Explorer & Analytics
 Real-time usage statistics and performance metrics:
@@ -184,6 +188,8 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🔧 9 LLM Providers + Custom** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter + Custom
 - **🧠 Ollama model picker** - UI dropdown of locally installed models (auto-detected)
 - **🔄 Provider Switcher** - Swap LLMs from the model badge and manage visible providers in one place
+- **🧭 Studio Assistant** - Floating help chat aware of your current panel/layout, with dock + pop‑out modes, quick actions, and FAQ fallback
+  - Commands list + safe confirmations + workspace builder (add/close/resize/arrange panels, sessions, export/import)
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
 - **🎬 History → Scenario** - Turn real tool calls into replayable test flows
 - **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
@@ -330,6 +336,8 @@ Create production-ready MCP servers without writing boilerplate code!
 - **Save scenarios** - Name and save as JSON to localStorage
 - **History → Scenario** - Convert recent tool history into a scenario in one click
 - **Matrix runs** - Run one scenario across all connected servers
+- **Latency heatmap** - Visualize step timing across servers at a glance
+- **Matrix export** - Download cross-server results as JSON for CI or sharing
 - **Data runs** - Feed a JSON dataset to replay scenarios with variables
 - **Dataset library** - Save reusable data tables for quick replay
 - **Replay** - Run all steps with ✅/❌/🔶 pass/fail status
@@ -448,6 +456,15 @@ mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit
 ```
 
 In the UI, use **Schema Watch** under Contracts to auto-detect drift during live testing.
+
+### 🚦 Collection Run Gates (CI)
+
+Export a **Gate** file from any Collection Run Report and fail CI on regressions:
+
+```bash
+# From the UI: click 🚦 Export Gate to download collection-run-gate.json
+node scripts/collection-gate.js ./collection-run-gate.json
+```
 
 ### ⚙️ Mock MCP Server Generator
 

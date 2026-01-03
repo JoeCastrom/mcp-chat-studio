@@ -3189,6 +3189,23 @@ function copySchemaDiffCommand() {
     .catch(error => showNotification('Failed to copy command: ' + error.message, 'error'));
 }
 
+async function exportSchemaGatePack() {
+  try {
+    const snapshot = await fetchSchemaSnapshot();
+    downloadJsonFile('schema-baseline.json', snapshot);
+
+    const command = [
+      'mcp-test schema snapshot -o schema-current.json',
+      'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate'
+    ].join('\n');
+
+    await navigator.clipboard.writeText(command);
+    showNotification('Schema baseline exported. CI gate command copied.', 'success');
+  } catch (error) {
+    showNotification('Failed to export schema gate: ' + error.message, 'error');
+  }
+}
+
 function showSchemaDiffModal(diff, baseline, current) {
   lastSchemaDiff = diff;
   lastSchemaSnapshot = current;

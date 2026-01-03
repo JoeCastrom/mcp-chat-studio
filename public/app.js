@@ -547,6 +547,38 @@
         userInputEl.focus();
       }
 
+      function getHistoryEntries() {
+        const history = sessionManager.getToolHistory();
+        if (history.length > 0) return history;
+        return Array.isArray(toolExecutionHistory) ? toolExecutionHistory : [];
+      }
+
+      function updateToolHistory(entry) {
+        sessionManager.logToolExecution(entry);
+        const history = sessionManager.getToolHistory();
+        if (history.length > 0) {
+          toolExecutionHistory = history;
+        } else {
+          toolExecutionHistory = [entry, ...toolExecutionHistory];
+        }
+        if (typeof refreshHistoryPanel === 'function') {
+          refreshHistoryPanel();
+        }
+      }
+
+      function ensureToolOption(selectEl, toolName, sourceLabel) {
+        if (!selectEl || !toolName) return;
+        const exists = Array.from(selectEl.options || [])
+          .some(option => option.value === toolName);
+        if (!exists) {
+          const opt = document.createElement('option');
+          opt.value = toolName;
+          opt.textContent = `${toolName} (${sourceLabel || 'manual'})`;
+          selectEl.appendChild(opt);
+        }
+        selectEl.value = toolName;
+      }
+
       function notifyUser(message, type = 'info') {
         if (typeof showNotification === 'function') {
           showNotification(message, type);
@@ -2744,6 +2776,1029 @@
         }
       });
 
+      // ==========================================
+      // STUDIO ASSISTANT WIDGET
+      // ==========================================
+
+      const ASSISTANT_STORAGE_KEY = 'mcp_chat_studio_assistant';
+      let assistantMessages = [];
+      let assistantOpen = false;
+      let assistantDock = 'right';
+      let assistantPopout = false;
+      let assistantLastFAQ = null;
+      let assistantPopoutPos = { x: null, y: null };
+      let assistantDragState = null;
+      let assistantSize = 'default';
+
+      const assistantPrompt = `You are the MCP Chat Studio assistant. Help users learn and use the app.
+You answer questions about MCP servers, Inspector, Workflows, Scenarios, Collections, Contracts, Mocks, Debugger, and Workspace mode.
+Be concise, suggest next actions, and ask a clarifying question if needed.`;
+
+      const assistantFAQ = [
+        {
+          title: 'Connect a server',
+          keywords: ['connect', 'server', 'mcp', 'add server', 'template'],
+          answer: 'Use the **MCP Servers** sidebar → **Add** → pick a template or fill in command/args. Click **Connect** to see tools.'
+        },
+        {
+          title: 'Run a tool',
+          keywords: ['inspector', 'run tool', 'execute', 'tool call'],
+          answer: 'Go to **Inspector**, select server + tool, fill args, then **Execute**. Results show below with protocol logs.'
+        },
+        {
+          title: 'Record scenarios',
+          keywords: ['scenario', 'record', 'replay', 'recording'],
+          answer: 'Open **Scenarios**, click **Start Recording**, then execute tools in Inspector. Stop and **Save Scenario**.'
+        },
+        {
+          title: 'Collections + reports',
+          keywords: ['collection', 'run report', 'runner', 'iterations'],
+          answer: 'Create a **Collection**, add scenarios, then **Run**. The report shows pass/fail + exports (JSON/JUnit).'
+        },
+        {
+          title: 'Matrix runs',
+          keywords: ['matrix', 'compare servers', 'cross-server'],
+          answer: 'Use **Scenario → Matrix** or **Inspector → Diff → Cross‑Server Snapshot**. Connect 2+ servers for heatmaps.'
+        },
+        {
+          title: 'Contracts',
+          keywords: ['contract', 'schema', 'breaking change', 'regression'],
+          answer: 'Go to **Contracts** → **New Contract**. Validate responses and use **Schema Regression** to diff snapshots.'
+        },
+        {
+          title: 'Mocks',
+          keywords: ['mock', 'mock server', 'offline'],
+          answer: 'Go to **Mocks**, create or **From History**, then **Connect** to register as an MCP server.'
+        },
+        {
+          title: 'Workflow debugger',
+          keywords: ['debugger', 'workflow', 'breakpoint', 'step'],
+          answer: 'Create a workflow, then open **Debugger** to start a session, step nodes, and inspect variables.'
+        },
+        {
+          title: 'Workspace mode',
+          keywords: ['workspace', 'panels', 'layout', 'dock'],
+          answer: 'Toggle **Workspace** in the header. Right‑click to add panels, use the mini‑map + zoom, and save sessions.'
+        },
+        {
+          title: 'LLM settings',
+          keywords: ['llm', 'provider', 'model', 'apikey', 'api key'],
+          answer: 'Click the **⚙️** button to set provider/model/base URL, add API keys, or pick visible providers.'
+        }
+      ];
+
+      function loadAssistantState() {
+        try {
+          const raw = localStorage.getItem(ASSISTANT_STORAGE_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function saveAssistantState() {
+        try {
+          localStorage.setItem(ASSISTANT_STORAGE_KEY, JSON.stringify({
+            open: assistantOpen,
+            messages: assistantMessages.slice(-30),
+            dock: assistantDock,
+            popout: assistantPopout,
+            popoutPos: assistantPopoutPos,
+            size: assistantSize
+          }));
+        } catch (error) {
+          console.warn('[Assistant] Failed to save:', error.message);
+        }
+      }
+
+      function applyAssistantLayout() {
+        const widget = document.getElementById('assistantWidget');
+        const panel = document.getElementById('assistantPanel');
+        if (!widget || !panel) return;
+        widget.classList.toggle('dock-left', assistantDock === 'left');
+        panel.classList.toggle('popout', assistantPopout);
+        panel.classList.toggle('large', assistantSize === 'large');
+        if (assistantPopout) {
+          panel.style.right = 'auto';
+          panel.style.left = assistantPopoutPos.x !== null ? `${assistantPopoutPos.x}px` : '';
+          panel.style.top = assistantPopoutPos.y !== null ? `${assistantPopoutPos.y}px` : '';
+          panel.style.bottom = assistantPopoutPos.x !== null ? 'auto' : '';
+        } else {
+          panel.style.left = '';
+          panel.style.top = '';
+          panel.style.bottom = '';
+          panel.style.right = '';
+        }
+      }
+
+      function toggleAssistantDock() {
+        assistantDock = assistantDock === 'left' ? 'right' : 'left';
+        applyAssistantLayout();
+        saveAssistantState();
+      }
+
+      function toggleAssistantPopout() {
+        assistantPopout = !assistantPopout;
+        applyAssistantLayout();
+        saveAssistantState();
+      }
+
+      function toggleAssistantSize() {
+        assistantSize = assistantSize === 'large' ? 'default' : 'large';
+        applyAssistantLayout();
+        saveAssistantState();
+      }
+
+      function getPanelLabel(panelId) {
+        const map = {
+          chatPanel: 'Chat',
+          inspectorPanel: 'Inspector',
+          historyPanel: 'History',
+          scenariosPanel: 'Scenarios',
+          workflowsPanel: 'Workflows',
+          generatorPanel: 'Generator',
+          collectionsPanel: 'Collections',
+          monitorsPanel: 'Monitors',
+          toolexplorerPanel: 'Tool Explorer',
+          mocksPanel: 'Mocks',
+          scriptsPanel: 'Scripts',
+          docsPanel: 'Docs',
+          contractsPanel: 'Contracts',
+          performancePanel: 'Performance',
+          debuggerPanel: 'Debugger',
+          brainPanel: 'Brain'
+        };
+        return map[panelId] || panelId || 'Unknown';
+      }
+
+      function getWorkspacePanelLabel(type) {
+        const fallback = {
+          chat: 'Chat',
+          inspector: 'Inspector',
+          workflows: 'Workflows',
+          scenarios: 'Scenarios',
+          collections: 'Collections',
+          history: 'History',
+          toolexplorer: 'Tool Explorer',
+          performance: 'Performance',
+          debugger: 'Debugger',
+          brain: 'Brain'
+        };
+        if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panelDefs?.[type]?.title) {
+          return floatingWorkspace.panelDefs[type].title;
+        }
+        return fallback[type] || type;
+      }
+
+      function getAssistantContext() {
+        const isWorkspace = document.body.classList.contains('workspace-mode');
+        const layout = isWorkspace ? 'Workspace' : 'Classic';
+
+        let activePanel = 'Unknown';
+        let openPanels = [];
+
+        if (isWorkspace && typeof floatingWorkspace !== 'undefined') {
+          const activeEl = document.querySelector('.floating-panel.active');
+          const activePanelId = activeEl?.id;
+          const activePanelMeta = floatingWorkspace.panels?.find(p => p.id === activePanelId);
+          activePanel = activePanelMeta ? getWorkspacePanelLabel(activePanelMeta.type) : 'Workspace';
+          openPanels = (floatingWorkspace.panels || []).map(p => getWorkspacePanelLabel(p.type));
+        } else {
+          const activeClassic = document.querySelector('.content-panel.active')?.id
+            || localStorage.getItem('activeClassicPanel');
+          activePanel = getPanelLabel(activeClassic);
+        }
+
+        const serverCount = document.getElementById('serverCount')?.textContent?.trim() || '0';
+        const inspectorServer = document.getElementById('inspectorServerSelect')?.value || '';
+        const inspectorTool = document.getElementById('inspectorToolSelect')?.value || '';
+
+        return {
+          layout,
+          activePanel,
+          openPanels: Array.from(new Set(openPanels)).slice(0, 6),
+          inspector: {
+            server: inspectorServer || null,
+            tool: inspectorTool || null
+          },
+          connectedServers: serverCount
+        };
+      }
+
+      function buildAssistantContextMessage() {
+        const ctx = getAssistantContext();
+        const panels = ctx.openPanels.length ? ctx.openPanels.join(', ') : 'N/A';
+        return [
+          `Layout: ${ctx.layout}`,
+          `Active panel: ${ctx.activePanel}`,
+          `Open panels: ${panels}`,
+          `Connected servers: ${ctx.connectedServers}`,
+          ctx.inspector.server ? `Inspector server: ${ctx.inspector.server}` : null,
+          ctx.inspector.tool ? `Inspector tool: ${ctx.inspector.tool}` : null
+        ].filter(Boolean).join('\n');
+      }
+
+      function updateAssistantContextLabel() {
+        const label = document.getElementById('assistantContextLabel');
+        if (!label) return;
+        const ctx = getAssistantContext();
+        const suffix = ctx.activePanel ? `· ${ctx.activePanel}` : '';
+        label.textContent = `Context: ${ctx.layout} ${suffix}`;
+      }
+
+      function renderAssistantMessages() {
+        const list = document.getElementById('assistantMessages');
+        if (!list) return;
+        if (!assistantMessages.length) {
+          list.innerHTML = '<div class="assistant-message assistant">Ask me anything about MCP Chat Studio.</div>';
+          return;
+        }
+        list.innerHTML = assistantMessages.map(msg => `
+          <div class="assistant-message ${msg.role}">${escapeHtml(msg.content)}</div>
+        `).join('');
+        list.scrollTop = list.scrollHeight;
+      }
+
+      function toggleAssistant(forceOpen) {
+        const panel = document.getElementById('assistantPanel');
+        if (!panel) return;
+        assistantOpen = typeof forceOpen === 'boolean' ? forceOpen : !assistantOpen;
+        panel.classList.toggle('open', assistantOpen);
+        if (assistantOpen) {
+          updateAssistantContextLabel();
+          renderAssistantMessages();
+          document.getElementById('assistantInput')?.focus();
+        }
+        saveAssistantState();
+      }
+
+      function clearAssistantChat() {
+        assistantMessages = [];
+        assistantLastFAQ = null;
+        renderAssistantMessages();
+        saveAssistantState();
+      }
+
+      function findAssistantFAQ(message) {
+        const text = message.toLowerCase();
+        let best = null;
+        let bestScore = 0;
+        assistantFAQ.forEach(entry => {
+          const score = entry.keywords.reduce((sum, keyword) => (
+            text.includes(keyword) ? sum + 1 : sum
+          ), 0);
+          if (score > bestScore) {
+            bestScore = score;
+            best = entry;
+          }
+        });
+        if (best && bestScore >= 2) return best;
+        if (best && bestScore === 1 && text.split(' ').length <= 6) return best;
+        return null;
+      }
+
+      async function sendAssistantMessage() {
+        const input = document.getElementById('assistantInput');
+        const sendBtn = document.getElementById('assistantSendBtn');
+        if (!input || !sendBtn) return;
+        const content = input.value.trim();
+        if (!content) return;
+
+        assistantMessages.push({ role: 'user', content });
+        input.value = '';
+        renderAssistantMessages();
+        updateAssistantContextLabel();
+
+        if (await tryAssistantAction(content)) {
+          saveAssistantState();
+          return;
+        }
+
+        const lower = content.toLowerCase();
+        if (assistantLastFAQ && (lower === 'details' || lower === 'more')) {
+          const followUp = assistantLastFAQ.question;
+          const faqAnswer = assistantLastFAQ.answer;
+          assistantLastFAQ = null;
+          await callAssistantLLM({
+            question: followUp,
+            faqAnswer
+          }, sendBtn);
+          return;
+        }
+
+        const faqHit = findAssistantFAQ(content);
+        if (faqHit) {
+          assistantLastFAQ = { question: content, answer: faqHit.answer };
+          assistantMessages.push({
+            role: 'assistant',
+            content: `${faqHit.answer}\n\nNeed more detail? Reply **details** to ask the LLM.`
+          });
+          renderAssistantMessages();
+          saveAssistantState();
+          return;
+        }
+
+        await callAssistantLLM({ question: content }, sendBtn);
+      }
+
+      async function callAssistantLLM({ question, faqAnswer }, sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '...';
+
+        const contextMessage = buildAssistantContextMessage();
+        const history = assistantMessages.slice(-12);
+        const payload = [
+          { role: 'system', content: assistantPrompt },
+          { role: 'system', content: `Context:\n${contextMessage}` },
+          ...history
+        ];
+        if (faqAnswer) {
+          payload.splice(2, 0, { role: 'system', content: `FAQ context: ${faqAnswer}` });
+        }
+
+        try {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              messages: payload,
+              useTools: false,
+              stream: false
+            })
+          });
+          const data = await response.json();
+          const reply = data.choices?.[0]?.message?.content || 'No response generated.';
+          assistantMessages.push({ role: 'assistant', content: reply });
+        } catch (error) {
+          assistantMessages.push({ role: 'assistant', content: `Error: ${error.message}` });
+        } finally {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send';
+          renderAssistantMessages();
+          saveAssistantState();
+        }
+      }
+
+      async function showAssistantCommands() {
+        const actions = [
+          'Open <panel> (e.g., "open inspector", "open collections")',
+          'Switch to workspace / classic',
+          'Build workspace <preset|panels> (e.g., "build workspace debug", "build workspace with chat, inspector, workflows")',
+          'Add panel <name> / Close panel <name>',
+          'Arrange workspace / Fit all',
+          'Resize panel <name> 600x500',
+          'Save workspace session <name>',
+          'Load workspace session <name>',
+          'Delete workspace session <name>',
+          'Export workspace / Import workspace',
+          'Toggle minimap / Toggle grid',
+          'Zoom in / Zoom out / Reset zoom',
+          'Run scenario <name>',
+          'Run collection <name>',
+          'Run matrix (from last Inspector request)',
+          'Start recording / Stop recording',
+          'Open add server',
+          'Clear history'
+        ];
+
+        await appAlert(actions.map(item => `• ${item}`).join('\n'), {
+          title: 'Assistant Commands'
+        });
+      }
+
+      function openPanelByName(panelKey) {
+        const map = {
+          chat: 'chatPanel',
+          inspector: 'inspectorPanel',
+          history: 'historyPanel',
+          scenarios: 'scenariosPanel',
+          workflows: 'workflowsPanel',
+          generator: 'generatorPanel',
+          collections: 'collectionsPanel',
+          monitors: 'monitorsPanel',
+          toolexplorer: 'toolexplorerPanel',
+          mocks: 'mocksPanel',
+          scripts: 'scriptsPanel',
+          docs: 'docsPanel',
+          contracts: 'contractsPanel',
+          performance: 'performancePanel',
+          debugger: 'debuggerPanel',
+          brain: 'brainPanel'
+        };
+        if (document.body.classList.contains('workspace-mode')) {
+          if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.focusPanelByType === 'function') {
+            floatingWorkspace.focusPanelByType(panelKey);
+            return true;
+          }
+        }
+        const panelId = map[panelKey];
+        if (panelId && typeof switchClassicPanel === 'function') {
+          switchClassicPanel(panelId);
+          return true;
+        }
+        return false;
+      }
+
+      function openWorkspacePanel(panelKey) {
+        if (typeof floatingWorkspace === 'undefined') return false;
+        if (!document.body.classList.contains('workspace-mode')) {
+          setLayoutMode('workspace');
+        }
+        floatingWorkspace.togglePanel(panelKey);
+        return true;
+      }
+
+      function closeWorkspacePanel(panelKey) {
+        if (typeof floatingWorkspace === 'undefined') return false;
+        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
+        if (!panel) return false;
+        floatingWorkspace.closePanel(panel.id);
+        return true;
+      }
+
+      function resizeWorkspacePanel(panelKey, width, height) {
+        if (typeof floatingWorkspace === 'undefined') return false;
+        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
+        if (!panel) return false;
+        panel.width = width;
+        panel.height = height;
+        const el = document.getElementById(panel.id);
+        if (el) {
+          el.style.width = `${width}px`;
+          el.style.height = `${height}px`;
+        }
+        floatingWorkspace.updateConnections();
+        floatingWorkspace.updateMiniMap();
+        floatingWorkspace.saveLayout();
+        return true;
+      }
+
+      function minimizeWorkspacePanel(panelKey, shouldMinimize) {
+        if (typeof floatingWorkspace === 'undefined') return false;
+        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
+        if (!panel) return false;
+        if (panel.minimized === shouldMinimize) return true;
+        floatingWorkspace.toggleMinimize(panel.id);
+        return true;
+      }
+
+      function arrangeWorkspacePanels() {
+        if (typeof floatingWorkspace === 'undefined') return false;
+        const panels = floatingWorkspace.panels || [];
+        if (!panels.length) return false;
+        const cols = 3;
+        const gapX = 420;
+        const gapY = 320;
+        const startX = 80;
+        const startY = 80;
+        panels.forEach((panel, idx) => {
+          panel.x = startX + (idx % cols) * gapX;
+          panel.y = startY + Math.floor(idx / cols) * gapY;
+          const el = document.getElementById(panel.id);
+          if (el) {
+            el.style.left = `${panel.x}px`;
+            el.style.top = `${panel.y}px`;
+          }
+        });
+        floatingWorkspace.updateConnections();
+        floatingWorkspace.updateMiniMap();
+        floatingWorkspace.saveLayout();
+        return true;
+      }
+
+      async function tryAssistantAction(message) {
+        const text = message.toLowerCase();
+        const hasVerb = (verbs) => verbs.some(v => text.includes(v));
+        const extractName = (phrases) => {
+          for (const phrase of phrases) {
+            const idx = text.indexOf(phrase);
+            if (idx >= 0) {
+              const raw = message.slice(idx + phrase.length).trim();
+              return raw.replace(/^["']|["']$/g, '').trim();
+            }
+          }
+          return '';
+        };
+        const matchByName = (items, name) => {
+          const lowered = name.toLowerCase();
+          return items.filter(item => item.name?.toLowerCase().includes(lowered));
+        };
+
+        const openVerbs = ['open', 'show', 'go to', 'switch to', 'take me to'];
+        const runVerbs = ['run', 'execute', 'start'];
+        const toggleVerbs = ['toggle', 'switch'];
+
+        const panelKeywords = {
+          chat: ['chat'],
+          inspector: ['inspector', 'tool runner', 'tools'],
+          history: ['history', 'log'],
+          scenarios: ['scenario', 'recording'],
+          workflows: ['workflow', 'flows'],
+          collections: ['collection'],
+          monitors: ['monitor', 'health'],
+          toolexplorer: ['tool explorer', 'analytics', 'leaderboard'],
+          mocks: ['mock'],
+          scripts: ['script'],
+          docs: ['docs', 'documentation'],
+          contracts: ['contract'],
+          performance: ['performance', 'latency'],
+          debugger: ['debugger'],
+          brain: ['brain', 'timeline']
+        };
+
+        const panelKeyFromText = Object.keys(panelKeywords)
+          .find(key => panelKeywords[key].some(keyword => text.includes(keyword)));
+
+        if (hasVerb(openVerbs)) {
+          if (panelKeyFromText) {
+            openPanelByName(panelKeyFromText);
+            assistantMessages.push({ role: 'assistant', content: `✅ Opened ${panelKeywords[panelKeyFromText][0].replace(/^\w/, c => c.toUpperCase())}.` });
+            return true;
+          }
+        }
+
+        if (hasVerb(openVerbs) && (text.includes('add server') || text.includes('server modal'))) {
+          showAddServerModal();
+          assistantMessages.push({ role: 'assistant', content: '✅ Opened Add MCP Server.' });
+          return true;
+        }
+
+        if (hasVerb(toggleVerbs) && text.includes('workspace')) {
+          setLayoutMode('workspace');
+          assistantMessages.push({ role: 'assistant', content: '✅ Switched to Workspace mode.' });
+          return true;
+        }
+        if (hasVerb(toggleVerbs) && text.includes('classic')) {
+          setLayoutMode('classic');
+          assistantMessages.push({ role: 'assistant', content: '✅ Switched to Classic mode.' });
+          return true;
+        }
+
+        if (text.includes('build workspace') || text.includes('new workspace') || text.includes('reset workspace')) {
+          if (!document.body.classList.contains('workspace-mode')) {
+            setLayoutMode('workspace');
+          }
+          const presets = ['debug', 'testing', 'development', 'analytics'];
+          const preset = presets.find(name => text.includes(name));
+          const requestedPanels = Object.keys(panelKeywords).filter(key =>
+            panelKeywords[key].some(keyword => text.includes(keyword))
+          );
+
+          const confirmed = await appConfirm('This will replace your current workspace layout. Continue?', {
+            title: 'Build Workspace',
+            confirmText: 'Build'
+          });
+          if (!confirmed) {
+            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Workspace not changed.' });
+            return true;
+          }
+
+          if (preset && typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.loadPreset(preset);
+            assistantMessages.push({ role: 'assistant', content: `✅ Loaded workspace preset "${preset}".` });
+            return true;
+          }
+
+          if (requestedPanels.length > 0 && typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.closeAllPanels({ skipSave: true });
+            requestedPanels.forEach((type, index) => {
+              floatingWorkspace.addPanel(type, 100 + (index % 3) * 400, 80 + Math.floor(index / 3) * 300, {
+                skipSave: true,
+                skipConnections: true,
+                skipMiniMap: true
+              });
+            });
+            floatingWorkspace.updateConnections();
+            floatingWorkspace.updateMiniMap();
+            floatingWorkspace.saveLayout();
+            assistantMessages.push({ role: 'assistant', content: `✅ Built workspace with ${requestedPanels.join(', ')}.` });
+            return true;
+          }
+
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.loadPreset('development');
+            assistantMessages.push({ role: 'assistant', content: '✅ Loaded workspace preset "development".' });
+            return true;
+          }
+        }
+
+        if (text.includes('show presets') || text.includes('workspace presets')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.showPresetsModal();
+            assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace presets.' });
+            return true;
+          }
+        }
+
+        if (text.includes('command palette')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.showCommandPalette();
+            assistantMessages.push({ role: 'assistant', content: '✅ Opened command palette.' });
+            return true;
+          }
+        }
+
+        if (text.includes('fit all')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            const confirmed = await appConfirm('Fit all panels into view?', {
+              title: 'Fit All Panels',
+              confirmText: 'Fit'
+            });
+            if (!confirmed) {
+              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Fit all skipped.' });
+              return true;
+            }
+            floatingWorkspace.fitAll();
+            assistantMessages.push({ role: 'assistant', content: '✅ Fit all panels.' });
+            return true;
+          }
+        }
+
+        if (text.includes('arrange') || text.includes('tidy')) {
+          if (arrangeWorkspacePanels()) {
+            const confirmed = await appConfirm('Auto-arrange all workspace panels?', {
+              title: 'Arrange Workspace',
+              confirmText: 'Arrange'
+            });
+            if (!confirmed) {
+              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Layout unchanged.' });
+              return true;
+            }
+            arrangeWorkspacePanels();
+            assistantMessages.push({ role: 'assistant', content: '✅ Arranged workspace panels.' });
+            return true;
+          }
+        }
+
+        if (text.includes('toggle minimap') || text.includes('minimap')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.toggleMiniMap();
+            assistantMessages.push({ role: 'assistant', content: '✅ Toggled minimap.' });
+            return true;
+          }
+        }
+
+        if (text.includes('toggle grid') || text.includes('grid snap')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.snapToGrid = !floatingWorkspace.snapToGrid;
+            assistantMessages.push({ role: 'assistant', content: `✅ Grid snap ${floatingWorkspace.snapToGrid ? 'enabled' : 'disabled'}.` });
+            return true;
+          }
+        }
+
+        if (text.includes('zoom in')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.zoomIn();
+            assistantMessages.push({ role: 'assistant', content: '✅ Zoomed in.' });
+            return true;
+          }
+        }
+
+        if (text.includes('zoom out')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.zoomOut();
+            assistantMessages.push({ role: 'assistant', content: '✅ Zoomed out.' });
+            return true;
+          }
+        }
+
+        if (text.includes('reset zoom')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.resetZoom();
+            assistantMessages.push({ role: 'assistant', content: '✅ Reset zoom.' });
+            return true;
+          }
+        }
+
+        if (text.includes('add panel') && panelKeyFromText) {
+          if (openWorkspacePanel(panelKeyFromText)) {
+            assistantMessages.push({ role: 'assistant', content: `✅ Added ${panelKeywords[panelKeyFromText][0]} panel.` });
+            return true;
+          }
+        }
+
+        if ((text.includes('close panel') || text.includes('remove panel')) && panelKeyFromText) {
+          if (closeWorkspacePanel(panelKeyFromText)) {
+            assistantMessages.push({ role: 'assistant', content: `✅ Closed ${panelKeywords[panelKeyFromText][0]} panel.` });
+            return true;
+          }
+        }
+
+        if (text.includes('resize') && panelKeyFromText) {
+          const sizeMatch = text.match(/(\d{2,4})\s*[x×]\s*(\d{2,4})/);
+          if (!sizeMatch) {
+            assistantMessages.push({ role: 'assistant', content: 'Please provide a size, e.g., "resize inspector 600x500".' });
+            return true;
+          }
+          const width = parseInt(sizeMatch[1], 10);
+          const height = parseInt(sizeMatch[2], 10);
+          const confirmed = await appConfirm(`Resize ${panelKeywords[panelKeyFromText][0]} to ${width}x${height}?`, {
+            title: 'Resize Panel',
+            confirmText: 'Resize'
+          });
+          if (!confirmed) {
+            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Panel not resized.' });
+            return true;
+          }
+          if (resizeWorkspacePanel(panelKeyFromText, width, height)) {
+            assistantMessages.push({ role: 'assistant', content: `✅ Resized ${panelKeywords[panelKeyFromText][0]} to ${width}x${height}.` });
+            return true;
+          }
+        }
+
+        if ((text.includes('minimize') || text.includes('collapse')) && panelKeyFromText) {
+          if (minimizeWorkspacePanel(panelKeyFromText, true)) {
+            assistantMessages.push({ role: 'assistant', content: `✅ Minimized ${panelKeywords[panelKeyFromText][0]} panel.` });
+            return true;
+          }
+        }
+
+        if ((text.includes('maximize') || text.includes('restore')) && panelKeyFromText) {
+          if (minimizeWorkspacePanel(panelKeyFromText, false)) {
+            assistantMessages.push({ role: 'assistant', content: `✅ Restored ${panelKeywords[panelKeyFromText][0]} panel.` });
+            return true;
+          }
+        }
+
+        if (text.includes('save workspace') || text.includes('save session')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            const name = extractName(['save workspace', 'save session']) || await appPrompt('Session name:', {
+              title: 'Save Workspace Session',
+              label: 'Session name',
+              required: true
+            });
+            if (!name) return true;
+            floatingWorkspace.saveWorkspaceSession(name);
+            assistantMessages.push({ role: 'assistant', content: `✅ Saved workspace session "${name}".` });
+            return true;
+          }
+        }
+
+        if (text.includes('load session') || text.includes('load workspace')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            const name = extractName(['load session', 'load workspace']);
+            const sessions = floatingWorkspace.getWorkspaceSessions() || [];
+            if (!sessions.length) {
+              assistantMessages.push({ role: 'assistant', content: 'No saved workspace sessions found.' });
+              return true;
+            }
+            if (!name) {
+              floatingWorkspace.showSessionsModal();
+              assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace sessions.' });
+              return true;
+            }
+            const matches = matchByName(sessions, name);
+            if (matches.length !== 1) {
+              assistantMessages.push({ role: 'assistant', content: matches.length ? `Multiple sessions match: ${matches.map(m => `"${m.name}"`).join(', ')}` : `No session named "${name}".` });
+              return true;
+            }
+            floatingWorkspace.loadWorkspaceSession(matches[0].id);
+            assistantMessages.push({ role: 'assistant', content: `✅ Loaded workspace session "${matches[0].name}".` });
+            return true;
+          }
+        }
+
+        if (text.includes('delete session') || text.includes('remove session')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            const name = extractName(['delete session', 'remove session']);
+            const sessions = floatingWorkspace.getWorkspaceSessions() || [];
+            if (!sessions.length) {
+              assistantMessages.push({ role: 'assistant', content: 'No saved workspace sessions found.' });
+              return true;
+            }
+            if (!name) {
+              floatingWorkspace.showSessionsModal();
+              assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace sessions.' });
+              return true;
+            }
+            const matches = matchByName(sessions, name);
+            if (matches.length !== 1) {
+              assistantMessages.push({ role: 'assistant', content: matches.length ? `Multiple sessions match: ${matches.map(m => `"${m.name}"`).join(', ')}` : `No session named "${name}".` });
+              return true;
+            }
+            const confirmed = await appConfirm(`Delete workspace session "${matches[0].name}"?`, {
+              title: 'Delete Workspace Session',
+              confirmText: 'Delete',
+              confirmVariant: 'danger'
+            });
+            if (!confirmed) {
+              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Session not deleted.' });
+              return true;
+            }
+            floatingWorkspace.deleteWorkspaceSession(matches[0].id);
+            assistantMessages.push({ role: 'assistant', content: `✅ Deleted workspace session "${matches[0].name}".` });
+            return true;
+          }
+        }
+
+        if (text.includes('export workspace')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.exportWorkspace();
+            assistantMessages.push({ role: 'assistant', content: '✅ Exported workspace bundle.' });
+            return true;
+          }
+        }
+
+        if (text.includes('import workspace')) {
+          if (typeof floatingWorkspace !== 'undefined') {
+            floatingWorkspace.importWorkspace();
+            assistantMessages.push({ role: 'assistant', content: '✅ Choose a workspace bundle to import.' });
+            return true;
+          }
+        }
+
+        if (hasVerb(runVerbs) && (text.includes('matrix') || text.includes('cross-server'))) {
+          if (typeof runInspectorMatrix === 'function') {
+            await runInspectorMatrix();
+            assistantMessages.push({ role: 'assistant', content: '✅ Running cross‑server matrix from the last Inspector request.' });
+            return true;
+          }
+        }
+
+        if (hasVerb(runVerbs) && text.includes('scenario')) {
+          const scenarioName = extractName(['run scenario', 'replay scenario', 'run the scenario']);
+          const scenarios = sessionManager.getScenarios();
+          if (!scenarios.length) {
+            assistantMessages.push({ role: 'assistant', content: 'No scenarios saved yet. Record one from Inspector → Scenarios.' });
+            return true;
+          }
+          let target = scenarios[0];
+          if (scenarioName) {
+            const matches = matchByName(scenarios, scenarioName);
+            if (matches.length === 1) {
+              target = matches[0];
+            } else if (matches.length > 1) {
+              assistantMessages.push({
+                role: 'assistant',
+                content: `I found multiple scenarios: ${matches.map(m => `"${m.name}"`).join(', ')}. Please tell me the exact name.`
+              });
+              return true;
+            } else {
+              assistantMessages.push({ role: 'assistant', content: `I couldn't find a scenario named "${scenarioName}". Try another name.` });
+              return true;
+            }
+          }
+          openPanelByName('scenarios');
+          const confirmed = await appConfirm(`Run scenario "${target.name}" now?`, {
+            title: 'Run Scenario',
+            confirmText: 'Run'
+          });
+          if (!confirmed) {
+            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Scenario not run.' });
+            return true;
+          }
+          await replayScenario(target.id);
+          assistantMessages.push({ role: 'assistant', content: `✅ Running scenario "${target.name}".` });
+          return true;
+        }
+
+        if (hasVerb(runVerbs) && text.includes('collection')) {
+          const collectionName = extractName(['run collection', 'run the collection']);
+          let collections = [];
+          try {
+            const res = await fetch('/api/collections');
+            const data = await res.json();
+            collections = data.collections || [];
+          } catch (error) {
+            assistantMessages.push({ role: 'assistant', content: `Could not load collections: ${error.message}` });
+            return true;
+          }
+          if (!collections.length) {
+            assistantMessages.push({ role: 'assistant', content: 'No collections found. Create one in the Collections tab.' });
+            return true;
+          }
+          let target = collections[0];
+          if (collectionName) {
+            const matches = matchByName(collections, collectionName);
+            if (matches.length === 1) {
+              target = matches[0];
+            } else if (matches.length > 1) {
+              assistantMessages.push({
+                role: 'assistant',
+                content: `I found multiple collections: ${matches.map(m => `"${m.name}"`).join(', ')}. Please tell me the exact name.`
+              });
+              return true;
+            } else {
+              assistantMessages.push({ role: 'assistant', content: `I couldn't find a collection named "${collectionName}". Try another name.` });
+              return true;
+            }
+          }
+          openPanelByName('collections');
+          if (typeof runCollection === 'function') {
+            const confirmed = await appConfirm(`Run collection "${target.name}" now?`, {
+              title: 'Run Collection',
+              confirmText: 'Run'
+            });
+            if (!confirmed) {
+              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Collection not run.' });
+              return true;
+            }
+            await runCollection(target.id);
+            assistantMessages.push({ role: 'assistant', content: `✅ Running collection "${target.name}".` });
+          } else {
+            assistantMessages.push({ role: 'assistant', content: 'Collection runner is not available in this view.' });
+          }
+          return true;
+        }
+
+        if (hasVerb(openVerbs) && (text.includes('settings') || text.includes('llm'))) {
+          showSettingsModal();
+          assistantMessages.push({ role: 'assistant', content: '✅ Opened LLM Settings.' });
+          return true;
+        }
+
+        if (text.includes('start recording')) {
+          if (!isRecording) toggleRecording();
+          assistantMessages.push({ role: 'assistant', content: '✅ Recording started. Execute tools in Inspector.' });
+          return true;
+        }
+        if (text.includes('stop recording')) {
+          if (isRecording) toggleRecording();
+          assistantMessages.push({ role: 'assistant', content: '✅ Recording stopped.' });
+          return true;
+        }
+
+        if (text.includes('clear history')) {
+          const cleared = await clearToolHistory();
+          assistantMessages.push({
+            role: 'assistant',
+            content: cleared ? '✅ History cleared.' : 'Cancelled. History not cleared.'
+          });
+          return true;
+        }
+
+        return false;
+      }
+
+      function initStudioAssistant() {
+        const toggleBtn = document.getElementById('assistantToggle');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => toggleAssistant());
+        }
+        const input = document.getElementById('assistantInput');
+        if (input) {
+          input.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendAssistantMessage();
+            }
+          });
+        }
+        const saved = loadAssistantState();
+        assistantOpen = saved?.open || false;
+        assistantMessages = saved?.messages || [];
+        assistantDock = saved?.dock || 'right';
+        assistantPopout = saved?.popout || false;
+        assistantPopoutPos = saved?.popoutPos || { x: null, y: null };
+        assistantSize = saved?.size || 'default';
+        if (assistantOpen) {
+          document.getElementById('assistantPanel')?.classList.add('open');
+        }
+        renderAssistantMessages();
+        updateAssistantContextLabel();
+        applyAssistantLayout();
+        setInterval(updateAssistantContextLabel, 4000);
+
+        const header = document.querySelector('#assistantPanel .assistant-header');
+        if (header) {
+          header.addEventListener('mousedown', event => {
+            if (!assistantPopout) return;
+            const panel = document.getElementById('assistantPanel');
+            if (!panel) return;
+            const rect = panel.getBoundingClientRect();
+            assistantDragState = {
+              offsetX: event.clientX - rect.left,
+              offsetY: event.clientY - rect.top
+            };
+            event.preventDefault();
+          });
+        }
+
+        document.addEventListener('mousemove', event => {
+          if (!assistantDragState || !assistantPopout) return;
+          const panel = document.getElementById('assistantPanel');
+          if (!panel) return;
+          const width = panel.offsetWidth || 320;
+          const height = panel.offsetHeight || 320;
+          const maxX = Math.max(8, window.innerWidth - width - 8);
+          const maxY = Math.max(8, window.innerHeight - height - 8);
+          const x = Math.min(maxX, Math.max(8, event.clientX - assistantDragState.offsetX));
+          const y = Math.min(maxY, Math.max(8, event.clientY - assistantDragState.offsetY));
+          assistantPopoutPos = { x, y };
+          panel.style.left = `${x}px`;
+          panel.style.top = `${y}px`;
+          panel.style.bottom = 'auto';
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (!assistantDragState) return;
+          assistantDragState = null;
+          saveAssistantState();
+        });
+      }
+
       async function saveSettings(event) {
         event.preventDefault();
 
@@ -3475,6 +4530,7 @@
       let inspectorToolsCache = [];
       let selectedInspectorTool = null;
       let lastInspectorResponse = null;
+      let lastInspectorRequest = null;
 
       // Switch between tabs
       function switchTab(tabName) {
@@ -3482,6 +4538,26 @@
           if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.togglePanel === 'function') {
             floatingWorkspace.togglePanel(tabName);
           }
+          return;
+        }
+        const panelMap = {
+          chat: 'chatPanel',
+          inspector: 'inspectorPanel',
+          history: 'historyPanel',
+          scenarios: 'scenariosPanel',
+          workflows: 'workflowsPanel',
+          generator: 'generatorPanel',
+          collections: 'collectionsPanel',
+          monitors: 'monitorsPanel',
+          toolexplorer: 'toolexplorerPanel',
+          mocks: 'mocksPanel',
+          scripts: 'scriptsPanel',
+          docs: 'docsPanel',
+          contracts: 'contractsPanel'
+        };
+        const targetPanel = panelMap[tabName];
+        if (targetPanel && typeof switchClassicPanel === 'function') {
+          switchClassicPanel(targetPanel);
           return;
         }
         setWorkflowsActive(tabName === 'workflows');
@@ -3644,6 +4720,20 @@
         if (tabName !== 'workflowsPanel' && tabName !== 'workflows') {
           closeAIBuilderIfOpen();
         }
+      }
+
+      function openInspectorPanel() {
+        if (document.body.classList.contains('workspace-mode')) {
+          if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.focusPanelByType === 'function') {
+            floatingWorkspace.focusPanelByType('inspector');
+            return;
+          }
+          if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.togglePanel === 'function') {
+            floatingWorkspace.togglePanel('inspector');
+            return;
+          }
+        }
+        switchTab('inspector');
       }
 
       // ==========================================
@@ -4502,6 +5592,12 @@
 
         args = applyTemplateVariables(args, variables);
 
+        lastInspectorRequest = {
+          serverName,
+          toolName: selectedInspectorTool.name,
+          args
+        };
+
         // Execute
         executeBtn.disabled = true;
         executeBtn.textContent = '⏳ Executing...';
@@ -4536,7 +5632,7 @@
           );
 
           // Log to tool execution history
-          sessionManager.logToolExecution({
+          updateToolHistory({
             timestamp: new Date().toISOString(),
             server: serverName,
             tool: selectedInspectorTool.name,
@@ -4545,7 +5641,6 @@
             duration,
             success: !data.error && data.result?.isError !== true,
           });
-          toolExecutionHistory = sessionManager.getToolHistory();
           refreshBrainView();
 
           // Record step for scenarios (if recording is active)
@@ -4578,7 +5673,7 @@
           const duration = Math.round(performance.now() - startTime);
 
           // Log failed execution to history
-          sessionManager.logToolExecution({
+          updateToolHistory({
             timestamp: new Date().toISOString(),
             server: serverName,
             tool: selectedInspectorTool.name,
@@ -4587,7 +5682,6 @@
             duration,
             success: false,
           });
-          toolExecutionHistory = sessionManager.getToolHistory();
           refreshBrainView();
 
           // Record step for scenarios (if recording is active)
@@ -4610,6 +5704,42 @@
           executeBtn.disabled = false;
           executeBtn.textContent = '▶️ Execute';
         }
+      }
+
+      async function runInspectorMatrix() {
+        if (!lastInspectorRequest) {
+          appendMessage('error', 'Run a tool in Inspector first.');
+          return;
+        }
+
+        openInspectorPanel();
+        switchInspectorTab('diff');
+        await loadCrossServerOptions();
+
+        const toolSelect = document.getElementById('crossToolSelect');
+        const baselineSelect = document.getElementById('crossBaselineServerSelect');
+        const argsEl = document.getElementById('crossArgs');
+
+        ensureToolOption(toolSelect, lastInspectorRequest.toolName, 'from Inspector');
+
+        if (baselineSelect && lastInspectorRequest.serverName) {
+          const hasBaseline = Array.from(baselineSelect.options || [])
+            .some(option => option.value === lastInspectorRequest.serverName);
+          if (hasBaseline) {
+            baselineSelect.value = lastInspectorRequest.serverName;
+          }
+        }
+
+        if (argsEl) {
+          argsEl.value = JSON.stringify(lastInspectorRequest.args || {}, null, 2);
+        }
+
+        if (!toolSelect || !toolSelect.value) {
+          showNotification('This tool is not available on connected servers.', 'error');
+          return;
+        }
+
+        await runCrossServerCompare();
       }
 
       // Copy inspector response to clipboard
@@ -5900,7 +7030,7 @@
 
       // Refresh history panel with current data
       function refreshHistoryPanel() {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         const statsEl = document.getElementById('toolHistoryStats');
         const listEl = document.getElementById('toolHistoryList');
 
@@ -5950,6 +7080,7 @@
                   <button class="btn" onclick="event.stopPropagation(); copyHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">📋 Copy</button>
                   <button class="btn" onclick="event.stopPropagation(); replayHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔄 Replay in Inspector</button>
                   <button class="btn" onclick="event.stopPropagation(); rerunHistoryEntryDiff(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔁 Re-run + Diff</button>
+                  <button class="btn" onclick="event.stopPropagation(); runHistoryEntryMatrix(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🌐 Matrix</button>
                 </div>
               </div>
             </div>
@@ -5967,7 +7098,7 @@
 
       // Copy history entry to clipboard
       function copyHistoryEntry(idx) {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         const entry = history[idx];
         if (entry) {
           navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
@@ -5975,13 +7106,46 @@
         }
       }
 
+      async function runHistoryEntryMatrix(idx) {
+        const history = getHistoryEntries();
+        const entry = history[idx];
+        if (!entry) return;
+
+        openInspectorPanel();
+        switchInspectorTab('diff');
+        await loadCrossServerOptions();
+
+        const toolSelect = document.getElementById('crossToolSelect');
+        const baselineSelect = document.getElementById('crossBaselineServerSelect');
+        const argsEl = document.getElementById('crossArgs');
+
+        ensureToolOption(toolSelect, entry.tool, 'from History');
+        if (baselineSelect && entry.server) {
+          const hasBaseline = Array.from(baselineSelect.options || [])
+            .some(option => option.value === entry.server);
+          if (hasBaseline) {
+            baselineSelect.value = entry.server;
+          }
+        }
+        if (argsEl) {
+          argsEl.value = JSON.stringify(entry.request || {}, null, 2);
+        }
+
+        if (!toolSelect || !toolSelect.value) {
+          showNotification('This tool is not available on connected servers.', 'error');
+          return;
+        }
+
+        await runCrossServerCompare();
+      }
+
       // Replay history entry in Inspector
       function replayHistoryEntry(idx) {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         const entry = history[idx];
         if (entry) {
           // Switch to Inspector and pre-fill
-          switchTab('inspector');
+          openInspectorPanel();
 
           // Set server and load tools
           const serverSelect = document.getElementById('inspectorServerSelect');
@@ -6001,7 +7165,7 @@
       }
 
       async function rerunHistoryEntryDiff(idx) {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         const entry = history[idx];
         if (!entry) {
           showNotification('History entry not found.', 'error');
@@ -6029,7 +7193,7 @@
           const duration = Math.round(performance.now() - startTime);
           const result = data.error || data.result;
 
-          sessionManager.logToolExecution({
+          updateToolHistory({
             timestamp: new Date().toISOString(),
             server: entry.server,
             tool: entry.tool,
@@ -6039,7 +7203,6 @@
             success: !data.error && data.result?.isError !== true,
             meta: { source: 'history-diff', baseline: entry.timestamp }
           });
-          toolExecutionHistory = sessionManager.getToolHistory();
           refreshHistoryPanel();
 
           showDiff(entry.response ?? {}, result ?? {});
@@ -6051,7 +7214,7 @@
 
       // Export tool history as JSON file
       function exportToolHistory() {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         if (history.length === 0) {
           appendMessage('error', 'No history to export');
           return;
@@ -6075,13 +7238,14 @@
           confirmText: 'Clear',
           confirmVariant: 'danger'
         });
-        if (!confirmed) return;
+        if (!confirmed) return false;
         const session = sessionManager.load() || {};
         session.toolHistory = [];
         sessionManager.save(session);
         toolExecutionHistory = [];
         refreshHistoryPanel();
         appendMessage('system', '🗑️ Tool history cleared');
+        return true;
       }
 
       // ==========================================
@@ -6374,7 +7538,7 @@
       }
 
       async function createScenarioFromHistory() {
-        const history = sessionManager.getToolHistory();
+        const history = getHistoryEntries();
         if (!history.length) {
           await appAlert('No tool executions recorded yet.', { title: 'No History' });
           return;
@@ -6495,7 +7659,7 @@
               <button class="btn" onclick="replayScenario('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px; background: var(--success); color: white">
                 ▶️ Replay
               </button>
-              <button class="btn" onclick="runScenarioMatrix('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
+              <button class="btn" onclick="runScenarioMatrix('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px" title="Matrix compares across servers (connect 2+ for heatmap)">
                 🌐 Matrix
               </button>
               <button class="btn" onclick="runScenarioDataset('${s.id}')" style="font-size: 0.65rem; padding: 2px 6px">
@@ -7208,6 +8372,9 @@
               Scenario built for <strong>${escapeHtml(baseServer)}</strong>. Each step will run against every connected server.
             </div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px">${serverPills}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px">
+              Heatmap appears after the run. Connect 2+ servers to compare across transports.
+            </div>
           `,
           confirmText: 'Run',
           cancelText: 'Cancel',
@@ -7257,6 +8424,51 @@
 
         const passedServers = matrixResults.filter(r => r.failed === 0).length;
         const failedServers = matrixResults.length - passedServers;
+
+        const stepLabels = steps.map((step, index) => step.tool || `Step ${index + 1}`);
+        const durations = matrixResults.flatMap(result => result.results.map(r => r.duration || 0)).filter(Boolean);
+        const maxDuration = Math.max(1, ...durations);
+        const minDuration = Math.min(...durations);
+
+        const getHeatColor = (duration, status) => {
+          if (status === 'error') return 'rgba(239, 68, 68, 0.5)';
+          if (status === 'diff' || status === 'assertion_fail') return 'rgba(245, 158, 11, 0.4)';
+          const ratio = maxDuration === minDuration ? 0 : (duration - minDuration) / (maxDuration - minDuration);
+          const green = 180 - Math.round(ratio * 80);
+          const red = 80 + Math.round(ratio * 120);
+          return `rgba(${red}, ${green}, 110, 0.45)`;
+        };
+
+        const heatmapRows = matrixResults.map(result => {
+          const isBaseline = result.server === baseServer;
+          const cells = stepLabels.map((_, idx) => {
+            const step = result.results[idx];
+            const duration = step?.duration || 0;
+            const status = step?.status || 'unknown';
+            const color = getHeatColor(duration, status);
+            return `
+              <div class="matrix-heat-cell" style="background: ${color}" title="${escapeHtml(result.server)} · Step ${idx + 1} · ${duration}ms (${status})">
+                ${duration ? `${duration}ms` : '–'}
+              </div>
+            `;
+          }).join('');
+          return `
+            <div class="matrix-heat-row${isBaseline ? ' baseline' : ''}">
+              <div class="matrix-heat-label">${escapeHtml(result.server)}</div>
+              ${cells}
+            </div>
+          `;
+        }).join('');
+
+        const heatmapHtml = `
+          <div class="matrix-heatmap">
+            <div class="matrix-heat-row matrix-heat-header">
+              <div class="matrix-heat-label">Server</div>
+              ${stepLabels.map((label, idx) => `<div class="matrix-heat-cell">${escapeHtml(label || `Step ${idx + 1}`)}</div>`).join('')}
+            </div>
+            ${heatmapRows}
+          </div>
+        `;
 
         const matrixHtml = matrixResults.map((result, resultIndex) => {
           const statusIcon = result.failed > 0 ? '❌' : '✅';
@@ -7317,14 +8529,58 @@
           `;
         }).join('');
 
+        const matrixPayload = {
+          scenarioId: scenario.id,
+          scenarioName: scenario.name,
+          baseServer,
+          servers: orderedServers,
+          steps,
+          results: matrixResults,
+          createdAt: new Date().toISOString()
+        };
+        window.lastMatrixRun = matrixPayload;
+
         resultsEl.innerHTML = `
           <div style="margin-bottom: 8px">
             <strong>Matrix Results:</strong>
             <span style="color: var(--success)">${passedServers} passed</span> /
             <span style="color: var(--error)">${failedServers} failed</span>
           </div>
+          ${connectedServers.length < 2 ? `
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px">
+              Connect another server to compare results across transports.
+            </div>
+          ` : ''}
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px">
+            <button class="btn" onclick="exportMatrixResults()">📦 Export Matrix</button>
+          </div>
+          ${heatmapHtml}
           ${matrixHtml}
         `;
+      }
+
+      function exportMatrixResults(payload) {
+        const data = payload || window.lastMatrixRun;
+        if (!data) {
+          showNotification('No matrix results to export yet.', 'warning');
+          return;
+        }
+        const slugify = typeof slugifyName === 'function' ? slugifyName : (value => String(value || 'matrix').replace(/[^a-z0-9]+/gi, '_').toLowerCase());
+        const name = slugify(data.scenarioName || 'scenario');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `scenario-matrix-${name}-${timestamp}.json`;
+        if (typeof downloadJsonFile === 'function') {
+          downloadJsonFile(filename, data);
+        } else {
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        showNotification('Matrix results exported.', 'success');
       }
 
       function normalizeExtractList(extractConfig) {
@@ -9974,6 +11230,9 @@ main().catch(console.error);
             </div>
           `;
 
+          const heatmapData = computeBulkHeatmap(results.results || []);
+          renderBulkTestHeatmap(heatmapData);
+
           // Results table
           let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.7rem">';
           html += '<thead><tr style="background: var(--bg-card); font-weight: 500"><th style="padding: 6px; text-align: left">#</th><th style="padding: 6px; text-align: left">Status</th><th style="padding: 6px; text-align: left">Duration</th><th style="padding: 6px; text-align: left">Output</th></tr></thead><tbody>';
@@ -10000,6 +11259,7 @@ main().catch(console.error);
             toolName,
             inputs,
             results,
+            heatmap: heatmapData,
             createdAt: new Date().toISOString()
           };
 
@@ -10013,8 +11273,107 @@ main().catch(console.error);
         }
       }
 
+      function computeBulkHeatmap(rows) {
+        if (!rows.length) {
+          return { minDuration: 0, maxDuration: 0, cells: [] };
+        }
+
+        const durations = rows.map(row => row.duration || 0);
+        const maxDuration = Math.max(1, ...durations);
+        const minDuration = Math.min(...durations);
+
+        const getHeatColor = (duration, status) => {
+          if (status === 'error') return 'rgba(239, 68, 68, 0.5)';
+          const ratio = maxDuration === minDuration ? 0 : (duration - minDuration) / (maxDuration - minDuration);
+          const green = 180 - Math.round(ratio * 80);
+          const red = 80 + Math.round(ratio * 120);
+          return `rgba(${red}, ${green}, 110, 0.45)`;
+        };
+
+        const cells = rows.map(row => ({
+          index: row.index,
+          duration: row.duration || 0,
+          status: row.status || 'unknown',
+          color: getHeatColor(row.duration || 0, row.status || 'unknown')
+        }));
+
+        return { minDuration, maxDuration, cells };
+      }
+
+      function renderBulkTestHeatmap(heatmapData) {
+        const container = document.getElementById('bulkTestHeatmap');
+        if (!container) return;
+
+        const cells = heatmapData?.cells || [];
+        if (!cells.length) {
+          container.innerHTML = '';
+          return;
+        }
+
+        const headerCells = cells.map((_, index) => (
+          `<div class="matrix-heat-cell">#${index + 1}</div>`
+        )).join('');
+
+        const heatCells = cells.map(cell => {
+          const label = cell.status === 'success' ? `${cell.duration}ms` : 'err';
+          return `
+            <div class="matrix-heat-cell" style="background: ${cell.color}" title="Input ${cell.index + 1} · ${cell.duration}ms (${cell.status})">
+              ${label}
+            </div>
+          `;
+        }).join('');
+
+        const fastColor = cells.find(cell => cell.status !== 'error')?.color || 'rgba(90, 180, 110, 0.45)';
+        const slowColor = cells.slice().reverse().find(cell => cell.status !== 'error')?.color || 'rgba(180, 100, 110, 0.45)';
+
+        container.innerHTML = `
+          <div class="matrix-heatmap bulk-heatmap">
+            <div class="bulk-heatmap-legend">
+              <span class="bulk-heatmap-dot" style="background: ${fastColor}"></span> Fast
+              <span class="bulk-heatmap-dot" style="background: ${slowColor}"></span> Slow
+              <span class="bulk-heatmap-dot" style="background: rgba(239, 68, 68, 0.5)"></span> Error
+              <span class="bulk-heatmap-note">Latency gradient across inputs</span>
+            </div>
+            <div class="matrix-heat-row matrix-heat-header">
+              <div class="matrix-heat-label">Inputs</div>
+              ${headerCells}
+            </div>
+            <div class="matrix-heat-row">
+              <div class="matrix-heat-label">Latency</div>
+              ${heatCells}
+            </div>
+          </div>
+        `;
+      }
+
       async function exportBulkTestResults() {
-        const results = document.getElementById('bulkTestResults').textContent;
+        if (!bulkTestLastRun || !bulkTestLastRun.results) {
+          appendMessage('error', 'Run a bulk test first.');
+          return;
+        }
+
+        const exportPayload = {
+          exportedAt: new Date().toISOString(),
+          serverName: bulkTestLastRun.serverName,
+          toolName: bulkTestLastRun.toolName,
+          inputs: bulkTestLastRun.inputs,
+          results: bulkTestLastRun.results,
+          heatmap: bulkTestLastRun.heatmap || null
+        };
+
+        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bulk-test-results-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        appendMessage('system', '📥 Results exported');
+      }
+
+      async function exportBulkTestResultsText() {
+        const results = document.getElementById('bulkTestResults')?.textContent;
         if (!results) {
           appendMessage('error', 'No results to export');
           return;
@@ -10028,7 +11387,7 @@ main().catch(console.error);
         a.click();
         URL.revokeObjectURL(url);
 
-        appendMessage('system', '📥 Results exported');
+        appendMessage('system', '📄 Results exported');
       }
 
       async function saveBulkFailuresAsScenario() {
@@ -10334,14 +11693,18 @@ main().catch(console.error);
           args = applyTemplateVariables(args, variables);
         }
 
-        const serversWithTool = crossServerToolsCache
+        let serversWithTool = crossServerToolsCache
           .filter(tool => tool.name === toolName)
           .map(tool => tool.serverName);
-        const servers = crossServerServersCache.filter(name => serversWithTool.includes(name));
+        let servers = crossServerServersCache.filter(name => serversWithTool.includes(name));
 
         if (!servers.length) {
-          appendMessage('error', 'No connected servers expose this tool.');
-          return;
+          servers = crossServerServersCache.slice();
+          if (!servers.length) {
+            showNotification('No connected servers expose this tool.', 'error');
+            return;
+          }
+          showNotification('Tool not found in tool list; attempting all connected servers.', 'warning');
         }
 
         const baseline = baselineServer && servers.includes(baselineServer)
@@ -10401,7 +11764,10 @@ main().catch(console.error);
         const errorCount = results.length - successCount;
 
         if (summaryEl) {
-          summaryEl.textContent = `Baseline: ${baseline} • ✅ ${successCount} / ❌ ${errorCount}`;
+          const hint = servers.length < 2
+            ? ' • Connect 2+ servers to compare across transports.'
+            : '';
+          summaryEl.textContent = `Baseline: ${baseline} • ✅ ${successCount} / ❌ ${errorCount}${hint}`;
         }
 
         if (resultsEl) {
@@ -10732,17 +12098,29 @@ main().catch(console.error);
       window.getLocalScenarios = () => sessionManager.getScenarios();
       window.createScenarioFromHistory = createScenarioFromHistory;
       window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
+      window.runHistoryEntryMatrix = runHistoryEntryMatrix;
       window.runScenarioMatrix = runScenarioMatrix;
       window.runScenarioDataset = runScenarioDataset;
       window.showDatasetManager = showDatasetManager;
       window.loadCrossServerOptions = loadCrossServerOptions;
       window.runCrossServerCompare = runCrossServerCompare;
+      window.runInspectorMatrix = runInspectorMatrix;
       window.generateFuzzCases = generateFuzzCases;
       window.saveBulkFailuresAsScenario = saveBulkFailuresAsScenario;
       window.saveBulkFailuresAsDataset = saveBulkFailuresAsDataset;
+      window.exportBulkTestResultsText = exportBulkTestResultsText;
       window.showOAuthSettingsModal = showOAuthSettingsModal;
       window.hideOAuthSettingsModal = hideOAuthSettingsModal;
       window.saveOAuthSettings = saveOAuthSettings;
       window.disableOAuthConfig = disableOAuthConfig;
       window.resetProviderVisibility = resetProviderVisibility;
+
+      initStudioAssistant();
+      window.toggleAssistant = toggleAssistant;
+      window.toggleAssistantDock = toggleAssistantDock;
+      window.toggleAssistantPopout = toggleAssistantPopout;
+      window.toggleAssistantSize = toggleAssistantSize;
+      window.clearAssistantChat = clearAssistantChat;
+      window.showAssistantCommands = showAssistantCommands;
+      window.sendAssistantMessage = sendAssistantMessage;
 

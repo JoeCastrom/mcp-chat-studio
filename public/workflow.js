@@ -396,7 +396,7 @@ function createNodeElement(node) {
         <textarea class="form-input" id="prompt_text_${node.id}" placeholder="System Prompt / Instructions..."
           oninput="updateNodeData('${node.id}', 'systemPrompt', this.value)"
           style="height: 50px;">${node.data.systemPrompt || ''}</textarea>
-        <textarea class="form-input" placeholder="User Message... (use {{tool_id.output}})" 
+        <textarea class="form-input" id="prompt_user_${node.id}" placeholder="User Message... (use {{tool_id.output}})" 
           oninput="updateNodeData('${node.id}', 'prompt', this.value)"
           style="height: 80px;">${node.data.prompt || ''}</textarea>
       </div>
@@ -448,6 +448,7 @@ function createNodeElement(node) {
     <div class="workflow-node-header">
       <span style="display: flex; align-items: center; gap: 6px;">${icon} ${node.type.toUpperCase()}</span>
       <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="workflow-node-error-badge" title=""></span>
         <span style="font-size: 0.65rem; opacity: 0.7;">${node.id.split('_')[1] || ''}</span>
         <button class="workflow-node-delete" onclick="deleteNode('${node.id}')" title="Delete node">✕</button>
       </div>
@@ -792,7 +793,7 @@ async function saveWorkflow() {
 
 async function ensureToolSchemaCache() {
   try {
-    const res = await fetch('/api/mcp/tools');
+    const res = await fetch('/api/mcp/tools', { credentials: 'include' });
     const data = await res.json();
     const tools = Array.isArray(data.tools) ? data.tools : [];
     const grouped = {};
@@ -857,17 +858,17 @@ async function validateWorkflowBeforeRun() {
       const server = node.data?.server;
       const tool = node.data?.tool;
       if (!server) {
-        issues.push({ nodeId: node.id, message: 'Select a server for this tool node.' });
+        issues.push({ nodeId: node.id, field: 'server', message: 'Select a server for this tool node.' });
         continue;
       }
       if (!tool) {
-        issues.push({ nodeId: node.id, message: 'Select a tool for this tool node.' });
+        issues.push({ nodeId: node.id, field: 'tool', message: 'Select a tool for this tool node.' });
         continue;
       }
 
       const parsed = parseToolArgs(node.data?.args);
       if (parsed.error) {
-        issues.push({ nodeId: node.id, message: parsed.error });
+        issues.push({ nodeId: node.id, field: 'args', message: parsed.error });
         continue;
       }
 
@@ -883,6 +884,7 @@ async function validateWorkflowBeforeRun() {
       if (missing.length > 0) {
         issues.push({
           nodeId: node.id,
+          field: 'args',
           message: `Missing required args: ${missing.join(', ')}`
         });
       }
@@ -892,6 +894,7 @@ async function validateWorkflowBeforeRun() {
         if (unknown.length > 0) {
           issues.push({
             nodeId: node.id,
+            field: 'args',
             message: `Unexpected args: ${unknown.join(', ')}`
           });
         }
@@ -904,6 +907,7 @@ async function validateWorkflowBeforeRun() {
       if (!prompt && !hasIncoming) {
         issues.push({
           nodeId: node.id,
+          field: 'prompt',
           message: 'LLM node needs a prompt or an incoming node output.'
         });
       }
@@ -927,22 +931,31 @@ async function runWorkflow() {
   logsPanel.style.display = 'flex';
   logContent.innerHTML = '<div style="color: var(--text-muted);">Executing...</div>';
 
+  clearNodeValidationErrors();
   const issues = await validateWorkflowBeforeRun();
   if (issues.length > 0) {
     clearNodeStatuses();
-    issues.forEach(issue => setNodeStatus(issue.nodeId, 'error'));
+    issues.forEach(issue => {
+      setNodeStatus(issue.nodeId, 'error');
+      setNodeValidationError(issue.nodeId, issue.message);
+      if (issue.field) {
+        setNodeFieldError(issue.nodeId, issue.field, issue.message);
+      }
+    });
     logContent.innerHTML = `
       <div style="color: var(--error); font-weight: 600; margin-bottom: 8px;">⚠️ Fix these before running:</div>
       <ul style="margin: 0; padding-left: 18px; color: var(--text-secondary); font-size: 0.85rem;">
         ${issues.map(issue => `<li><strong>${escapeHtml(issue.nodeId)}</strong> — ${escapeHtml(issue.message)}</li>`).join('')}
       </ul>
     `;
+    focusWorkflowNode(issues[0].nodeId);
     showToast(`Workflow blocked: ${issues.length} issue(s) to fix.`, 'warning');
     return;
   }
   
   // Set all nodes to pending status
   clearNodeStatuses();
+  clearNodeValidationErrors();
   workflowState.nodes.forEach(node => {
     setNodeStatus(node.id, 'pending');
   });
@@ -972,10 +985,18 @@ async function runWorkflow() {
     logContent.innerHTML = '';
     
     if (result.logs) {
+      let focusedError = false;
       result.logs.forEach((log, index) => {
         // Update node status based on log
         const status = log.status === 'success' ? 'success' : 'error';
         setNodeStatus(log.nodeId, status);
+        if (status === 'error') {
+          setNodeValidationError(log.nodeId, log.error || log.message || 'Execution error');
+          if (!focusedError) {
+            focusWorkflowNode(log.nodeId);
+            focusedError = true;
+          }
+        }
         
         // Check if this is an assertion result
         const isAssertion = log.output && log.output.assertion;
@@ -1060,6 +1081,70 @@ function setNodeStatus(nodeId, status) {
   }
 }
 
+function setNodeFieldError(nodeId, field, message) {
+  const fieldMap = {
+    server: `server_select_${nodeId}`,
+    tool: `tool_select_${nodeId}`,
+    args: `args_input_${nodeId}`,
+    prompt: `prompt_user_${nodeId}`
+  };
+  const fieldId = fieldMap[field];
+  if (!fieldId) return;
+  const el = document.getElementById(fieldId);
+  if (!el) return;
+  el.classList.add('workflow-node-field-error');
+  const existing = el.parentElement?.querySelector(`.workflow-node-field-error-text[data-field="${fieldId}"]`);
+  if (existing) {
+    existing.textContent = message;
+    return;
+  }
+  const msg = document.createElement('div');
+  msg.className = 'workflow-node-field-error-text';
+  msg.dataset.field = fieldId;
+  msg.textContent = message;
+  el.insertAdjacentElement('afterend', msg);
+}
+
+function setNodeValidationError(nodeId, message) {
+  const nodeEl = document.querySelector(`.workflow-node[data-id="${nodeId}"]`);
+  if (!nodeEl) return;
+  nodeEl.classList.add('has-error');
+  nodeEl.dataset.error = message || '';
+  const badge = nodeEl.querySelector('.workflow-node-error-badge');
+  if (badge) {
+    badge.textContent = '!';
+    badge.style.display = 'inline-flex';
+    badge.title = message || 'Error';
+  }
+}
+
+function clearNodeValidationErrors() {
+  document.querySelectorAll('.workflow-node').forEach(node => {
+    node.classList.remove('has-error');
+    delete node.dataset.error;
+    const badge = node.querySelector('.workflow-node-error-badge');
+    if (badge) {
+      badge.textContent = '';
+      badge.style.display = 'none';
+      badge.title = '';
+    }
+  });
+  document.querySelectorAll('.workflow-node-field-error').forEach(el => {
+    el.classList.remove('workflow-node-field-error');
+  });
+  document.querySelectorAll('.workflow-node-field-error-text').forEach(el => {
+    el.remove();
+  });
+}
+
+function focusWorkflowNode(nodeId) {
+  const nodeEl = document.querySelector(`.workflow-node[data-id="${nodeId}"]`);
+  if (!nodeEl) return;
+  nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  nodeEl.classList.add('workflow-node-focus');
+  setTimeout(() => nodeEl.classList.remove('workflow-node-focus'), 1200);
+}
+
 function clearNodeStatuses() {
   document.querySelectorAll('.workflow-node').forEach(node => {
     node.classList.remove('status-pending', 'status-running', 'status-success', 'status-error');
@@ -1076,7 +1161,7 @@ async function populateToolSelect(nodeId, serverName, selectedTool = null) {
   
   try {
     // We can reuse the API for tools
-    const res = await fetch('/api/mcp/tools');
+    const res = await fetch('/api/mcp/tools', { credentials: 'include' });
     const data = await res.json();
     const tools = data.tools.filter(t => t.serverName === serverName);
     toolSchemaCache[serverName] = tools;
@@ -1312,6 +1397,45 @@ style.textContent = `
     border-color: var(--error, #ef4444);
     box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
     animation: node-shake 0.5s ease;
+  }
+
+  .workflow-node.has-error {
+    border-color: rgba(239, 68, 68, 0.7);
+  }
+
+  .workflow-node-error-badge {
+    display: none;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  }
+
+  .workflow-node.has-error .workflow-node-error-badge {
+    display: inline-flex;
+  }
+
+  .workflow-node-field-error {
+    border-color: rgba(239, 68, 68, 0.8) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
+  }
+
+  .workflow-node-field-error-text {
+    font-size: 0.65rem;
+    color: var(--error, #ef4444);
+    margin-top: 4px;
+  }
+
+  .workflow-node-focus {
+    outline: 2px solid rgba(99, 102, 241, 0.8);
+    outline-offset: 2px;
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.4);
   }
   
   @keyframes node-pulse {
