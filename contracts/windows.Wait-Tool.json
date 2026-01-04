@@ -20,14 +20,25 @@
     "duration": 1
   },
   "createdAt": "2025-12-31T12:09:45.491Z",
-  "updatedAt": "2025-12-31T12:09:45.491Z",
+  "updatedAt": "2026-01-04T01:31:44.687Z",
   "id": "windows.Wait-Tool",
   "name": "windows.Wait-Tool",
   "baselineResponse": null,
   "breakingChanges": [],
-  "lastValidation": null,
-  "validationCount": 0,
+  "lastValidation": {
+    "timestamp": "2026-01-04T01:31:44.686Z",
+    "duration": 0,
+    "valid": false,
+    "errors": [
+      {
+        "field": "response",
+        "message": "Server not connected: windows. It may require authentication."
+      }
+    ],
+    "warnings": []
+  },
+  "validationCount": 1,
   "successCount": 0,
-  "failureCount": 0,
+  "failureCount": 1,
   "tests": []
 }

@@ -3,7 +3,7 @@
   "server": "test-server",
   "version": "1.0.0",
   "createdAt": "2025-12-29T00:49:29.193Z",
-  "updatedAt": "2025-12-31T12:07:39.570Z",
+  "updatedAt": "2026-01-04T01:31:44.685Z",
   "tests": [
     {
       "description": "should return object",
@@ -18,7 +18,7 @@
   "baselineResponse": null,
   "breakingChanges": [],
   "lastValidation": {
-    "timestamp": "2025-12-31T12:07:39.569Z",
+    "timestamp": "2026-01-04T01:31:44.685Z",
     "duration": 0,
     "valid": false,
     "errors": [
@@ -29,7 +29,7 @@
     ],
     "warnings": []
   },
-  "validationCount": 1,
+  "validationCount": 2,
   "successCount": 0,
-  "failureCount": 1
+  "failureCount": 2
 }

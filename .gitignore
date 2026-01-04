@@ -28,6 +28,9 @@ desktop.ini
 logs/
 *.log
 
+# Generator temp runs
+.mcp-generator/
+
 # Temporary files
 *.tmp
 *.temp

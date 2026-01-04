@@ -40,6 +40,8 @@ import mocksRoutes from './routes/mocks.js';
 import scriptsRoutes from './routes/scripts.js';
 import documentationRoutes from './routes/documentation.js';
 import workspacesRoutes from './routes/workspaces.js';
+import openapiRoutes from './routes/openapi.js';
+import generatorRoutes from './routes/generator.js';
 import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -276,6 +278,8 @@ app.use('/api/mocks', generalLimiter, mocksRoutes);
 app.use('/api/scripts', generalLimiter, scriptsRoutes);
 app.use('/api/documentation', generalLimiter, documentationRoutes);
 app.use('/api/workspaces', generalLimiter, workspacesRoutes);
+app.use('/api/openapi', generalLimiter, openapiRoutes);
+app.use('/api/generator', generalLimiter, generatorRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/llm', llmRoutes);
 

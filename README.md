@@ -166,6 +166,19 @@ Build your own testing cockpit with floating panels:
 Create production-ready MCP servers without writing boilerplate code!
 
 - 🎨 **Visual tool designer** with parameters and types
+- 🧾 **OpenAPI import** (JSON + YAML) to auto-create tools from API specs (paths + webhooks)
+- 🛰️ **OpenAPI Proxy mode** - generate runnable MCP servers that call real APIs
+- 📦 **Project bundle export** - download a ready-to-run MCP server folder from the Generator
+- 🗜️ **ZIP export** - one-click runnable project archive
+- 🧪 **Test in Studio** - copy config + open Add Server to wire the generated MCP quickly
+- ✅ **Guided Test flow** - step-by-step run commands + required working directory
+- 🚀 **Run & Connect (Auto)** - Studio writes a temporary project folder and connects it for you (Python auto-run requires `mcp` installed)
+  - Prompts to import selected OpenAPI endpoints if no tools are in the designer yet
+- 📂 **Save to Folder** - write the project files directly to a local folder (supported browsers)
+- 🔐 **Auth mapping** - OpenAPI security schemes flow into MCP tool metadata
+- 🌐 **HTTP hints** - Imported endpoints carry read-only/destructive hints via tool annotations
+- 🧭 **Server URLs + tags** - Choose base URL from spec servers[] and bulk-select endpoints by tag
+- ⭐ **Sample OpenAPI loader** - one-click Petstore to explore the workflow
 - 🐍 **Python (mcp SDK)** and 📦 **Node.js (TypeScript)** code generation
 - ⚡ Copy to clipboard or download instantly
 - 🔧 Perfect for prototyping and teaching MCP
@@ -189,7 +202,11 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🧠 Ollama model picker** - UI dropdown of locally installed models (auto-detected)
 - **🔄 Provider Switcher** - Swap LLMs from the model badge and manage visible providers in one place
 - **🧭 Studio Assistant** - Floating help chat aware of your current panel/layout, with dock + pop‑out modes, quick actions, and FAQ fallback
-  - Commands list + safe confirmations + workspace builder (add/close/resize/arrange panels, sessions, export/import)
+  - Commands list + recent command chips + safe confirmations + workspace builder (add/close/resize/arrange panels, sessions, export/import)
+  - Paste OpenAPI URLs/JSON or upload specs to auto-import into the Generator
+  - Auto action button to **Generate + Test** immediately after import
+  - Resizable panel with dock, pop‑out, and size toggle
+- **💬 Smart chat import** - Pasting an OpenAPI URL/JSON in the main chat offers to import into Generator
 - **🧪 Test Scenarios** - Record, replay, and validate tool executions
 - **🎬 History → Scenario** - Turn real tool calls into replayable test flows
 - **🔁 Re-run + Diff** - Execute any past tool call and compare outputs instantly
@@ -466,13 +483,6 @@ Export a **Gate** file from any Collection Run Report and fail CI on regressions
 node scripts/collection-gate.js ./collection-run-gate.json
 ```
 
-### ⚙️ Mock MCP Server Generator
-
-- **Visual designer** - Create tools with parameters
-- **Code generation** - Python (mcp SDK) or Node.js (TypeScript)
-- **Copy/Download** - Get starter code instantly
-- **Parameter types** - string, number, boolean, object
-
 ### 🎙️ Mock Recorder (Live Capture)
 
 Record live tool calls and instantly spin them into a mock server:
@@ -519,6 +529,10 @@ cp .env.example .env
 # Start the server
 npm run dev
 ```
+
+### In-App Quick Start
+
+Use the **🚀 Start** button in the header to open a guided checklist that jumps you into Inspector, Scenarios, Collections, Contracts, and the Generator.
 
 Open **http://localhost:3082** in your browser.
 
@@ -757,6 +771,7 @@ mcpServers:
     args:
       - -m
       - my_mcp_server
+    cwd: /path/to/project
     env:
       API_KEY: '${API_KEY}' # From .env
     description: 'My custom MCP server'

@@ -26,3 +26,5 @@ Dockerfile
 .eslintrc.json
 CONTRIBUTING.md
 CHANGELOG.md
+temp/
+.mcp-generator/

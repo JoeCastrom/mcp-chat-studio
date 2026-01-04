@@ -561,6 +561,15 @@
         } else {
           toolExecutionHistory = [entry, ...toolExecutionHistory];
         }
+        if (entry) {
+          assistantLastTool = {
+            tool: entry.tool || entry.toolName || entry.name || null,
+            server: entry.server || entry.serverName || null,
+            timestamp: entry.timestamp || new Date().toISOString()
+          };
+          saveAssistantState();
+          updateAssistantContextLabel();
+        }
         if (typeof refreshHistoryPanel === 'function') {
           refreshHistoryPanel();
         }
@@ -1004,6 +1013,8 @@
         clearEnvVars();
         const requiresAuthEl = document.getElementById('serverRequiresAuth');
         if (requiresAuthEl) requiresAuthEl.checked = false;
+        const cwdEl = document.getElementById('serverCwd');
+        if (cwdEl) cwdEl.value = '';
         toggleServerTypeFields();
         updateConfigPreview();
         loadExistingServerTemplates();
@@ -1020,6 +1031,8 @@
         clearEnvVars();
         const requiresAuthEl = document.getElementById('serverRequiresAuth');
         if (requiresAuthEl) requiresAuthEl.checked = false;
+        const cwdEl = document.getElementById('serverCwd');
+        if (cwdEl) cwdEl.value = '';
         toggleServerTypeFields();
         // Reset title and button
         document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
@@ -1110,6 +1123,7 @@
                   type,
                   command: config.command || '',
                   args: Array.isArray(config.args) ? config.args.join('\n') : (config.args || ''),
+                  cwd: config.cwd || '',
                   url: config.url || '',
                   env: config.env,
                   description: config.description || `Configured MCP server: ${name}`,
@@ -1155,6 +1169,8 @@
 
         if (template.type === 'stdio') {
           document.getElementById('serverCommand').value = template.command;
+          const cwdEl = document.getElementById('serverCwd');
+          if (cwdEl) cwdEl.value = template.cwd || '';
           document.getElementById('serverArgs').value = template.args;
         } else if (template.type === 'sse') {
           document.getElementById('serverUrl').value = template.url;
@@ -1216,6 +1232,7 @@
 
         if (type === 'stdio') {
           template.command = document.getElementById('serverCommand').value.trim();
+          template.cwd = document.getElementById('serverCwd')?.value.trim() || '';
           template.args = document.getElementById('serverArgs').value.trim();
         } else if (type === 'sse') {
           template.url = document.getElementById('serverUrl').value.trim();
@@ -1353,6 +1370,7 @@
         if (type === 'stdio') {
           const command = document.getElementById('serverCommand').value.trim();
           const argsStr = document.getElementById('serverArgs').value.trim();
+          const cwd = document.getElementById('serverCwd')?.value.trim();
 
           if (!command) {
             appendMessage('error', 'Command is required for stdio servers');
@@ -1360,6 +1378,7 @@
           }
 
           payload.command = command;
+          if (cwd) payload.cwd = cwd;
           // Parse arguments: split by newlines, strip YAML list markers (- ), split by spaces, filter empty
           payload.args = argsStr
             ? argsStr
@@ -1453,6 +1472,7 @@
         const name = document.getElementById('serverName').value.trim() || 'my-server';
         const type = document.getElementById('serverType').value;
         const command = document.getElementById('serverCommand').value.trim();
+        const cwd = document.getElementById('serverCwd')?.value.trim();
         const argsStr = document.getElementById('serverArgs').value.trim();
         const url = document.getElementById('serverUrl').value.trim();
         const env = collectEnvVars();
@@ -1462,6 +1482,7 @@
 
         if (type === 'stdio') {
           if (command) yaml += `    command: ${command}\n`;
+          if (cwd) yaml += `    cwd: ${cwd}\n`;
           if (argsStr) {
             const args = argsStr
               .split(/[\r\n]+/)
@@ -1552,6 +1573,9 @@
             toggleServerTypeFields();
             document.getElementById('serverCommand').value = config.command;
           }
+
+          const cwdEl = document.getElementById('serverCwd');
+          if (cwdEl) cwdEl.value = config.cwd || '';
 
           if (config.url) {
             document.getElementById('serverType').value = 'sse';
@@ -2062,6 +2086,9 @@
           applyProviderVisibility();
           onProviderChange(false);
           updateProviderSummary(document.getElementById('llmProvider').value);
+          const assistantOverride = localStorage.getItem('mcp_assistant_llm_override') === 'true';
+          const assistantOverrideEl = document.getElementById('assistantLlmOverride');
+          if (assistantOverrideEl) assistantOverrideEl.checked = assistantOverride;
         } catch (e) {
           console.error('Failed to load LLM config:', e);
         }
@@ -2789,10 +2816,17 @@
       let assistantPopoutPos = { x: null, y: null };
       let assistantDragState = null;
       let assistantSize = 'default';
+      let assistantCustomSize = null;
+      let assistantResizeState = null;
+      let assistantLLMReady = true;
+      let assistantLLMOverride = false;
+      let assistantRecentCommands = [];
+      let assistantLastTool = null;
 
       const assistantPrompt = `You are the MCP Chat Studio assistant. Help users learn and use the app.
-You answer questions about MCP servers, Inspector, Workflows, Scenarios, Collections, Contracts, Mocks, Debugger, and Workspace mode.
-Be concise, suggest next actions, and ask a clarifying question if needed.`;
+You answer questions about MCP servers, Inspector, Workflows, Scenarios, Collections, Contracts, Mocks, Debugger, Workspace mode, and the Generator.
+Be concise, suggest next actions, and ask a clarifying question if needed.
+If asked about Test in Studio or project folders, say the folder must contain server.py (Python) or server.js (Node) plus requirements.txt/package.json.`;
 
       const assistantFAQ = [
         {
@@ -2819,6 +2853,26 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
           title: 'Matrix runs',
           keywords: ['matrix', 'compare servers', 'cross-server'],
           answer: 'Use **Scenario → Matrix** or **Inspector → Diff → Cross‑Server Snapshot**. Connect 2+ servers for heatmaps.'
+        },
+        {
+          title: 'Generator (OpenAPI)',
+          keywords: ['generator', 'openapi', 'proxy', 'generate server'],
+          answer: 'Open **Generator**, load an OpenAPI spec, select endpoints, then **Generate Code** or **Download ZIP**. OpenAPI Proxy mode creates a real MCP server that calls your API.'
+        },
+        {
+          title: 'Test in Studio (project folder)',
+          keywords: ['test in studio', 'project folder', 'working directory', 'cwd', 'zip', 'save to folder'],
+          answer: 'Click **Test in Studio** after generating. Paste the folder path that contains `server.py` (Python) or `server.js` (Node), plus `requirements.txt` or `package.json`. Studio cannot detect paths automatically.'
+        },
+        {
+          title: 'Assistant OpenAPI import',
+          keywords: ['assistant', 'upload', 'paste', 'openapi url', 'openapi json'],
+          answer: 'Paste an OpenAPI URL/JSON here or click the 📎 button to upload a spec. I can import it into the Generator for you.'
+        },
+        {
+          title: 'Quick Start',
+          keywords: ['quick start', 'start', 'getting started', 'guide'],
+          answer: 'Use the **🚀 Start** button in the header for a guided checklist with jump‑buttons to Inspector, Scenarios, Collections, Contracts, and Generator.'
         },
         {
           title: 'Contracts',
@@ -2865,7 +2919,10 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             dock: assistantDock,
             popout: assistantPopout,
             popoutPos: assistantPopoutPos,
-            size: assistantSize
+            size: assistantSize,
+            customSize: assistantCustomSize,
+            recentCommands: assistantRecentCommands,
+            lastTool: assistantLastTool
           }));
         } catch (error) {
           console.warn('[Assistant] Failed to save:', error.message);
@@ -2878,7 +2935,17 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         if (!widget || !panel) return;
         widget.classList.toggle('dock-left', assistantDock === 'left');
         panel.classList.toggle('popout', assistantPopout);
-        panel.classList.toggle('large', assistantSize === 'large');
+        const hasCustom = assistantCustomSize && Number.isFinite(assistantCustomSize.width) && Number.isFinite(assistantCustomSize.height);
+        panel.classList.toggle('large', assistantSize === 'large' && !hasCustom);
+        if (hasCustom) {
+          panel.style.width = `${assistantCustomSize.width}px`;
+          panel.style.height = `${assistantCustomSize.height}px`;
+          panel.style.maxHeight = `${assistantCustomSize.height}px`;
+        } else {
+          panel.style.width = '';
+          panel.style.height = '';
+          panel.style.maxHeight = '';
+        }
         if (assistantPopout) {
           panel.style.right = 'auto';
           panel.style.left = assistantPopoutPos.x !== null ? `${assistantPopoutPos.x}px` : '';
@@ -2905,10 +2972,45 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
       }
 
       function toggleAssistantSize() {
-        assistantSize = assistantSize === 'large' ? 'default' : 'large';
+        if (assistantCustomSize) {
+          assistantCustomSize = null;
+          assistantSize = 'default';
+        } else {
+          assistantSize = assistantSize === 'large' ? 'default' : 'large';
+        }
         applyAssistantLayout();
         saveAssistantState();
       }
+
+      function startAssistantResize(event) {
+        if (event.button !== 0) return;
+        const panel = document.getElementById('assistantPanel');
+        if (!panel) return;
+        const rect = panel.getBoundingClientRect();
+        assistantResizeState = {
+          startX: event.clientX,
+          startY: event.clientY,
+          startWidth: rect.width,
+          startHeight: rect.height
+        };
+        event.preventDefault();
+      }
+
+      document.addEventListener('mousemove', event => {
+        if (!assistantResizeState) return;
+        const panel = document.getElementById('assistantPanel');
+        if (!panel) return;
+        const deltaX = event.clientX - assistantResizeState.startX;
+        const deltaY = event.clientY - assistantResizeState.startY;
+        const minWidth = 280;
+        const minHeight = 260;
+        const maxWidth = Math.min(window.innerWidth - 24, 720);
+        const maxHeight = Math.min(window.innerHeight - 24, 720);
+        const width = Math.max(minWidth, Math.min(maxWidth, assistantResizeState.startWidth + deltaX));
+        const height = Math.max(minHeight, Math.min(maxHeight, assistantResizeState.startHeight + deltaY));
+        assistantCustomSize = { width: Math.round(width), height: Math.round(height) };
+        applyAssistantLayout();
+      });
 
       function getPanelLabel(panelId) {
         const map = {
@@ -2989,14 +3091,22 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
       function buildAssistantContextMessage() {
         const ctx = getAssistantContext();
         const panels = ctx.openPanels.length ? ctx.openPanels.join(', ') : 'N/A';
+        const lastToolLabel = assistantLastTool?.tool
+          ? `${assistantLastTool.tool}${assistantLastTool.server ? ` @ ${assistantLastTool.server}` : ''}`
+          : null;
         return [
           `Layout: ${ctx.layout}`,
           `Active panel: ${ctx.activePanel}`,
           `Open panels: ${panels}`,
           `Connected servers: ${ctx.connectedServers}`,
+          lastToolLabel ? `Last tool: ${lastToolLabel}` : null,
           ctx.inspector.server ? `Inspector server: ${ctx.inspector.server}` : null,
           ctx.inspector.tool ? `Inspector tool: ${ctx.inspector.tool}` : null
         ].filter(Boolean).join('\n');
+      }
+
+      function isAssistantLLMAvailable() {
+        return !assistantLLMOverride && assistantLLMReady;
       }
 
       function updateAssistantContextLabel() {
@@ -3004,7 +3114,9 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         if (!label) return;
         const ctx = getAssistantContext();
         const suffix = ctx.activePanel ? `· ${ctx.activePanel}` : '';
-        label.textContent = `Context: ${ctx.layout} ${suffix}`;
+        const status = isAssistantLLMAvailable() ? '' : '· LLM not configured';
+        const lastTool = assistantLastTool?.tool ? `· Last tool: ${assistantLastTool.tool}` : '';
+        label.textContent = `Context: ${ctx.layout} ${suffix} ${lastTool} ${status}`.replace(/\s+/g, ' ').trim();
       }
 
       function renderAssistantMessages() {
@@ -3014,10 +3126,56 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
           list.innerHTML = '<div class="assistant-message assistant">Ask me anything about MCP Chat Studio.</div>';
           return;
         }
-        list.innerHTML = assistantMessages.map(msg => `
-          <div class="assistant-message ${msg.role}">${escapeHtml(msg.content)}</div>
-        `).join('');
+        list.innerHTML = assistantMessages.map(msg => {
+          if (msg.type === 'action' && msg.action) {
+            return `
+              <div class="assistant-message assistant">
+                <div style="margin-bottom: 6px;">${escapeHtml(msg.content || '')}</div>
+                <button class="btn" onclick="${msg.action}">${escapeHtml(msg.actionLabel || 'Run')}</button>
+              </div>
+            `;
+          }
+          return `<div class="assistant-message ${msg.role}">${escapeHtml(msg.content)}</div>`;
+        }).join('');
         list.scrollTop = list.scrollHeight;
+      }
+
+      function renderAssistantChips() {
+        const chipWrap = document.getElementById('assistantChips');
+        if (!chipWrap) return;
+        if (!assistantRecentCommands.length) {
+          chipWrap.innerHTML = '';
+          chipWrap.style.display = 'none';
+          return;
+        }
+        chipWrap.style.display = 'flex';
+        chipWrap.innerHTML = assistantRecentCommands.map(cmd => {
+          const label = cmd.length > 32 ? `${cmd.slice(0, 29)}…` : cmd;
+          return `
+          <button class="assistant-chip" type="button" onclick="sendAssistantCommandFromChip(${JSON.stringify(cmd)})" title="${escapeHtml(cmd)}">
+            ${escapeHtml(label)}
+          </button>
+        `;
+        }).join('');
+      }
+
+      function recordAssistantCommand(command) {
+        const normalized = command.trim().replace(/\s+/g, ' ');
+        if (!normalized) return;
+        const lower = normalized.toLowerCase();
+        assistantRecentCommands = [
+          normalized,
+          ...assistantRecentCommands.filter(cmd => cmd.toLowerCase() !== lower)
+        ].slice(0, 6);
+        renderAssistantChips();
+        saveAssistantState();
+      }
+
+      function sendAssistantCommandFromChip(command) {
+        const input = document.getElementById('assistantInput');
+        if (!input) return;
+        input.value = command;
+        sendAssistantMessage();
       }
 
       function toggleAssistant(forceOpen) {
@@ -3028,6 +3186,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         if (assistantOpen) {
           updateAssistantContextLabel();
           renderAssistantMessages();
+          renderAssistantChips();
           document.getElementById('assistantInput')?.focus();
         }
         saveAssistantState();
@@ -3038,6 +3197,233 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         assistantLastFAQ = null;
         renderAssistantMessages();
         saveAssistantState();
+      }
+
+      function triggerAssistantFileUpload() {
+        document.getElementById('assistantFileInput')?.click();
+      }
+
+      async function handleAssistantFileUpload(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          await handleAssistantOpenApiText(text, file.name || 'local file');
+        } catch (error) {
+          assistantMessages.push({ role: 'assistant', content: `Failed to read file: ${error.message}` });
+          renderAssistantMessages();
+          saveAssistantState();
+        } finally {
+          event.target.value = '';
+        }
+      }
+
+      function extractOpenApiUrl(content) {
+        const urlMatch = content.match(/https?:\/\/[^\s)"]+/i);
+        if (!urlMatch) return null;
+        const url = urlMatch[0];
+        const lower = url.toLowerCase();
+        if (lower.includes('openapi') || lower.includes('swagger') || lower.endsWith('.json') || lower.endsWith('.yaml') || lower.endsWith('.yml')) {
+          return url;
+        }
+        return null;
+      }
+
+      function extractOpenApiJson(content) {
+        let text = content.trim();
+        const fenced = text.match(/```(?:json|yaml)?\s*([\s\S]*?)```/i);
+        if (fenced) text = fenced[1].trim();
+        if (!text.startsWith('{')) return null;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed && (parsed.openapi || parsed.swagger)) {
+            return parsed;
+          }
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      async function tryMainChatOpenApi(content) {
+        const url = extractOpenApiUrl(content);
+        if (url) {
+          const confirmed = await appConfirm(`Import OpenAPI from ${url}?`, {
+            title: 'OpenAPI detected',
+            confirmText: 'Import',
+            cancelText: 'Cancel'
+          });
+          if (!confirmed) return true;
+          const msg = appendMessage('assistant', '✅ Importing OpenAPI into Generator...');
+          if (document.body.classList.contains('workspace-mode')) {
+            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
+              floatingWorkspace.focusPanelByType('generator');
+            } else {
+              openWorkspacePanel('generator');
+            }
+          } else {
+            openPanelByName('generator');
+          }
+          const input = document.getElementById('openApiUrlInput');
+          if (input) input.value = url;
+          await loadOpenApiFromUrl();
+          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
+          return true;
+        }
+
+        const jsonSpec = extractOpenApiJson(content);
+        if (jsonSpec) {
+          const confirmed = await appConfirm('Import OpenAPI JSON into Generator?', {
+            title: 'OpenAPI detected',
+            confirmText: 'Import',
+            cancelText: 'Cancel'
+          });
+          if (!confirmed) return true;
+          const msg = appendMessage('assistant', '✅ Importing OpenAPI JSON into Generator...');
+          if (document.body.classList.contains('workspace-mode')) {
+            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
+              floatingWorkspace.focusPanelByType('generator');
+            } else {
+              openWorkspacePanel('generator');
+            }
+          } else {
+            openPanelByName('generator');
+          }
+          applyOpenApiSpec(jsonSpec, 'main chat paste');
+          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
+          return true;
+        }
+        return false;
+      }
+
+      function pulseAssistantUploadButton() {
+        const buttons = document.querySelectorAll('.assistant-icon-btn');
+        if (!buttons.length) return;
+        const target = Array.from(buttons).find(btn => btn.textContent?.trim() === '📎');
+        if (!target) return;
+        target.classList.add('pulse');
+        setTimeout(() => target.classList.remove('pulse'), 1600);
+      }
+
+      async function handleAssistantOpenApiUrl(url) {
+        const confirmed = await appConfirm(`Load OpenAPI from ${url}?`, {
+          title: 'OpenAPI detected',
+          confirmText: 'Load',
+          cancelText: 'Cancel'
+        });
+        if (!confirmed) {
+          assistantMessages.push({ role: 'assistant', content: 'Okay, not loading that OpenAPI spec.' });
+          renderAssistantMessages();
+          saveAssistantState();
+          return true;
+        }
+        if (document.body.classList.contains('workspace-mode')) {
+          if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
+            floatingWorkspace.focusPanelByType('generator');
+          } else {
+            openWorkspacePanel('generator');
+          }
+        } else {
+          openPanelByName('generator');
+        }
+        const input = document.getElementById('openApiUrlInput');
+        if (input) input.value = url;
+        await loadOpenApiFromUrl();
+        assistantMessages.push({ role: 'assistant', content: '✅ Loaded OpenAPI into Generator.' });
+        assistantMessages.push({
+          type: 'action',
+          content: 'Next: generate and test the MCP proxy.',
+          action: 'assistantGenerateAndTestOpenApi()',
+          actionLabel: 'Generate + Test'
+        });
+        renderAssistantMessages();
+        saveAssistantState();
+        return true;
+      }
+
+      async function handleAssistantOpenApiText(text, source) {
+        const confirmed = await appConfirm(`Import OpenAPI from ${source}?`, {
+          title: 'OpenAPI detected',
+          confirmText: 'Import',
+          cancelText: 'Cancel'
+        });
+        if (!confirmed) {
+          assistantMessages.push({ role: 'assistant', content: 'Okay, not importing that spec.' });
+          renderAssistantMessages();
+          saveAssistantState();
+          return true;
+        }
+        if (document.body.classList.contains('workspace-mode')) {
+          if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
+            floatingWorkspace.focusPanelByType('generator');
+          } else {
+            openWorkspacePanel('generator');
+          }
+        } else {
+          openPanelByName('generator');
+        }
+        await parseOpenApiText(text, source);
+        assistantMessages.push({ role: 'assistant', content: '✅ OpenAPI imported into Generator.' });
+        assistantMessages.push({
+          type: 'action',
+          content: 'Next: generate and test the MCP proxy.',
+          action: 'assistantGenerateAndTestOpenApi()',
+          actionLabel: 'Generate + Test'
+        });
+        renderAssistantMessages();
+        saveAssistantState();
+        return true;
+      }
+
+      async function tryAssistantOpenApi(content) {
+        const url = extractOpenApiUrl(content);
+        if (url) {
+          return await handleAssistantOpenApiUrl(url);
+        }
+        const jsonSpec = extractOpenApiJson(content);
+        if (jsonSpec) {
+          const confirmed = await appConfirm('Import OpenAPI JSON into Generator?', {
+            title: 'OpenAPI detected',
+            confirmText: 'Import',
+            cancelText: 'Cancel'
+          });
+          if (!confirmed) {
+            assistantMessages.push({ role: 'assistant', content: 'Okay, not importing that JSON.' });
+            renderAssistantMessages();
+            saveAssistantState();
+            return true;
+          }
+          if (document.body.classList.contains('workspace-mode')) {
+            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
+              floatingWorkspace.focusPanelByType('generator');
+            } else {
+              openWorkspacePanel('generator');
+            }
+          } else {
+            openPanelByName('generator');
+          }
+          applyOpenApiSpec(jsonSpec, 'assistant paste');
+          assistantMessages.push({ role: 'assistant', content: '✅ OpenAPI JSON imported into Generator.' });
+          assistantMessages.push({
+            type: 'action',
+            content: 'Next: generate and test the MCP proxy.',
+            action: 'assistantGenerateAndTestOpenApi()',
+            actionLabel: 'Generate + Test'
+          });
+          renderAssistantMessages();
+          saveAssistantState();
+          return true;
+        }
+        return false;
+      }
+
+      function assistantGenerateAndTestOpenApi() {
+        try {
+          generateMCPCode();
+          showGeneratorTestModal();
+        } catch (error) {
+          appendMessage('error', `Generator failed: ${error.message}`);
+        }
       }
 
       function findAssistantFAQ(message) {
@@ -3053,8 +3439,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             best = entry;
           }
         });
-        if (best && bestScore >= 2) return best;
-        if (best && bestScore === 1 && text.split(' ').length <= 6) return best;
+        if (best && bestScore >= 1) return best;
         return null;
       }
 
@@ -3066,9 +3451,14 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         if (!content) return;
 
         assistantMessages.push({ role: 'user', content });
+        recordAssistantCommand(content);
         input.value = '';
         renderAssistantMessages();
         updateAssistantContextLabel();
+
+        if (await tryAssistantOpenApi(content)) {
+          return;
+        }
 
         if (await tryAssistantAction(content)) {
           saveAssistantState();
@@ -3118,6 +3508,14 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         }
 
         try {
+          if (assistantLLMOverride) {
+            assistantLLMReady = false;
+            assistantMessages.push({
+              role: 'assistant',
+              content: 'LLM is disabled for QA testing. Turn it back on in ⚙️ LLM Settings.'
+            });
+            return;
+          }
           const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3129,15 +3527,27 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             })
           });
           const data = await response.json();
-          const reply = data.choices?.[0]?.message?.content || 'No response generated.';
-          assistantMessages.push({ role: 'assistant', content: reply });
+          if (!response.ok || data?.error) {
+            assistantLLMReady = false;
+            const reason = data?.error || response.statusText || 'LLM unavailable';
+            assistantMessages.push({
+              role: 'assistant',
+              content: `LLM request failed: ${reason}. Open ⚙️ LLM Settings to configure a provider.`
+            });
+          } else {
+            assistantLLMReady = true;
+            const reply = data.choices?.[0]?.message?.content || 'No response generated.';
+            assistantMessages.push({ role: 'assistant', content: reply });
+          }
         } catch (error) {
+          assistantLLMReady = false;
           assistantMessages.push({ role: 'assistant', content: `Error: ${error.message}` });
         } finally {
           sendBtn.disabled = false;
           sendBtn.textContent = 'Send';
           renderAssistantMessages();
           saveAssistantState();
+          updateAssistantContextLabel();
         }
       }
 
@@ -3322,6 +3732,15 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         if (hasVerb(openVerbs) && (text.includes('add server') || text.includes('server modal'))) {
           showAddServerModal();
           assistantMessages.push({ role: 'assistant', content: '✅ Opened Add MCP Server.' });
+          return true;
+        }
+
+        if (text.includes('upload') && (text.includes('openapi') || text.includes('spec') || text.includes('json') || text.includes('yaml'))) {
+          pulseAssistantUploadButton();
+          assistantMessages.push({
+            role: 'assistant',
+            content: 'Click the **📎** button in the assistant header to upload an OpenAPI JSON/YAML file. Browsers block auto‑opening the file picker from text commands.'
+          });
           return true;
         }
 
@@ -3753,10 +4172,16 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         assistantPopout = saved?.popout || false;
         assistantPopoutPos = saved?.popoutPos || { x: null, y: null };
         assistantSize = saved?.size || 'default';
+        assistantCustomSize = saved?.customSize || null;
+        assistantRecentCommands = Array.isArray(saved?.recentCommands) ? saved.recentCommands : [];
+        assistantLastTool = saved?.lastTool || null;
+        assistantLLMOverride = localStorage.getItem('mcp_assistant_llm_override') === 'true';
+        assistantLLMReady = true;
         if (assistantOpen) {
           document.getElementById('assistantPanel')?.classList.add('open');
         }
         renderAssistantMessages();
+        renderAssistantChips();
         updateAssistantContextLabel();
         applyAssistantLayout();
         setInterval(updateAssistantContextLabel, 4000);
@@ -3776,6 +4201,11 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
           });
         }
 
+        const resizeHandle = document.querySelector('#assistantPanel .assistant-resize-handle');
+        if (resizeHandle) {
+          resizeHandle.addEventListener('mousedown', event => startAssistantResize(event));
+        }
+
         document.addEventListener('mousemove', event => {
           if (!assistantDragState || !assistantPopout) return;
           const panel = document.getElementById('assistantPanel');
@@ -3793,9 +4223,14 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         });
 
         document.addEventListener('mouseup', () => {
-          if (!assistantDragState) return;
-          assistantDragState = null;
-          saveAssistantState();
+          if (assistantDragState) {
+            assistantDragState = null;
+            saveAssistantState();
+          }
+          if (assistantResizeState) {
+            assistantResizeState = null;
+            saveAssistantState();
+          }
         });
       }
 
@@ -3815,6 +4250,11 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         const auth_scope = document.getElementById('llmAuthScope').value.trim();
         const auth_audience = document.getElementById('llmAuthAudience').value.trim();
         const clear_auth_secret = document.getElementById('llmClearAuthSecret').checked;
+        const assistantOverride = document.getElementById('assistantLlmOverride')?.checked || false;
+
+        assistantLLMOverride = assistantOverride;
+        localStorage.setItem('mcp_assistant_llm_override', assistantOverride ? 'true' : 'false');
+        updateAssistantContextLabel();
 
         if (!model) {
           appendMessage('error', 'Model name is required');
@@ -5894,6 +6334,101 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
       // KEYBOARD SHORTCUTS HELP
       // ==========================================
 
+      function showQuickStartModal() {
+        const layoutMode = document.body.classList.contains('workspace-mode') ? 'Workspace' : 'Classic';
+        const serverCountText = document.getElementById('serverCount')?.textContent || '0 connected';
+        const modelName = document.getElementById('modelName')?.textContent || 'LLM';
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'quickStartModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 760px;">
+            <div class="modal-header">
+              <h2 class="modal-title">🚀 Quick Start</h2>
+              <button class="modal-close" onclick="closeQuickStartModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.75rem; color: var(--text-muted);">
+                <span>Mode: <strong style="color: var(--text-primary);">${layoutMode}</strong></span>
+                <span>Servers: <strong style="color: var(--text-primary);">${serverCountText}</strong></span>
+                <span>LLM: <strong style="color: var(--text-primary);">${escapeHtml(modelName)}</strong></span>
+              </div>
+
+              <div style="display: grid; gap: 12px;">
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                  <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Test an MCP server</div>
+                  <div class="generator-actions">
+                    <button class="btn" onclick="showAddServerModal(); closeQuickStartModal();">Add Server</button>
+                    <button class="btn" onclick="openPanelByName('inspector'); closeQuickStartModal();">Inspector</button>
+                    <button class="btn" onclick="openPanelByName('history'); closeQuickStartModal();">History</button>
+                    <button class="btn" onclick="openPanelByName('scenarios'); closeQuickStartModal();">Scenarios</button>
+                    <button class="btn" onclick="openPanelByName('collections'); closeQuickStartModal();">Collections</button>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+                    Run a tool, record a scenario, then build a collection run report.
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                  <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Validate & compare</div>
+                  <div class="generator-actions">
+                    <button class="btn" onclick="openPanelByName('contracts'); closeQuickStartModal();">Contracts</button>
+                    <button class="btn" onclick="openPanelByName('inspector'); closeQuickStartModal();">Diff / Matrix</button>
+                    <button class="btn" onclick="openPanelByName('mocks'); closeQuickStartModal();">Mocks</button>
+                    <button class="btn" onclick="openPanelByName('debugger'); closeQuickStartModal();">Debugger</button>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+                    Track schema drift, compare servers, and mock error paths.
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                  <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Build an MCP server</div>
+                  <div class="generator-actions">
+                    <button class="btn" onclick="openPanelByName('generator'); closeQuickStartModal();">Generator</button>
+                    <button class="btn" onclick="openPanelByName('docs'); closeQuickStartModal();">Docs</button>
+                    <button class="btn" onclick="openPanelByName('workflows'); closeQuickStartModal();">Workflows</button>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+                    Import OpenAPI, generate proxy code, and wire it into Studio.
+                  </div>
+                </div>
+
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+                  <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 6px;">Layout & help</div>
+                  <div class="generator-actions">
+                    <button class="btn" onclick="setLayoutMode('classic')">Classic</button>
+                    <button class="btn" onclick="setLayoutMode('workspace')">Workspace</button>
+                    <button class="btn" onclick="toggleAssistant(true); closeQuickStartModal();">Studio Assistant</button>
+                    <button class="btn" onclick="showShortcutsHelp(); closeQuickStartModal();">Shortcuts</button>
+                  </div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+                    Pick the layout that fits the task and open the assistant for guided commands.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeQuickStartModal()">Close</button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+      }
+
+      function closeQuickStartModal() {
+        const modal = document.getElementById('quickStartModal');
+        if (modal) modal.remove();
+      }
+
       function showShortcutsHelp() {
         const helpHTML = `
           <div style="padding: var(--spacing-md);">
@@ -6227,6 +6762,10 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
 
         userInputEl.value = '';
         userInputEl.style.height = 'auto';
+
+        if (await tryMainChatOpenApi(content)) {
+          return;
+        }
 
         isLoading = true;
         currentAbortController = new AbortController();
@@ -6847,6 +7386,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             credentials: 'include',
           });
           const status = await response.json();
+          window.lastMcpStatus = status;
 
           if (Object.keys(status).length === 0) {
             mcpServersEl.innerHTML = '<div class="empty-state">No MCP servers configured</div>';
@@ -6863,6 +7403,19 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             const serverEl = document.createElement('div');
             serverEl.className = 'mcp-server';
 
+            const statusLabel = info.connected
+              ? { text: 'Connected', cls: 'status-connected' }
+              : (info.lastError
+                ? { text: 'Failed', cls: 'status-error' }
+                : { text: 'Not connected', cls: 'status-idle' });
+
+            const statusTitle = info.lastError
+              ? `Last error: ${info.lastError}`
+              : '';
+            const errorBtn = info.lastError
+              ? `<button class="mcp-error-btn" onclick="showServerError('${name}')" title="View error details" aria-label="View error details">Details</button>`
+              : '';
+
             const connectBtn = info.connected
               ? `<button class="mcp-connect-btn connected">✓ Connected</button><button class="mcp-connect-btn disconnect" data-disconnect="${name}" onclick="disconnectMCP('${name}')">Disconnect</button>`
               : `<button class="mcp-connect-btn" data-server="${name}" onclick="connectMCP('${name}')">Connect</button>`;
@@ -6875,10 +7428,12 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
               ? `<span class="auth-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Auth</span>`
               : '';
 
+            const dotClass = info.connected ? 'connected' : (info.lastError ? 'error' : '');
+
             serverEl.innerHTML = `
             <div class="mcp-server-header">
               <div class="mcp-server-name">
-                <span class="mcp-status-dot ${info.connected ? 'connected' : ''}"></span>
+                <span class="mcp-status-dot ${dotClass}"></span>
                 ${name}
               </div>
               ${authBadge}
@@ -6891,6 +7446,8 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
                 ${info.toolCount} tools
               </span>
               <span>${info.type}</span>
+              <span class="mcp-status-label ${statusLabel.cls}" title="${escapeHtml(statusTitle)}">${statusLabel.text}</span>
+              ${errorBtn}
             </div>
             <div class="mcp-server-actions">
               ${connectBtn}
@@ -7022,6 +7579,16 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         } catch (error) {
           mcpServersEl.innerHTML = `<div class="empty-state" style="color: var(--error)">Failed to load MCP status</div>`;
         }
+      }
+
+      function showServerError(serverName) {
+        const status = window.lastMcpStatus?.servers || window.lastMcpStatus || {};
+        const info = status?.[serverName];
+        const message = info?.lastError || 'No error details available.';
+        appAlert(message, {
+          title: `Connection error: ${serverName}`,
+          confirmText: 'Close'
+        });
       }
 
       // ==========================================
@@ -10140,9 +10707,634 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
       }
 
       // ==========================================
-      // MOCK MCP SERVER GENERATOR
+      // MCP SERVER GENERATOR
       // ==========================================
-      
+
+      let openApiSpec = null;
+      let openApiOperations = [];
+      let openApiSelected = new Set();
+      let openApiSource = '';
+      let openApiServers = [];
+      let openApiSecuritySchemes = [];
+      let openApiOnlyWebhooks = false;
+      let generatorRunState = null;
+      let generatorRunOs = 'unix';
+      let generatorTestCwd = '';
+      let generatorTestOs = 'unix';
+      let generatorLastFolderName = localStorage.getItem('mcp_generator_last_folder') || '';
+      let generatorPickedFolderName = '';
+
+      function triggerOpenApiFile() {
+        document.getElementById('openApiFileInput')?.click();
+      }
+
+      async function handleOpenApiFile(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        await parseOpenApiText(text, file.name || 'local file');
+        event.target.value = '';
+      }
+
+      async function loadOpenApiFromUrl() {
+        const input = document.getElementById('openApiUrlInput');
+        const url = input?.value?.trim();
+        if (!url) {
+          appendMessage('error', 'Enter an OpenAPI URL');
+          return;
+        }
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          await parseOpenApiText(text, url);
+        } catch (error) {
+          appendMessage('error', `Failed to load OpenAPI spec: ${error.message}`);
+        }
+      }
+
+      async function loadOpenApiExample() {
+        const sampleUrl = 'https://petstore3.swagger.io/api/v3/openapi.json';
+        const input = document.getElementById('openApiUrlInput');
+        if (input) input.value = sampleUrl;
+        await loadOpenApiFromUrl();
+      }
+
+      async function parseOpenApiText(text, source) {
+        const sanitized = text.replace(/^\uFEFF/, '').trim();
+        if (!sanitized) {
+          appendMessage('error', 'OpenAPI file is empty.');
+          return;
+        }
+        try {
+          const spec = JSON.parse(sanitized);
+          applyOpenApiSpec(spec, source);
+          return;
+        } catch (error) {
+          // Fall back to server-side YAML parsing
+        }
+
+        try {
+          const response = await fetch('/api/openapi/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ text: sanitized })
+          });
+          const data = await response.json();
+          if (!response.ok || data?.error) {
+            throw new Error(data?.error || response.statusText);
+          }
+          applyOpenApiSpec(data.spec, source);
+        } catch (error) {
+          const summary = document.getElementById('openApiSummary');
+          if (summary) {
+            summary.textContent = `Failed to parse ${source}: ${error.message}`;
+          }
+          appendMessage('error', `OpenAPI parse failed: ${error.message}`);
+        }
+      }
+
+      function applyOpenApiSpec(spec, source) {
+        if (!spec || (!spec.openapi && !spec.swagger)) {
+          const summary = document.getElementById('openApiSummary');
+          if (summary) {
+            summary.textContent = `Invalid OpenAPI spec from ${source}`;
+          }
+          appendMessage('error', 'Not a valid OpenAPI/Swagger document.');
+          return;
+        }
+        openApiSpec = spec;
+        openApiSource = source || '';
+        openApiOperations = buildOpenApiOperations(spec);
+        openApiSelected = new Set();
+        const hasPathOps = openApiOperations.some(op => op.source === 'path');
+        const hasWebhookOps = openApiOperations.some(op => op.source === 'webhook');
+        openApiOnlyWebhooks = hasWebhookOps && !hasPathOps;
+        if (openApiOperations.length && openApiOperations.length <= 20) {
+          openApiOperations.forEach(op => openApiSelected.add(op.id));
+        }
+        openApiServers = getOpenApiServers(spec);
+        openApiSecuritySchemes = getOpenApiSecuritySchemes(spec);
+        const baseUrlInput = document.getElementById('genServerBaseUrl');
+        if (baseUrlInput && !baseUrlInput.value && openApiServers.length) {
+          baseUrlInput.value = openApiServers[0];
+          appendMessage('system', `✅ Base URL set to ${openApiServers[0]}`);
+        }
+        const modeSelect = document.getElementById('genMode');
+        if (modeSelect && modeSelect.value === 'scaffold' && openApiOperations.length) {
+          modeSelect.value = 'openapi';
+          appendMessage('system', '⚡ OpenAPI loaded: switched to OpenAPI Proxy mode');
+        }
+        renderOpenApiFilters();
+        renderOpenApiEndpoints();
+        renderOpenApiServers();
+        renderOpenApiSecuritySummary();
+        renderOpenApiTagChips();
+        updateOpenApiSummary();
+      }
+
+      function getOpenApiServers(spec) {
+        const servers = Array.isArray(spec.servers) ? spec.servers : [];
+        const urls = servers.map(server => server?.url).filter(Boolean);
+        if (urls.length) return urls;
+        if (spec.swagger && spec.host) {
+          const schemes = Array.isArray(spec.schemes) && spec.schemes.length ? spec.schemes : ['https'];
+          const basePath = spec.basePath || '';
+          return schemes.map(scheme => `${scheme}://${spec.host}${basePath}`);
+        }
+        return [];
+      }
+
+      function getOpenApiSecuritySchemes(spec) {
+        const schemes = spec.components?.securitySchemes || spec.securityDefinitions || {};
+        return Object.entries(schemes).map(([name, scheme]) => ({
+          name,
+          type: scheme.type || 'custom',
+          in: scheme.in || null,
+          scheme: scheme.scheme || null,
+          bearerFormat: scheme.bearerFormat || null,
+          openIdConnectUrl: scheme.openIdConnectUrl || null,
+          flows: scheme.flows ? Object.keys(scheme.flows) : []
+        }));
+      }
+
+      function renderOpenApiServers() {
+        const select = document.getElementById('openApiServerSelect');
+        if (!select) return;
+        select.innerHTML = '';
+        if (!openApiServers.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No servers detected';
+          select.appendChild(opt);
+          return;
+        }
+        openApiServers.forEach(url => {
+          const opt = document.createElement('option');
+          opt.value = url;
+          opt.textContent = url;
+          select.appendChild(opt);
+        });
+      }
+
+      function applyOpenApiServer() {
+        const select = document.getElementById('openApiServerSelect');
+        const input = document.getElementById('genServerBaseUrl');
+        if (!select || !input) return;
+        if (!select.value) {
+          appendMessage('error', 'No server URL detected in spec.');
+          return;
+        }
+        input.value = select.value;
+        appendMessage('system', `✅ Base URL set to ${select.value}`);
+      }
+
+      function renderOpenApiSecuritySummary() {
+        const el = document.getElementById('openApiSecuritySummary');
+        if (!el) return;
+        if (!openApiSecuritySchemes.length) {
+          el.textContent = 'No security schemes detected.';
+          return;
+        }
+        const parts = openApiSecuritySchemes.map(scheme => {
+          if (scheme.type === 'apiKey') {
+            return `${scheme.name} (apiKey in ${scheme.in || 'header'})`;
+          }
+          if (scheme.type === 'http') {
+            return `${scheme.name} (http ${scheme.scheme || 'auth'})`;
+          }
+          if (scheme.type === 'oauth2') {
+            const flow = scheme.flows?.length ? ` ${scheme.flows.join('/')}` : '';
+            return `${scheme.name} (oauth2${flow})`;
+          }
+          if (scheme.type === 'openIdConnect') {
+            return `${scheme.name} (oidc)`;
+          }
+          return `${scheme.name} (${scheme.type})`;
+        });
+        el.textContent = `Security: ${parts.join(' • ')}`;
+      }
+
+      function renderOpenApiTagChips() {
+        const wrap = document.getElementById('openApiTagChips');
+        if (!wrap) return;
+        if (!openApiOperations.length) {
+          wrap.innerHTML = '';
+          return;
+        }
+        const tagCounts = new Map();
+        openApiOperations.forEach(op => {
+          (op.tags || ['default']).forEach(tag => {
+            tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+          });
+        });
+        wrap.innerHTML = Array.from(tagCounts.entries()).map(([tag, count]) => {
+          const totalForTag = openApiOperations.filter(op => (op.tags || ['default']).includes(tag));
+          const selectedCount = totalForTag.filter(op => openApiSelected.has(op.id)).length;
+          const active = selectedCount === totalForTag.length && totalForTag.length > 0 ? 'active' : '';
+          return `
+            <button class="generator-tag-chip ${active}" onclick="toggleOpenApiTagSelection('${tag}')">
+              ${escapeHtml(tag)} (${count})
+            </button>
+          `;
+        }).join('');
+      }
+
+      function toggleOpenApiTagSelection(tag) {
+        const ops = openApiOperations.filter(op => (op.tags || ['default']).includes(tag));
+        if (!ops.length) return;
+        const allSelected = ops.every(op => openApiSelected.has(op.id));
+        ops.forEach(op => {
+          if (allSelected) {
+            openApiSelected.delete(op.id);
+          } else {
+            openApiSelected.add(op.id);
+          }
+        });
+        renderOpenApiEndpoints();
+        renderOpenApiTagChips();
+        updateOpenApiSummary();
+      }
+
+      function buildOpenApiOperations(spec) {
+        const ops = [];
+        const paths = spec.paths || {};
+        const webhooks = spec.webhooks || {};
+        const methods = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'];
+        const collectOps = (map, kind) => {
+          Object.entries(map).forEach(([path, pathItem]) => {
+            if (!pathItem || typeof pathItem !== 'object') return;
+            const commonParams = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
+            methods.forEach(method => {
+              const operation = pathItem[method];
+              if (!operation) return;
+              const params = [
+                ...commonParams,
+                ...(Array.isArray(operation.parameters) ? operation.parameters : [])
+              ];
+              const tags = operation.tags?.length ? operation.tags : ['default'];
+              const opId = operation.operationId || '';
+              const summary = operation.summary || operation.description || '';
+              const requestBody = operation.requestBody || null;
+              const opPath = kind === 'webhook' ? `/webhooks/${path}` : path;
+              ops.push({
+                id: `${kind.toUpperCase()} ${method.toUpperCase()} ${opPath}`,
+                method,
+                path: opPath,
+                tags,
+                summary,
+                operationId: opId,
+                parameters: params,
+                requestBody,
+                security: operation.security,
+                responses: operation.responses || {},
+                source: kind
+              });
+            });
+          });
+        };
+        collectOps(paths, 'path');
+        collectOps(webhooks, 'webhook');
+        return ops;
+      }
+
+      function getOpenApiContentSchema(content) {
+        if (!content || typeof content !== 'object') return null;
+        if (content['application/json']?.schema) return content['application/json'].schema;
+        const first = Object.values(content).find(entry => entry?.schema);
+        return first?.schema || null;
+      }
+
+      function getOpenApiRequestBodySchema(requestBody) {
+        if (!requestBody || typeof requestBody !== 'object') return null;
+        return getOpenApiContentSchema(requestBody.content);
+      }
+
+      function getOpenApiResponseSchema(responses) {
+        if (!responses || typeof responses !== 'object') return null;
+        const preferred = ['200', '201', '202', '204'];
+        for (const code of preferred) {
+          if (responses[code]) {
+            const schema = getOpenApiContentSchema(responses[code].content);
+            if (schema) return schema;
+          }
+        }
+        const entry = Object.values(responses).find(resp => resp?.content);
+        return entry ? getOpenApiContentSchema(entry.content) : null;
+      }
+
+      function resolveOpenApiAuthForOperation(spec, op) {
+        const security = op.security !== undefined ? op.security : spec.security;
+        if (!Array.isArray(security) || security.length === 0) return null;
+        const schemes = spec.components?.securitySchemes || {};
+        const found = [];
+        const seen = new Set();
+        let allowAnonymous = false;
+
+        security.forEach(req => {
+          if (!req || typeof req !== 'object') return;
+          const entries = Object.entries(req);
+          if (entries.length === 0) {
+            allowAnonymous = true;
+            return;
+          }
+          entries.forEach(([name, scopes]) => {
+            if (seen.has(name)) return;
+            seen.add(name);
+            const scheme = schemes[name] || {};
+            const meta = {
+              name,
+              type: scheme.type || 'custom',
+              in: scheme.in || null,
+              scheme: scheme.scheme || null,
+              bearerFormat: scheme.bearerFormat || null,
+              openIdConnectUrl: scheme.openIdConnectUrl || null,
+              scopes: Array.isArray(scopes) ? scopes : [],
+              description: scheme.description || ''
+            };
+            if (scheme.type === 'oauth2' && scheme.flows) {
+              meta.flows = Object.keys(scheme.flows);
+            }
+            found.push(meta);
+          });
+        });
+
+        if (!found.length && allowAnonymous) return null;
+        return {
+          required: !allowAnonymous,
+          schemes: found
+        };
+      }
+
+      function formatOpenApiAuthSummary(auth) {
+        if (!auth) return '';
+        if (!auth.schemes?.length) {
+          return auth.required ? 'required' : 'optional';
+        }
+        const parts = auth.schemes.map(scheme => {
+          if (scheme.type === 'apiKey') {
+            return `apiKey(${scheme.in || 'header'}:${scheme.name})`;
+          }
+          if (scheme.type === 'http') {
+            return `http(${scheme.scheme || 'auth'})`;
+          }
+          if (scheme.type === 'oauth2') {
+            const flow = Array.isArray(scheme.flows) && scheme.flows.length ? `:${scheme.flows.join(',')}` : '';
+            return `oauth2${flow}`;
+          }
+          if (scheme.type === 'openIdConnect') {
+            return 'oidc';
+          }
+          return scheme.name;
+        });
+        const label = parts.join(', ');
+        return auth.required ? label : `${label} (optional)`;
+      }
+
+      function renderOpenApiFilters() {
+        const tagSelect = document.getElementById('openApiTagFilter');
+        if (!tagSelect) return;
+        const tags = new Set();
+        openApiOperations.forEach(op => {
+          op.tags?.forEach(tag => tags.add(tag));
+        });
+        const current = tagSelect.value || 'all';
+        tagSelect.innerHTML = '<option value="all">All tags</option>';
+        Array.from(tags).sort().forEach(tag => {
+          const option = document.createElement('option');
+          option.value = tag;
+          option.textContent = tag;
+          tagSelect.appendChild(option);
+        });
+        tagSelect.value = current;
+      }
+
+      function applyOpenApiFilters() {
+        renderOpenApiEndpoints();
+        renderOpenApiTagChips();
+      }
+
+      function getFilteredOpenApiOps() {
+        const tagFilter = document.getElementById('openApiTagFilter')?.value || 'all';
+        const methodFilter = document.getElementById('openApiMethodFilter')?.value || 'all';
+        const search = document.getElementById('openApiSearchFilter')?.value?.trim().toLowerCase() || '';
+        return openApiOperations.filter(op => {
+          if (tagFilter !== 'all' && !op.tags?.includes(tagFilter)) return false;
+          if (methodFilter !== 'all' && op.method !== methodFilter) return false;
+          if (search) {
+            const hay = `${op.method} ${op.path} ${op.operationId} ${op.summary}`.toLowerCase();
+            if (!hay.includes(search)) return false;
+          }
+          return true;
+        });
+      }
+
+      function renderOpenApiEndpoints() {
+        const list = document.getElementById('openApiEndpointsList');
+        if (!list) return;
+        if (!openApiOperations.length) {
+          list.innerHTML = '<div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 12px;">Load a spec to see endpoints.</div>';
+          return;
+        }
+        const ops = getFilteredOpenApiOps();
+        if (!ops.length) {
+          list.innerHTML = '<div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 12px;">No endpoints match your filters.</div>';
+          return;
+        }
+        list.innerHTML = ops.map(op => {
+          const checked = openApiSelected.has(op.id) ? 'checked' : '';
+          const label = op.summary || op.operationId || 'No summary';
+          const tags = op.tags?.length ? op.tags.join(', ') : 'untagged';
+          const sourceTag = op.source === 'webhook' ? '<span style="font-size: 0.55rem; padding: 2px 6px; border-radius: 999px; background: rgba(14, 165, 233, 0.2); border: 1px solid rgba(14, 165, 233, 0.5); color: #7dd3fc;">Webhook</span>' : '';
+          return `
+            <label style="display: flex; gap: 8px; align-items: flex-start; font-size: 0.75rem; color: var(--text-primary); padding: 6px; border-radius: 6px; background: rgba(255,255,255,0.02);">
+              <input type="checkbox" ${checked} onchange="toggleOpenApiSelection('${op.id}', this.checked)" />
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 0.62rem; padding: 2px 6px; border-radius: 6px; background: rgba(99,102,241,0.2); text-transform: uppercase; letter-spacing: 0.04em;">
+                    ${op.method.toUpperCase()}
+                  </span>
+                  ${sourceTag}
+                  <span style="font-family: 'JetBrains Mono', monospace;">${op.path}</span>
+                </div>
+                <span style="color: var(--text-secondary);">${escapeHtml(label)}</span>
+                <span style="color: var(--text-muted); font-size: 0.65rem;">${escapeHtml(tags)}</span>
+              </div>
+            </label>
+          `;
+        }).join('');
+      }
+
+      function toggleOpenApiSelection(id, checked) {
+        if (checked) {
+          openApiSelected.add(id);
+        } else {
+          openApiSelected.delete(id);
+        }
+        updateOpenApiSummary();
+      }
+
+      function updateOpenApiSummary() {
+        if (!openApiSpec) return;
+        const summary = document.getElementById('openApiSummary');
+        if (!summary) return;
+        const title = openApiSpec.info?.title || 'OpenAPI Spec';
+        const sourceText = openApiSource ? ` • ${openApiSource}` : '';
+        const endpointNote = openApiOperations.length ? `${openApiOperations.length} endpoints` : 'No endpoints found';
+        const selectionNote = openApiSelected.size
+          ? `${openApiSelected.size} selected`
+          : 'Select endpoints to import';
+        const webhookNote = openApiOnlyWebhooks ? ' • Webhooks only' : '';
+        summary.textContent = `${title} • ${endpointNote} • ${selectionNote}${webhookNote}${sourceText}`;
+        updateGeneratorAutoRunButtons();
+      }
+
+      function selectAllOpenApi(selectAll) {
+        if (!openApiOperations.length) return;
+        if (selectAll) {
+          getFilteredOpenApiOps().forEach(op => openApiSelected.add(op.id));
+        } else {
+          getFilteredOpenApiOps().forEach(op => openApiSelected.delete(op.id));
+        }
+        renderOpenApiEndpoints();
+        renderOpenApiTagChips();
+        updateOpenApiSummary();
+      }
+
+      function importOpenApiTools(replaceExisting) {
+        if (!openApiOperations.length) {
+          appendMessage('error', 'Load an OpenAPI spec first');
+          return;
+        }
+        if (!openApiSelected.size) {
+          appendMessage('error', 'Select at least one endpoint');
+          return;
+        }
+        if (replaceExisting) {
+          generatorTools = [];
+        }
+        const selectedOps = openApiOperations.filter(op => openApiSelected.has(op.id));
+        selectedOps.forEach(op => {
+          const toolName = buildOpenApiToolName(op);
+          const uniqueName = ensureUniqueGeneratorToolName(toolName);
+          const params = buildOpenApiToolParams(op);
+          const auth = resolveOpenApiAuthForOperation(openApiSpec, op);
+          const bodySchema = getOpenApiRequestBodySchema(op.requestBody);
+          const outputSchema = getOpenApiResponseSchema(op.responses);
+          const inputSchema = buildInputSchemaFromParams(params, bodySchema);
+          generatorTools.push({
+            id: `tool_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            name: uniqueName,
+            description: op.summary || op.operationId || `${op.method.toUpperCase()} ${op.path}`,
+            params,
+            auth: auth || null,
+            inputSchema,
+            outputSchema,
+            endpoint: {
+              method: op.method,
+              path: op.path,
+              tags: op.tags || [],
+              operationId: op.operationId || '',
+              source: op.source || 'path'
+            }
+          });
+        });
+        renderGeneratorTools();
+        renderOpenApiTagChips();
+        appendMessage('system', `✅ Imported ${selectedOps.length} tools from OpenAPI`);
+      }
+
+      function buildOpenApiToolName(op) {
+        const raw = op.operationId || `${op.method}_${op.path}`;
+        const cleaned = raw
+          .toString()
+          .toLowerCase()
+          .replace(/[{}]/g, '')
+          .replace(/[^\w]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        return cleaned || `tool_${op.method}`;
+      }
+
+      function ensureUniqueGeneratorToolName(name) {
+        const existing = new Set(generatorTools.map(t => t.name));
+        if (!existing.has(name)) return name;
+        let idx = 2;
+        let candidate = `${name}_${idx}`;
+        while (existing.has(candidate)) {
+          idx += 1;
+          candidate = `${name}_${idx}`;
+        }
+        return candidate;
+      }
+
+      function buildOpenApiToolParams(op) {
+        const params = [];
+        const seen = new Set();
+        (op.parameters || []).forEach(param => {
+          if (!param || !param.name) return;
+          const key = `${param.in || 'query'}:${param.name}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          const schema = param.schema || {};
+          const type = schema.type === 'integer' ? 'number' : (schema.type || 'string');
+          params.push({
+            name: param.name,
+            type,
+            required: !!param.required,
+            location: param.in || 'query',
+            description: param.description || '',
+            schema
+          });
+        });
+        if (op.requestBody) {
+          params.push({
+            name: 'body',
+            type: 'object',
+            required: !!op.requestBody.required
+          });
+        }
+        return params;
+      }
+
+      function buildInputSchemaFromParams(params, bodySchema) {
+        const schema = { type: 'object', properties: {} };
+        const required = [];
+        (params || []).forEach(param => {
+          const propSchema = param.schema && typeof param.schema === 'object'
+            ? { ...param.schema }
+            : { type: param.type || 'string' };
+          if (param.description) propSchema.description = param.description;
+          schema.properties[param.name] = propSchema;
+          if (param.required) required.push(param.name);
+        });
+        if (bodySchema && typeof bodySchema === 'object') {
+          schema.properties.body = bodySchema;
+        }
+        if (required.length) schema.required = required;
+        return schema;
+      }
+
+      function buildInputSchemaForTool(tool) {
+        if (tool.inputSchema && typeof tool.inputSchema === 'object') {
+          return tool.inputSchema;
+        }
+        return buildInputSchemaFromParams(tool.params || [], null);
+      }
+
+      function buildHttpAnnotations(method) {
+        const m = (method || '').toLowerCase();
+        const readOnly = ['get', 'head', 'options'].includes(m);
+        const idempotent = ['get', 'head', 'options', 'put', 'delete'].includes(m);
+        const destructive = ['post', 'put', 'patch', 'delete'].includes(m);
+        return {
+          readOnlyHint: readOnly,
+          destructiveHint: readOnly ? false : destructive,
+          idempotentHint: idempotent,
+          openWorldHint: true
+        };
+      }
+
       let generatorTools = [];
       let generatedCode = '';
 
@@ -10168,6 +11360,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
               No tools defined. Click "Add Tool" to start designing.
             </div>
           `;
+          updateGeneratorAutoRunButtons();
           return;
         }
 
@@ -10186,6 +11379,16 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
                 value="${escapeHtml(tool.description)}" 
                 onchange="updateGeneratorTool('${tool.id}', 'description', this.value)"
                 style="font-size: 0.75rem; padding: 4px 8px;">
+              ${tool.endpoint ? `
+                <div style="font-size: 0.65rem; color: var(--text-muted);">
+                  🌐 ${tool.endpoint.source === 'webhook' ? 'Webhook' : 'Endpoint'}: ${escapeHtml(tool.endpoint.method?.toUpperCase() || 'GET')} ${escapeHtml(tool.endpoint.path || '')}
+                </div>
+              ` : ''}
+              ${tool.auth ? `
+                <div style="font-size: 0.65rem; color: var(--text-muted);">
+                  🔐 Auth: ${escapeHtml(formatOpenApiAuthSummary(tool.auth))}
+                </div>
+              ` : ''}
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 0.7rem; color: var(--text-muted);">Parameters: ${tool.params.length}</span>
                 <button class="btn" onclick="addToolParam('${tool.id}')" style="font-size: 0.6rem; padding: 2px 6px;">➕ Param</button>
@@ -10215,6 +11418,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
             </div>
           </div>
         `).join('');
+        updateGeneratorAutoRunButtons();
       }
 
       // Update a tool property
@@ -10260,13 +11464,25 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
         const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
         const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
         const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
 
         if (generatorTools.length === 0) {
           appendMessage('error', 'Add at least one tool to generate code');
           return;
         }
 
-        if (language === 'python') {
+        if (mode === 'openapi') {
+          const openApiTools = generatorTools.filter(tool => tool.endpoint);
+          if (!openApiTools.length) {
+            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
+            return;
+          }
+          if (language === 'python') {
+            generatedCode = generateOpenApiPythonMCP(serverName, serverDesc, openApiTools);
+          } else {
+            generatedCode = generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
+          }
+        } else if (language === 'python') {
           generatedCode = generatePythonMCP(serverName, serverDesc);
         } else {
           generatedCode = generateNodeMCP(serverName, serverDesc);
@@ -10274,7 +11490,7 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
 
         document.getElementById('generatorPreviewSection').style.display = 'block';
         document.getElementById('generatorCodePreview').textContent = generatedCode;
-        appendMessage('system', `🚀 Generated ${language} MCP server code with ${generatorTools.length} tools`);
+        appendMessage('system', `🚀 Generated ${language} MCP server code (${mode}) with ${generatorTools.length} tools`);
       }
 
       // Preview without saving
@@ -10284,15 +11500,18 @@ Be concise, suggest next actions, and ask a clarifying question if needed.`;
 
       // Generate Python MCP server code
       function generatePythonMCP(serverName, serverDesc) {
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim();
         const toolDefs = generatorTools.map(tool => {
           const params = tool.params.map(p => 
             `    ${p.name}: ${p.type === 'number' ? 'float' : p.type === 'boolean' ? 'bool' : 'str'}${!p.required ? ' = None' : ''}`
           ).join(',\n');
+          const authNote = tool.auth ? `\n    Auth: ${formatOpenApiAuthSummary(tool.auth)}` : '';
+          const endpointNote = tool.endpoint ? `\n    Endpoint: ${tool.endpoint.method?.toUpperCase() || 'GET'} ${tool.endpoint.path || ''}` : '';
           
           return `
 @mcp.tool()
 async def ${tool.name || 'unnamed_tool'}(${params ? '\n' + params + '\n' : ''}):
-    """${tool.description || 'No description'}"""
+    """${tool.description || 'No description'}${endpointNote}${authNote}"""
     # TODO: Implement your logic here
     return {"result": "success", "message": "Tool executed"}
 `;
@@ -10309,6 +11528,7 @@ from mcp.server.stdio import stdio_server
 
 # Create server instance
 mcp = Server("${serverName}")
+${baseUrl ? `\n# API base URL (from OpenAPI)\nAPI_BASE_URL = "${baseUrl}"\n` : ''}
 
 ${toolDefs}
 
@@ -10324,19 +11544,33 @@ if __name__ == "__main__":
 
       // Generate Node.js MCP server code
       function generateNodeMCP(serverName, serverDesc) {
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim();
         const toolDefs = generatorTools.map(tool => {
-          const paramsSchema = tool.params.reduce((acc, p) => {
-            acc[p.name] = { type: p.type, description: `${p.name} parameter` };
-            return acc;
-          }, {});
-          const required = tool.params.filter(p => p.required).map(p => p.name);
+          const inputSchema = buildInputSchemaForTool(tool);
+          const annotations = tool.endpoint?.method ? buildHttpAnnotations(tool.endpoint.method) : null;
+          const metaObj = {};
+          if (tool.auth) metaObj.auth = tool.auth;
+          if (tool.endpoint) {
+            metaObj.endpoint = {
+              method: tool.endpoint.method,
+              path: tool.endpoint.path,
+              tags: tool.endpoint.tags || [],
+              source: tool.endpoint.source || 'path'
+            };
+          }
+          const configObj = {
+            description: tool.description || 'No description',
+            inputSchema
+          };
+          if (tool.outputSchema) configObj.outputSchema = tool.outputSchema;
+          if (annotations) configObj.annotations = annotations;
+          if (Object.keys(metaObj).length) configObj._meta = metaObj;
+          const configStr = JSON.stringify(configObj, null, 4).replace(/\n/g, '\n    ');
           
           return `
-  server.tool(
+  server.registerTool(
     "${tool.name || 'unnamed_tool'}",
-    "${tool.description || 'No description'}",
-    ${JSON.stringify(paramsSchema, null, 4)},
-    ${JSON.stringify(required)},
+    ${configStr},
     async (params) => {
       // TODO: Implement your logic here
       return { result: "success", message: "Tool executed" };
@@ -10354,6 +11588,7 @@ if __name__ == "__main__":
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+${baseUrl ? `const API_BASE_URL = "${baseUrl}";\n` : ''}
 const server = new Server(
   { name: "${serverName}", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -10365,6 +11600,367 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("${serverName} MCP server running on stdio");
+}
+
+main().catch(console.error);
+`;
+      }
+
+      function generateOpenApiPythonMCP(serverName, serverDesc, tools) {
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const toolDefs = tools.map(tool => ({
+          name: tool.name,
+          description: tool.description || '',
+          method: tool.endpoint?.method || 'get',
+          path: tool.endpoint?.path || '',
+          params: tool.params || [],
+          auth: tool.auth || null
+        }));
+        const toolMap = toolDefs.reduce((acc, tool) => {
+          acc[tool.name] = tool;
+          return acc;
+        }, {});
+        const toolsJson = JSON.stringify(toolMap, null, 2);
+        const toolFns = toolDefs.map(tool => {
+          const params = tool.params || [];
+          const argsSignature = params.map(param => {
+            const type = param.type === 'number' ? 'float' : param.type === 'boolean' ? 'bool' : 'str';
+            return `${param.name}: ${type}${param.required ? '' : ' = None'}`;
+          }).join(', ');
+          const authNote = tool.auth ? `\n    Auth: ${formatOpenApiAuthSummary(tool.auth)}` : '';
+          const endpointNote = tool.path ? `\n    Endpoint: ${tool.method?.toUpperCase() || 'GET'} ${tool.path}` : '';
+          return `
+@mcp.tool()
+async def ${tool.name}(${argsSignature}):
+    """${tool.description || 'No description'}${endpointNote}${authNote}"""
+    args = {${params.map(param => `'${param.name}': ${param.name}`).join(', ')}}
+    return await call_tool("${tool.name}", args)
+`;
+        }).join('\n');
+
+        return `#!/usr/bin/env python3
+"""
+${serverDesc}
+Generated by MCP Chat Studio (OpenAPI Proxy)
+"""
+
+import os
+import json
+import urllib.parse
+import urllib.request
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+
+API_BASE_URL = os.getenv("API_BASE_URL", "${baseUrl}")
+API_KEY = os.getenv("MCP_API_KEY", "")
+API_KEY_NAME = os.getenv("MCP_API_KEY_NAME", "")
+API_KEY_IN = os.getenv("MCP_API_KEY_IN", "header")
+BEARER_TOKEN = os.getenv("MCP_BEARER_TOKEN", "")
+BASIC_USER = os.getenv("MCP_BASIC_USER", "")
+BASIC_PASS = os.getenv("MCP_BASIC_PASS", "")
+OAUTH_TOKEN_URL = os.getenv("MCP_OAUTH_TOKEN_URL", "")
+OAUTH_CLIENT_ID = os.getenv("MCP_OAUTH_CLIENT_ID", "")
+OAUTH_CLIENT_SECRET = os.getenv("MCP_OAUTH_CLIENT_SECRET", "")
+OAUTH_SCOPE = os.getenv("MCP_OAUTH_SCOPE", "")
+OAUTH_AUDIENCE = os.getenv("MCP_OAUTH_AUDIENCE", "")
+
+TOOLS = ${toolsJson}
+_token_cache = {"value": "", "expires_at": 0}
+
+mcp = Server("${serverName}")
+
+def _get_oauth_token():
+  import time
+  if _token_cache["value"] and _token_cache["expires_at"] > time.time() + 30:
+    return _token_cache["value"]
+  if not OAUTH_TOKEN_URL or not OAUTH_CLIENT_ID:
+    return ""
+  data = {
+    "grant_type": "client_credentials",
+    "client_id": OAUTH_CLIENT_ID,
+  }
+  if OAUTH_CLIENT_SECRET:
+    data["client_secret"] = OAUTH_CLIENT_SECRET
+  if OAUTH_SCOPE:
+    data["scope"] = OAUTH_SCOPE
+  if OAUTH_AUDIENCE:
+    data["audience"] = OAUTH_AUDIENCE
+  req = urllib.request.Request(
+    OAUTH_TOKEN_URL,
+    data=urllib.parse.urlencode(data).encode("utf-8"),
+    headers={"Content-Type": "application/x-www-form-urlencoded"},
+    method="POST"
+  )
+  with urllib.request.urlopen(req) as resp:
+    payload = json.loads(resp.read().decode("utf-8"))
+  _token_cache["value"] = payload.get("access_token", "")
+  _token_cache["expires_at"] = time.time() + int(payload.get("expires_in", 3600))
+  return _token_cache["value"]
+
+def _apply_auth(headers, query, auth):
+  if not auth or not auth.get("schemes"):
+    return
+  scheme = auth["schemes"][0]
+  if scheme.get("type") == "apiKey":
+    key_name = API_KEY_NAME or scheme.get("name")
+    if scheme.get("in") == "query" or API_KEY_IN == "query":
+      query[key_name] = API_KEY
+    else:
+      headers[key_name] = API_KEY
+  elif scheme.get("type") == "http":
+    if scheme.get("scheme") == "basic":
+      import base64
+      token = base64.b64encode(f"{BASIC_USER}:{BASIC_PASS}".encode("utf-8")).decode("utf-8")
+      headers["Authorization"] = f"Basic {token}"
+    else:
+      token = BEARER_TOKEN or _get_oauth_token()
+      if token:
+        headers["Authorization"] = f"Bearer {token}"
+  elif scheme.get("type") in ("oauth2", "openIdConnect"):
+    token = _get_oauth_token()
+    if token:
+      headers["Authorization"] = f"Bearer {token}"
+
+def _build_url(tool, args):
+  path = tool["path"]
+  query = {}
+  for param in tool.get("params", []):
+    value = args.get(param["name"]) if args else None
+    if value is None:
+      continue
+    location = param.get("location", "query")
+    if location == "path":
+      path = path.replace("{" + param["name"] + "}", urllib.parse.quote(str(value)))
+    elif location == "query":
+      query[param["name"]] = str(value)
+  url = f"{API_BASE_URL}{path}"
+  if query:
+    url += "?" + urllib.parse.urlencode(query)
+  return url
+
+async def call_tool(tool_name, args):
+  tool_def = TOOLS.get(tool_name)
+  if not tool_def:
+    raise ValueError(f"Unknown tool: {tool_name}")
+  if not API_BASE_URL:
+    raise ValueError("API_BASE_URL is not set")
+  headers = {"Content-Type": "application/json"}
+  query = {}
+  for param in tool_def.get("params", []):
+    value = args.get(param["name"]) if args else None
+    if value is None:
+      continue
+    location = param.get("location")
+    if location == "header":
+      headers[param["name"]] = str(value)
+    elif location == "cookie":
+      existing = headers.get("Cookie", "")
+      cookie = f"{param['name']}={urllib.parse.quote(str(value))}"
+      headers["Cookie"] = f"{existing}; {cookie}" if existing else cookie
+  _apply_auth(headers, query, tool_def.get("auth"))
+  url = _build_url(tool_def, args)
+  if query:
+    url += ("&" if "?" in url else "?") + urllib.parse.urlencode(query)
+  body = args.get("body") if args else None
+  data = json.dumps(body).encode("utf-8") if body is not None else None
+  req = urllib.request.Request(url, data=data, headers=headers, method=tool_def["method"].upper())
+  with urllib.request.urlopen(req) as resp:
+    raw = resp.read().decode("utf-8")
+  try:
+    parsed = json.loads(raw)
+  except Exception:
+    parsed = {"raw": raw}
+  return {"result": parsed}
+
+${toolFns}
+
+async def main():
+  async with stdio_server() as (read_stream, write_stream):
+    await mcp.run(read_stream, write_stream)
+
+if __name__ == "__main__":
+  import asyncio
+  asyncio.run(main())
+`;
+      }
+
+      function generateOpenApiNodeMCP(serverName, serverDesc, tools) {
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const toolDefs = tools.map(tool => ({
+          name: tool.name,
+          description: tool.description || '',
+          method: tool.endpoint?.method || 'get',
+          path: tool.endpoint?.path || '',
+          params: tool.params || [],
+          auth: tool.auth || null,
+          inputSchema: tool.inputSchema || null,
+          outputSchema: tool.outputSchema || null
+        }));
+        const toolsJson = JSON.stringify(toolDefs, null, 2);
+
+        return `#!/usr/bin/env node
+/**
+ * ${serverDesc}
+ * Generated by MCP Chat Studio (OpenAPI Proxy)
+ */
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+const API_BASE_URL = process.env.API_BASE_URL || "${baseUrl}";
+const OAUTH_TOKEN_URL = process.env.MCP_OAUTH_TOKEN_URL || "";
+const OAUTH_CLIENT_ID = process.env.MCP_OAUTH_CLIENT_ID || "";
+const OAUTH_CLIENT_SECRET = process.env.MCP_OAUTH_CLIENT_SECRET || "";
+const OAUTH_SCOPE = process.env.MCP_OAUTH_SCOPE || "";
+const OAUTH_AUDIENCE = process.env.MCP_OAUTH_AUDIENCE || "";
+const API_KEY = process.env.MCP_API_KEY || "";
+const API_KEY_NAME = process.env.MCP_API_KEY_NAME || "";
+const API_KEY_IN = process.env.MCP_API_KEY_IN || "header";
+const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN || "";
+const BASIC_USER = process.env.MCP_BASIC_USER || "";
+const BASIC_PASS = process.env.MCP_BASIC_PASS || "";
+
+const TOOLS = ${toolsJson};
+let cachedToken = { value: "", expiresAt: 0 };
+
+const server = new Server(
+  { name: "${serverName}", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+function buildUrl(tool, args) {
+  let path = tool.path;
+  const query = new URLSearchParams();
+  (tool.params || []).forEach(param => {
+    const value = args?.[param.name];
+    if (value === undefined || value === null) return;
+    const location = param.location || 'query';
+    if (location === 'path') {
+      path = path.replace(\`{\${param.name}}\`, encodeURIComponent(String(value)));
+    } else if (location === 'query') {
+      query.append(param.name, String(value));
+    }
+  });
+  const qs = query.toString();
+  return \`\${API_BASE_URL}\${path}\${qs ? \`?\${qs}\` : ""}\`;
+}
+
+async function getOAuthToken() {
+  if (cachedToken.value && cachedToken.expiresAt > Date.now() + 30000) {
+    return cachedToken.value;
+  }
+  if (!OAUTH_TOKEN_URL || !OAUTH_CLIENT_ID) return "";
+  const body = new URLSearchParams();
+  body.set("grant_type", "client_credentials");
+  body.set("client_id", OAUTH_CLIENT_ID);
+  if (OAUTH_CLIENT_SECRET) body.set("client_secret", OAUTH_CLIENT_SECRET);
+  if (OAUTH_SCOPE) body.set("scope", OAUTH_SCOPE);
+  if (OAUTH_AUDIENCE) body.set("audience", OAUTH_AUDIENCE);
+
+  const resp = await fetch(OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  if (!resp.ok) throw new Error(\`OAuth token request failed: \${resp.status}\`);
+  const data = await resp.json();
+  cachedToken.value = data.access_token || "";
+  cachedToken.expiresAt = Date.now() + (data.expires_in ? data.expires_in * 1000 : 3600 * 1000);
+  return cachedToken.value;
+}
+
+async function applyAuth(headers, query, auth) {
+  if (!auth || !auth.schemes?.length) return;
+  const scheme = auth.schemes[0];
+  if (scheme.type === 'apiKey') {
+    const key = API_KEY_NAME || scheme.name;
+    if (API_KEY_IN === 'query' || scheme.in === 'query') {
+      query.set(key, API_KEY);
+    } else {
+      headers.set(key, API_KEY);
+    }
+  } else if (scheme.type === 'http') {
+    if (scheme.scheme === 'basic') {
+      const token = Buffer.from(\`\${BASIC_USER}:\${BASIC_PASS}\`).toString('base64');
+      headers.set('Authorization', \`Basic \${token}\`);
+    } else {
+      const token = BEARER_TOKEN || (await getOAuthToken());
+      if (token) headers.set('Authorization', \`Bearer \${token}\`);
+    }
+  } else if (scheme.type === 'oauth2' || scheme.type === 'openIdConnect') {
+    const token = await getOAuthToken();
+    if (token) headers.set('Authorization', \`Bearer \${token}\`);
+  }
+}
+
+TOOLS.forEach(tool => {
+  const paramsSchema = {};
+  const required = [];
+  (tool.params || []).forEach(param => {
+    paramsSchema[param.name] = { type: param.type || 'string', description: \`\${param.name} parameter\` };
+    if (param.required) required.push(param.name);
+  });
+  const fallbackSchema = { type: 'object', properties: paramsSchema };
+  if (required.length) fallbackSchema.required = required;
+  const inputSchema = tool.inputSchema || fallbackSchema;
+
+  server.registerTool(
+    tool.name,
+    {
+      description: tool.description,
+      inputSchema,
+      annotations: {
+        readOnlyHint: ['get', 'head', 'options'].includes(tool.method),
+        destructiveHint: ['post', 'put', 'patch', 'delete'].includes(tool.method),
+        idempotentHint: ['get', 'head', 'options', 'put', 'delete'].includes(tool.method),
+        openWorldHint: true
+      },
+      ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
+      _meta: { endpoint: { method: tool.method, path: tool.path }, auth: tool.auth || null }
+    },
+    async (args) => {
+      if (!API_BASE_URL) throw new Error("API_BASE_URL is not set");
+      const headers = new Headers();
+      headers.set("Content-Type", "application/json");
+      const query = new URLSearchParams();
+      (tool.params || []).forEach(param => {
+        const value = args?.[param.name];
+        if (value === undefined || value === null) return;
+        if (param.location === 'header') {
+          headers.set(param.name, String(value));
+        } else if (param.location === 'cookie') {
+          const current = headers.get('Cookie') || '';
+          const cookie = \`\${param.name}=\${encodeURIComponent(String(value))}\`;
+          headers.set('Cookie', current ? \`\${current}; \${cookie}\` : cookie);
+        }
+      });
+      await applyAuth(headers, query, tool.auth);
+      let url = buildUrl(tool, args);
+      const queryString = query.toString();
+      if (queryString) {
+        url += url.includes('?') ? \`&\${queryString}\` : \`?\${queryString}\`;
+      }
+      const body = args?.body ? JSON.stringify(args.body) : undefined;
+      const resp = await fetch(url, {
+        method: tool.method.toUpperCase(),
+        headers,
+        body: body && !['get', 'head'].includes(tool.method) ? body : undefined
+      });
+      const text = await resp.text();
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+      if (!resp.ok) {
+        throw new Error(\`\${resp.status} \${resp.statusText}: \${text}\`);
+      }
+      return { result: parsed };
+    }
+  );
+});
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("${serverName} MCP OpenAPI proxy running on stdio");
 }
 
 main().catch(console.error);
@@ -10399,6 +11995,805 @@ main().catch(console.error);
         appendMessage('system', `📥 Downloaded ${filename}`);
       }
 
+      function downloadGeneratorProject() {
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
+        const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
+
+        if (generatorTools.length === 0) {
+          appendMessage('error', 'Add at least one tool to generate a project');
+          return;
+        }
+
+        let code = '';
+        if (mode === 'openapi') {
+          const openApiTools = generatorTools.filter(tool => tool.endpoint);
+          if (!openApiTools.length) {
+            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
+            return;
+          }
+          code = language === 'python'
+            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
+            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
+        } else {
+          code = language === 'python'
+            ? generatePythonMCP(serverName, serverDesc)
+            : generateNodeMCP(serverName, serverDesc);
+        }
+
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const files = buildGeneratorProjectFiles({
+          serverName,
+          serverDesc,
+          language,
+          mode,
+          code,
+          baseUrl
+        });
+
+        const bundle = {
+          format: 'mcp-generator-project',
+          createdAt: new Date().toISOString(),
+          serverName,
+          language,
+          mode,
+          files
+        };
+
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${serverName}-${mode}-${language}-project.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        appendMessage('system', '📦 Project bundle downloaded. Use the README inside to run it.');
+      }
+
+      function downloadGeneratorZip() {
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
+        const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
+
+        if (generatorTools.length === 0) {
+          appendMessage('error', 'Add at least one tool to generate a project');
+          return;
+        }
+
+        let code = '';
+        if (mode === 'openapi') {
+          const openApiTools = generatorTools.filter(tool => tool.endpoint);
+          if (!openApiTools.length) {
+            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
+            return;
+          }
+          code = language === 'python'
+            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
+            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
+        } else {
+          code = language === 'python'
+            ? generatePythonMCP(serverName, serverDesc)
+            : generateNodeMCP(serverName, serverDesc);
+        }
+
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const files = buildGeneratorProjectFiles({
+          serverName,
+          serverDesc,
+          language,
+          mode,
+          code,
+          baseUrl
+        });
+
+        const zipBlob = buildZipFromFiles(files, serverName);
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${serverName}-${mode}-${language}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        appendMessage('system', '📦 ZIP downloaded. Unzip and run the project locally.');
+      }
+
+      function showGeneratorRunModal() {
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+
+        generatorRunState = { serverName, language, mode, baseUrl };
+        generatorRunOs = 'unix';
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'generatorRunModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 640px;">
+            <div class="modal-header">
+              <h2 class="modal-title">🚀 Run ${escapeHtml(serverName)} Locally</h2>
+              <button class="modal-close" onclick="closeGeneratorRunModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                Mode: ${escapeHtml(mode)} • Language: ${escapeHtml(language)}
+              </div>
+              <div class="generator-os-tabs">
+                <button class="generator-os-tab active" id="generatorRunOsUnix" onclick="switchGeneratorRunOs('unix')">macOS / Linux</button>
+                <button class="generator-os-tab" id="generatorRunOsWindows" onclick="switchGeneratorRunOs('windows')">Windows</button>
+              </div>
+              <div>
+                <div style="font-size: 0.75rem; margin-bottom: 6px;">Commands</div>
+                <pre id="generatorRunCommands" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+              </div>
+              <div>
+                <div style="font-size: 0.75rem; margin-bottom: 6px;">Environment (.env)</div>
+                <pre id="generatorRunEnv" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+              </div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">
+                Tip: In OpenAPI Proxy mode, set API_BASE_URL and auth vars before running.
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="closeGeneratorRunModal()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        updateGeneratorRunModalContent();
+      }
+
+      function closeGeneratorRunModal() {
+        const modal = document.getElementById('generatorRunModal');
+        if (modal) modal.remove();
+      }
+
+      function switchGeneratorRunOs(os) {
+        generatorRunOs = os;
+        updateGeneratorRunModalContent();
+      }
+
+      function updateGeneratorRunModalContent() {
+        if (!generatorRunState) return;
+        const { language, baseUrl } = generatorRunState;
+        const commandsEl = document.getElementById('generatorRunCommands');
+        const envEl = document.getElementById('generatorRunEnv');
+        const unixBtn = document.getElementById('generatorRunOsUnix');
+        const winBtn = document.getElementById('generatorRunOsWindows');
+        if (!commandsEl || !envEl) return;
+
+        if (unixBtn && winBtn) {
+          unixBtn.classList.toggle('active', generatorRunOs === 'unix');
+          winBtn.classList.toggle('active', generatorRunOs === 'windows');
+        }
+
+        const commands = getGeneratorRunCommands(generatorRunOs, language);
+        const envLines = getGeneratorEnvLines(baseUrl);
+        commandsEl.textContent = commands;
+        envEl.textContent = envLines;
+      }
+
+      function getGeneratorRunCommands(os, language) {
+        if (language === 'python') {
+          if (os === 'windows') {
+            return [
+              'python -m venv .venv',
+              '.venv\\\\Scripts\\\\activate',
+              'pip install -r requirements.txt',
+              'python server.py'
+            ].join('\\n');
+          }
+          return [
+            'python3 -m venv .venv',
+            'source .venv/bin/activate',
+            'pip install -r requirements.txt',
+            'python server.py'
+          ].join('\\n');
+        }
+        return [
+          'npm install',
+          'node server.js'
+        ].join('\\n');
+      }
+
+      function getGeneratorEnvLines(baseUrl) {
+        return [
+          baseUrl ? `API_BASE_URL=${baseUrl}` : 'API_BASE_URL=',
+          'MCP_API_KEY=',
+          'MCP_API_KEY_NAME=',
+          'MCP_API_KEY_IN=header',
+          'MCP_BEARER_TOKEN=',
+          'MCP_BASIC_USER=',
+          'MCP_BASIC_PASS=',
+          'MCP_OAUTH_TOKEN_URL=',
+          'MCP_OAUTH_CLIENT_ID=',
+          'MCP_OAUTH_CLIENT_SECRET=',
+          'MCP_OAUTH_SCOPE=',
+          'MCP_OAUTH_AUDIENCE='
+        ].join('\\n');
+      }
+
+      async function saveGeneratorToFolder() {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          appendMessage('error', 'Folder save is not supported in this browser. Use Download ZIP instead.');
+          return;
+        }
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
+        const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+
+        if (generatorTools.length === 0) {
+          appendMessage('error', 'Add at least one tool to generate a project');
+          return;
+        }
+
+        let code = '';
+        if (mode === 'openapi') {
+          const openApiTools = generatorTools.filter(tool => tool.endpoint);
+          if (!openApiTools.length) {
+            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
+            return;
+          }
+          code = language === 'python'
+            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
+            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
+        } else {
+          code = language === 'python'
+            ? generatePythonMCP(serverName, serverDesc)
+            : generateNodeMCP(serverName, serverDesc);
+        }
+
+        const files = buildGeneratorProjectFiles({
+          serverName,
+          serverDesc,
+          language,
+          mode,
+          code,
+          baseUrl
+        });
+
+        try {
+          const rootHandle = await window.showDirectoryPicker();
+          const folderName = serverName.toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
+          const projectHandle = await rootHandle.getDirectoryHandle(folderName || 'mcp-server', { create: true });
+          for (const [name, content] of Object.entries(files)) {
+            const fileHandle = await projectHandle.getFileHandle(name, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(content);
+            await writable.close();
+          }
+          generatorLastFolderName = folderName || 'mcp-server';
+          generatorPickedFolderName = generatorLastFolderName;
+          localStorage.setItem('mcp_generator_last_folder', generatorLastFolderName);
+          updateGeneratorProjectStatus();
+          appendMessage('system', `✅ Saved project to folder "${folderName}"`);
+        } catch (error) {
+          appendMessage('error', `Failed to save folder: ${error.message}`);
+        }
+      }
+
+      function showGeneratorTestModal() {
+        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const language = document.getElementById('genLanguage').value;
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const cmd = language === 'python' ? 'python' : 'node';
+        const args = language === 'python' ? ['server.py'] : ['server.js'];
+        generatorTestCwd = '';
+        generatorTestOs = 'unix';
+        const baseConfig = { serverName, cmd, args, baseUrl };
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.id = 'generatorTestModal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal" style="max-width: 720px;">
+            <div class="modal-header">
+              <h2 class="modal-title">🧪 Test in Studio</h2>
+              <button class="modal-close" onclick="closeGeneratorTestModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">
+                Follow these steps to run the server and connect it to Studio.
+              </div>
+              <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 10px;">
+                <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 6px;">Project files</div>
+                <div id="generatorProjectStatus" style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 8px;">
+                  ${generatorLastFolderName ? `Last saved folder: <strong>${escapeHtml(generatorLastFolderName)}</strong>` : 'Not saved yet. Use Download ZIP or Save to Folder first.'}
+                </div>
+                <div class="generator-actions">
+                  <button class="btn" onclick="downloadGeneratorZip()">Download ZIP</button>
+                  <button class="btn" onclick="saveGeneratorToFolder()">Save to Folder</button>
+                </div>
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 6px;">
+                  Studio can’t see your filesystem path automatically. You’ll paste the folder path below.
+                </div>
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+                  Auto Run & Connect writes a temporary project folder in the Studio backend.
+                </div>
+              </div>
+              <div class="generator-steps">
+                <div class="generator-step">
+                  <span class="generator-step-num">1</span>
+                  <span>Save or download the project (ZIP or folder).</span>
+                </div>
+                <div class="generator-step">
+                  <span class="generator-step-num">2</span>
+                  <span>Run it locally using the commands below.</span>
+                </div>
+                <div class="generator-step">
+                  <span class="generator-step-num">3</span>
+                  <span>Set the project folder so Studio can find the server file.</span>
+                </div>
+                <div class="generator-step">
+                  <span class="generator-step-num">4</span>
+                  <span>Open Add Server and connect.</span>
+                </div>
+              </div>
+              <div>
+                <div class="generator-os-tabs">
+                  <button class="generator-os-tab active" id="generatorTestOsUnix" onclick="switchGeneratorTestOs('unix')">macOS / Linux</button>
+                  <button class="generator-os-tab" id="generatorTestOsWindows" onclick="switchGeneratorTestOs('windows')">Windows</button>
+                </div>
+                <div style="margin-top: 8px;">
+                  <div style="font-size: 0.75rem; margin-bottom: 6px;">Commands</div>
+                  <pre id="generatorTestCommands" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+                </div>
+                <div style="margin-top: 8px;">
+                  <div style="font-size: 0.75rem; margin-bottom: 6px;">Environment (.env)</div>
+                  <pre id="generatorTestEnv" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 0.75rem; margin-bottom: 6px;">Project Folder (contains server.py / server.js)</div>
+                <div class="generator-row">
+                  <input
+                    type="text"
+                    id="generatorTestCwdInput"
+                    class="form-input"
+                    placeholder="C:\\path\\to\\project or /path/to/project"
+                    oninput="updateGeneratorTestCwd(this.value)"
+                  />
+                  <button class="btn" onclick="pickGeneratorProjectFolder()">Browse…</button>
+                </div>
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+                  If you downloaded ZIP, unzip it and paste that folder path. If you saved to a folder, paste the folder you picked + /${escapeHtml(document.getElementById('genServerName').value || 'my-mcp-server')}.
+                </div>
+                <div id="generatorPickedFolderHint" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;"></div>
+                <div id="generatorTestCwdWarning" class="generator-warning" style="display: none; margin-top: 6px;">
+                  Add the project folder to enable connecting from Studio.
+                </div>
+              </div>
+              <details class="generator-collapse">
+                <summary>YAML (config.yaml)</summary>
+                <pre id="generatorTestYaml" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+              </details>
+              <details class="generator-collapse">
+                <summary>JSON (Import YAML/JSON)</summary>
+                <pre id="generatorTestJson" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
+              </details>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="copyGeneratorTestBlock('generatorTestCommands', 'Commands')">Copy Commands</button>
+              <button class="btn" onclick="copyGeneratorTestBlock('generatorTestEnv', 'Env')">Copy Env</button>
+              <button class="btn" onclick="copyGeneratorTestConfig('yaml')">Copy YAML</button>
+              <button class="btn" onclick="copyGeneratorTestConfig('json')">Copy JSON</button>
+              <button class="btn" id="generatorTestOpenBtn" onclick="openAddServerFromGenerator()">Add to Studio</button>
+              <button class="btn" id="generatorTestConnectBtn" onclick="addGeneratorServerToStudio({ connectAfter: true })">Add & Connect</button>
+              <button class="btn success" data-gen-auto-run="1" onclick="runGeneratorAndConnect()">Run & Connect (Auto)</button>
+              <button class="btn" onclick="closeGeneratorTestModal()">Close</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        updateGeneratorTestModalConfig(baseConfig);
+        updateGeneratorProjectStatus();
+        updateGeneratorAutoRunButtons();
+      }
+
+      function closeGeneratorTestModal() {
+        const modal = document.getElementById('generatorTestModal');
+        if (modal) modal.remove();
+      }
+
+      function updateGeneratorProjectStatus() {
+        const statusEl = document.getElementById('generatorProjectStatus');
+        if (!statusEl) return;
+        if (generatorLastFolderName) {
+          statusEl.innerHTML = `Last saved folder: <strong>${escapeHtml(generatorLastFolderName)}</strong>`;
+        } else {
+          statusEl.textContent = 'Not saved yet. Use Download ZIP or Save to Folder first.';
+        }
+      }
+
+      async function pickGeneratorProjectFolder() {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          appAlert('Your browser does not support folder picking. Paste the full path manually.', {
+            title: 'Folder Picker Unavailable'
+          });
+          return;
+        }
+        try {
+          const handle = await window.showDirectoryPicker();
+          generatorPickedFolderName = handle?.name || '';
+          updateGeneratorTestModalConfig();
+          if (generatorPickedFolderName) {
+            appAlert(`Selected folder: ${generatorPickedFolderName}\nPaste the full path above (browser hides it).`, {
+              title: 'Folder Selected'
+            });
+          }
+        } catch (error) {
+          if (error?.name !== 'AbortError') {
+            appendMessage('error', `Failed to pick folder: ${error.message}`);
+          }
+        }
+      }
+
+      function updateGeneratorTestCwd(value) {
+        generatorTestCwd = value.trim();
+        updateGeneratorTestModalConfig();
+      }
+
+      function switchGeneratorTestOs(os) {
+        generatorTestOs = os;
+        updateGeneratorTestModalConfig();
+      }
+
+      function updateGeneratorTestModalConfig(initial) {
+        const serverName = initial?.serverName || document.getElementById('genServerName').value || 'my-mcp-server';
+        const language = document.getElementById('genLanguage').value;
+        const baseUrl = initial?.baseUrl || document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const cmd = initial?.cmd || (language === 'python' ? 'python' : 'node');
+        const args = initial?.args || (language === 'python' ? ['server.py'] : ['server.js']);
+
+        const yamlLines = [
+          'mcpServers:',
+          `  ${serverName}:`,
+          '    type: stdio',
+          `    command: ${cmd}`,
+          ...(generatorTestCwd ? [`    cwd: ${generatorTestCwd}`] : ['    cwd: /path/to/generated/project']),
+          '    args:',
+          ...args.map(arg => `      - ${arg}`)
+        ];
+        if (baseUrl) {
+          yamlLines.push('    env:', `      API_BASE_URL: "${baseUrl}"`);
+        }
+        const yaml = yamlLines.join('\\n');
+
+        const json = {
+          mcpServers: {
+            [serverName]: {
+              type: 'stdio',
+              command: cmd,
+              args,
+              ...(generatorTestCwd ? { cwd: generatorTestCwd } : {}),
+              ...(baseUrl ? { env: { API_BASE_URL: baseUrl } } : {})
+            }
+          }
+        };
+
+        const yamlEl = document.getElementById('generatorTestYaml');
+        const jsonEl = document.getElementById('generatorTestJson');
+        if (yamlEl) yamlEl.textContent = yaml;
+        if (jsonEl) jsonEl.textContent = JSON.stringify(json, null, 2);
+
+        const commandsEl = document.getElementById('generatorTestCommands');
+        const envEl = document.getElementById('generatorTestEnv');
+        if (commandsEl) commandsEl.textContent = getGeneratorRunCommands(generatorTestOs, language);
+        if (envEl) envEl.textContent = getGeneratorEnvLines(baseUrl);
+        const unixBtn = document.getElementById('generatorTestOsUnix');
+        const winBtn = document.getElementById('generatorTestOsWindows');
+        if (unixBtn && winBtn) {
+          unixBtn.classList.toggle('active', generatorTestOs === 'unix');
+          winBtn.classList.toggle('active', generatorTestOs === 'windows');
+        }
+
+        const warning = document.getElementById('generatorTestCwdWarning');
+        const hasCwd = !!generatorTestCwd;
+        if (warning) warning.style.display = hasCwd ? 'none' : 'block';
+        const cwdInput = document.getElementById('generatorTestCwdInput');
+        if (cwdInput && cwdInput.value !== generatorTestCwd) {
+          cwdInput.value = generatorTestCwd;
+        }
+        const pickedHint = document.getElementById('generatorPickedFolderHint');
+        if (pickedHint) {
+          pickedHint.textContent = generatorPickedFolderName
+            ? `Selected folder: ${generatorPickedFolderName}. Paste the full path above.`
+            : '';
+        }
+        const connectBtn = document.getElementById('generatorTestConnectBtn');
+        if (connectBtn) connectBtn.disabled = !hasCwd;
+      }
+
+      function copyGeneratorTestConfig(format) {
+        const yamlEl = document.getElementById('generatorTestYaml');
+        const jsonEl = document.getElementById('generatorTestJson');
+        const text = format === 'json' ? jsonEl?.textContent : yamlEl?.textContent;
+        if (!text) return;
+        navigator.clipboard.writeText(text)
+          .then(() => appendMessage('system', `📋 ${format.toUpperCase()} copied to clipboard`))
+          .catch(() => appendMessage('error', 'Copy failed'));
+      }
+
+      function copyGeneratorTestBlock(id, label) {
+        const el = document.getElementById(id);
+        const text = el?.textContent;
+        if (!text) return;
+        navigator.clipboard.writeText(text)
+          .then(() => appendMessage('system', `📋 ${label} copied to clipboard`))
+          .catch(() => appendMessage('error', 'Copy failed'));
+      }
+
+      async function ensureGeneratorCwd() {
+        if (generatorTestCwd) return generatorTestCwd;
+        const cwd = await appPrompt('Enter the project folder for this server:', {
+          title: 'Project Folder Required',
+          label: 'Working directory',
+          placeholder: 'C:\\path\\to\\project or /path/to/project',
+          required: true
+        });
+        if (!cwd) return null;
+        generatorTestCwd = cwd.trim();
+        updateGeneratorTestModalConfig();
+        return generatorTestCwd;
+      }
+
+      function buildGeneratorServerPayload(overrideName) {
+        const name = overrideName || document.getElementById('genServerName').value.trim() || 'my-mcp-server';
+        const description = document.getElementById('genServerDesc').value.trim() || `Generated MCP server: ${name}`;
+        const language = document.getElementById('genLanguage').value;
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+        const command = language === 'python' ? 'python' : 'node';
+        const args = language === 'python' ? ['server.py'] : ['server.js'];
+        const payload = {
+          name,
+          type: 'stdio',
+          description,
+          command,
+          args
+        };
+        if (generatorTestCwd) payload.cwd = generatorTestCwd;
+        if (baseUrl) payload.env = { API_BASE_URL: baseUrl };
+        return payload;
+      }
+
+      async function addGeneratorServerToStudio({ connectAfter = false, overrideName = null } = {}) {
+        const cwd = await ensureGeneratorCwd();
+        if (!cwd) return false;
+        const payload = buildGeneratorServerPayload(overrideName);
+
+        try {
+          notifyUser(`Saving server "${payload.name}"...`, 'info');
+          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await statusRes.json();
+          const servers = status.servers || status;
+          const serverExists = payload.name in servers;
+          const endpoint = serverExists ? `/api/mcp/update/${encodeURIComponent(payload.name)}` : '/api/mcp/add';
+          const method = serverExists ? 'PUT' : 'POST';
+
+          const response = await fetch(endpoint, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (data.error) {
+            notifyUser(`Failed to ${serverExists ? 'update' : 'add'} server: ${data.error}`, 'error');
+            return false;
+          }
+          notifyUser(`✅ ${serverExists ? 'Updated' : 'Added'} server: ${payload.name}`, 'success');
+          loadMCPStatus();
+          if (connectAfter) {
+            notifyUser(`Connecting to ${payload.name}...`, 'info');
+            await connectMCP(payload.name);
+          }
+          return true;
+        } catch (error) {
+          notifyUser(`Failed to save server: ${error.message}`, 'error');
+          return false;
+        }
+      }
+
+      async function openAddServerFromGenerator() {
+        const cwd = await ensureGeneratorCwd();
+        if (!cwd) return;
+        const payload = buildGeneratorServerPayload();
+        showAddServerModal();
+        document.getElementById('serverName').value = payload.name;
+        document.getElementById('serverType').value = 'stdio';
+        toggleServerTypeFields();
+        document.getElementById('serverCommand').value = payload.command;
+        document.getElementById('serverArgs').value = payload.args.join('\n');
+        const cwdEl = document.getElementById('serverCwd');
+        if (cwdEl && generatorTestCwd) cwdEl.value = generatorTestCwd;
+        clearEnvVars();
+        if (payload.env?.API_BASE_URL) addEnvVarRow('API_BASE_URL', payload.env.API_BASE_URL);
+        updateConfigPreview();
+      }
+
+      function buildZipFromFiles(files, folderName) {
+        const encoder = new TextEncoder();
+        const entries = Object.entries(files);
+        let offset = 0;
+        const fileRecords = [];
+        const chunks = [];
+
+        entries.forEach(([name, content]) => {
+          const fileName = folderName ? `${folderName}/${name}` : name;
+          const fileNameBytes = encoder.encode(fileName);
+          const fileData = encoder.encode(content || '');
+          const crc = crc32(fileData);
+          const localHeader = new Uint8Array(30 + fileNameBytes.length);
+          const view = new DataView(localHeader.buffer);
+          view.setUint32(0, 0x04034b50, true);
+          view.setUint16(4, 20, true);
+          view.setUint16(6, 0, true);
+          view.setUint16(8, 0, true);
+          view.setUint16(10, 0, true);
+          view.setUint16(12, 0, true);
+          view.setUint32(14, crc, true);
+          view.setUint32(18, fileData.length, true);
+          view.setUint32(22, fileData.length, true);
+          view.setUint16(26, fileNameBytes.length, true);
+          view.setUint16(28, 0, true);
+          localHeader.set(fileNameBytes, 30);
+
+          chunks.push(localHeader, fileData);
+          fileRecords.push({
+            fileNameBytes,
+            crc,
+            size: fileData.length,
+            offset
+          });
+          offset += localHeader.length + fileData.length;
+        });
+
+        const centralChunks = [];
+        let centralSize = 0;
+        fileRecords.forEach(record => {
+          const header = new Uint8Array(46 + record.fileNameBytes.length);
+          const view = new DataView(header.buffer);
+          view.setUint32(0, 0x02014b50, true);
+          view.setUint16(4, 20, true);
+          view.setUint16(6, 20, true);
+          view.setUint16(8, 0, true);
+          view.setUint16(10, 0, true);
+          view.setUint16(12, 0, true);
+          view.setUint16(14, 0, true);
+          view.setUint32(16, record.crc, true);
+          view.setUint32(20, record.size, true);
+          view.setUint32(24, record.size, true);
+          view.setUint16(28, record.fileNameBytes.length, true);
+          view.setUint16(30, 0, true);
+          view.setUint16(32, 0, true);
+          view.setUint16(34, 0, true);
+          view.setUint16(36, 0, true);
+          view.setUint32(38, 0, true);
+          view.setUint32(42, record.offset, true);
+          header.set(record.fileNameBytes, 46);
+          centralChunks.push(header);
+          centralSize += header.length;
+        });
+
+        const endRecord = new Uint8Array(22);
+        const endView = new DataView(endRecord.buffer);
+        endView.setUint32(0, 0x06054b50, true);
+        endView.setUint16(4, 0, true);
+        endView.setUint16(6, 0, true);
+        endView.setUint16(8, fileRecords.length, true);
+        endView.setUint16(10, fileRecords.length, true);
+        endView.setUint32(12, centralSize, true);
+        endView.setUint32(16, offset, true);
+        endView.setUint16(20, 0, true);
+
+        return new Blob([...chunks, ...centralChunks, endRecord], { type: 'application/zip' });
+      }
+
+      function crc32(buffer) {
+        let crc = 0xffffffff;
+        for (let i = 0; i < buffer.length; i++) {
+          crc ^= buffer[i];
+          for (let j = 0; j < 8; j++) {
+            const mask = -(crc & 1);
+            crc = (crc >>> 1) ^ (0xedb88320 & mask);
+          }
+        }
+        return (crc ^ 0xffffffff) >>> 0;
+      }
+
+      function buildGeneratorProjectFiles({ serverName, serverDesc, language, mode, code, baseUrl }) {
+        const safeName = serverName.toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
+        const readme = [
+          `# ${serverName}`,
+          '',
+          `${serverDesc}`,
+          '',
+          `Generated by MCP Chat Studio (${mode}).`,
+          '',
+          '## Quick start',
+          language === 'python' ?
+            '```bash\npython -m venv .venv\nsource .venv/bin/activate  # or .venv\\Scripts\\activate\npip install -r requirements.txt\npython server.py\n```' :
+            '```bash\nnpm install\nnode server.js\n```',
+          '',
+          '## Environment',
+          baseUrl ? `- API_BASE_URL=${baseUrl}` : '- API_BASE_URL=',
+          '- MCP_API_KEY=',
+          '- MCP_API_KEY_NAME=',
+          '- MCP_API_KEY_IN=header|query',
+          '- MCP_BEARER_TOKEN=',
+          '- MCP_BASIC_USER=',
+          '- MCP_BASIC_PASS=',
+          '- MCP_OAUTH_TOKEN_URL=',
+          '- MCP_OAUTH_CLIENT_ID=',
+          '- MCP_OAUTH_CLIENT_SECRET=',
+          '- MCP_OAUTH_SCOPE=',
+          '- MCP_OAUTH_AUDIENCE=',
+          ''
+        ].join('\n');
+
+        const envExample = [
+          baseUrl ? `API_BASE_URL=${baseUrl}` : 'API_BASE_URL=',
+          'MCP_API_KEY=',
+          'MCP_API_KEY_NAME=',
+          'MCP_API_KEY_IN=header',
+          'MCP_BEARER_TOKEN=',
+          'MCP_BASIC_USER=',
+          'MCP_BASIC_PASS=',
+          'MCP_OAUTH_TOKEN_URL=',
+          'MCP_OAUTH_CLIENT_ID=',
+          'MCP_OAUTH_CLIENT_SECRET=',
+          'MCP_OAUTH_SCOPE=',
+          'MCP_OAUTH_AUDIENCE=',
+          ''
+        ].join('\n');
+
+        if (language === 'python') {
+          return {
+            'server.py': code,
+            'requirements.txt': 'mcp>=1.0.0\n',
+            '.env.example': envExample,
+            'README.md': readme
+          };
+        }
+
+        const pkg = {
+          name: safeName || 'mcp-openapi-proxy',
+          version: '0.1.0',
+          type: 'module',
+          private: true,
+          description: serverDesc,
+          scripts: {
+            start: 'node server.js'
+          },
+          dependencies: {
+            '@modelcontextprotocol/sdk': '^1.25.1'
+          }
+        };
+
+        return {
+          'server.js': code,
+          'package.json': JSON.stringify(pkg, null, 2),
+          '.env.example': envExample,
+          'README.md': readme
+        };
+      }
+
       // Clear generator
       async function clearGenerator() {
         const confirmed = await appConfirm('Clear all tools and settings?', {
@@ -10411,9 +12806,146 @@ main().catch(console.error);
         generatedCode = '';
         document.getElementById('genServerName').value = '';
         document.getElementById('genServerDesc').value = '';
+        const baseUrlInput = document.getElementById('genServerBaseUrl');
+        if (baseUrlInput) baseUrlInput.value = '';
         document.getElementById('generatorPreviewSection').style.display = 'none';
         renderGeneratorTools();
         appendMessage('system', '🗑️ Generator cleared');
+      }
+
+      function updateGeneratorAutoRunButtons() {
+        const hasTools = generatorTools.length > 0;
+        const hasSelection = openApiSelected && openApiSelected.size > 0;
+        const canRun = hasTools || hasSelection;
+        document.querySelectorAll('[data-gen-auto-run]').forEach(btn => {
+          btn.disabled = !canRun;
+          btn.title = canRun
+            ? 'Generate a temporary server and connect it automatically.'
+            : 'Import endpoints or add tools before auto-run.';
+        });
+      }
+
+      async function ensureGeneratorToolsForRun() {
+        if (generatorTools.length > 0) return true;
+        if (openApiSelected && openApiSelected.size > 0) {
+          const confirmed = await appConfirm('No tools yet. Import the selected OpenAPI endpoints and continue?', {
+            title: 'Run & Connect (Auto)',
+            confirmText: 'Import & Continue'
+          });
+          if (!confirmed) return false;
+          importOpenApiTools(true);
+          return generatorTools.length > 0;
+        }
+        notifyUser('Add at least one tool or import OpenAPI endpoints first.', 'error');
+        return false;
+      }
+
+      async function resolveAutoRunServerName(desiredName) {
+        try {
+          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
+          const status = await statusRes.json();
+          const servers = status.servers || status;
+          if (servers && desiredName in servers) {
+            const suffix = Date.now().toString(36).slice(-4);
+            return `${desiredName}-auto-${suffix}`;
+          }
+        } catch (error) {
+          console.warn('[Generator] Failed to check existing servers:', error.message);
+        }
+        return desiredName;
+      }
+
+      async function runGeneratorAndConnect() {
+        const desiredName = document.getElementById('genServerName').value || 'my-mcp-server';
+        const serverName = await resolveAutoRunServerName(desiredName);
+        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
+        const language = document.getElementById('genLanguage').value;
+        const mode = document.getElementById('genMode')?.value || 'scaffold';
+        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
+
+        const hasTools = await ensureGeneratorToolsForRun();
+        if (!hasTools) return;
+
+        if (serverName !== desiredName) {
+          notifyUser(`Using temporary server name "${serverName}" to avoid overwriting "${desiredName}".`, 'info');
+        }
+
+        if (language === 'python') {
+          const confirmed = await appConfirm('Auto-run uses your local Python and requires the mcp package installed. Continue?', {
+            title: 'Run & Connect (Auto)',
+            confirmText: 'Continue'
+          });
+          if (!confirmed) return;
+        }
+
+        if (mode === 'openapi' && !baseUrl) {
+          const confirmed = await appConfirm('No API Base URL set. Auto-run will start but tool calls may fail until you set API_BASE_URL. Continue?', {
+            title: 'Run & Connect (Auto)',
+            confirmText: 'Continue'
+          });
+          if (!confirmed) return;
+        }
+
+        let code = '';
+        if (mode === 'openapi') {
+          const openApiTools = generatorTools.filter(tool => tool.endpoint);
+          if (!openApiTools.length) {
+            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
+            return;
+          }
+          code = language === 'python'
+            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
+            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
+        } else {
+          code = language === 'python'
+            ? generatePythonMCP(serverName, serverDesc)
+            : generateNodeMCP(serverName, serverDesc);
+        }
+
+        const files = buildGeneratorProjectFiles({
+          serverName,
+          serverDesc,
+          language,
+          mode,
+          code,
+          baseUrl
+        });
+
+        try {
+          notifyUser('Preparing temporary project folder...', 'info');
+          const response = await fetch('/api/generator/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              serverName,
+              language,
+              mode,
+              baseUrl,
+              files
+            })
+          });
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            data = {};
+          }
+          if (!response.ok || data.error) {
+            notifyUser(`Auto-run failed: ${data.error || response.statusText}`, 'error');
+            showGeneratorTestModal();
+            return;
+          }
+          generatorTestCwd = data.cwd;
+          generatorPickedFolderName = data.cwd ? data.cwd.split(/[\\/]/).pop() : '';
+          updateGeneratorTestModalConfig({ serverName, baseUrl });
+          const connected = await addGeneratorServerToStudio({ connectAfter: true, overrideName: serverName });
+          if (connected) {
+            notifyUser(`🚀 Auto-run ready. ${serverName} is connecting now.`, 'success');
+          }
+        } catch (error) {
+          notifyUser(`Auto-run failed: ${error.message}`, 'error');
+        }
       }
 
       // ==========================================
@@ -12120,6 +14652,7 @@ main().catch(console.error);
       window.toggleAssistantDock = toggleAssistantDock;
       window.toggleAssistantPopout = toggleAssistantPopout;
       window.toggleAssistantSize = toggleAssistantSize;
+      window.startAssistantResize = startAssistantResize;
       window.clearAssistantChat = clearAssistantChat;
       window.showAssistantCommands = showAssistantCommands;
       window.sendAssistantMessage = sendAssistantMessage;

@@ -141,6 +141,7 @@
           <div id="userSection"></div>
           <button class="btn" onclick="showOAuthSettingsModal()" title="OAuth settings" aria-label="Open OAuth settings">🔐</button>
           <button class="btn" onclick="showSettingsModal()" title="LLM Settings" aria-label="Open LLM Settings">⚙️</button>
+          <button class="btn" onclick="showQuickStartModal()" title="Quick start guide" aria-label="Open quick start guide">🚀 Start</button>
           <button class="btn theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
             <span id="themeIcon">🌙</span>
           </button>
@@ -1557,126 +1558,193 @@
         <!-- Generator Panel -->
         <div class="content-panel" id="generatorPanel">
           <div class="inspector-panel">
-            <div class="inspector-section">
-              <h3>⚙️ Mock MCP Server Generator</h3>
-              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
-                Design tools visually and generate Python or Node.js starter code for your own MCP
-                server.
-              </p>
-            </div>
-
-            <!-- Server Settings -->
-            <div class="inspector-section">
-              <h3>📋 Server Settings</h3>
-              <div style="display: flex; flex-direction: column; gap: 8px">
-                <div>
-                  <label style="font-size: 0.75rem; font-weight: 500">Server Name</label>
-                  <input
-                    type="text"
-                    id="genServerName"
-                    class="form-input"
-                    placeholder="my-mcp-server"
-                    style="width: 100%"
-                  />
-                </div>
-                <div>
-                  <label style="font-size: 0.75rem; font-weight: 500">Description</label>
-                  <input
-                    type="text"
-                    id="genServerDesc"
-                    class="form-input"
-                    placeholder="A custom MCP server"
-                    style="width: 100%"
-                  />
-                </div>
-                <div>
-                  <label style="font-size: 0.75rem; font-weight: 500">Output Language</label>
-                  <select id="genLanguage" class="form-select" style="width: 100%">
-                    <option value="python">Python (mcp SDK)</option>
-                    <option value="nodejs">Node.js (TypeScript)</option>
-                  </select>
-                </div>
+            <div class="inspector-section generator-hero">
+              <div>
+                <h3>⚙️ MCP Server Generator</h3>
+                <p>
+                  Design tools visually or import OpenAPI to generate a real MCP server (proxy or
+                  scaffold).
+                </p>
+              </div>
+              <div class="generator-hero-tags">
+                <span>Visual tools</span>
+                <span>OpenAPI JSON/YAML</span>
+                <span>Python + Node</span>
               </div>
             </div>
 
-            <!-- Tool Designer -->
-            <div class="inspector-section">
-              <h3 style="display: flex; justify-content: space-between; align-items: center">
-                <span>🔧 Tool Designer</span>
-                <button
-                  class="btn"
-                  onclick="addGeneratorTool()"
-                  style="font-size: 0.65rem; padding: 2px 8px"
-                >
-                  ➕ Add Tool
-                </button>
-              </h3>
-              <div
-                id="generatorToolsList"
-                style="
-                  display: flex;
-                  flex-direction: column;
-                  gap: 8px;
-                  max-height: 250px;
-                  overflow-y: auto;
-                "
-              >
-                <div
-                  style="
-                    color: var(--text-muted);
-                    font-style: italic;
-                    padding: 12px;
-                    text-align: center;
-                  "
-                >
-                  No tools defined. Click "Add Tool" to start designing.
+            <div class="generator-layout">
+              <div class="generator-col">
+                <!-- Server Settings -->
+                <div class="inspector-section generator-card">
+                  <h3>📋 Server Settings</h3>
+                  <div class="generator-field-grid">
+                    <div>
+                      <label class="generator-label">Server Name</label>
+                      <input
+                        type="text"
+                        id="genServerName"
+                        class="form-input"
+                        placeholder="my-mcp-server"
+                      />
+                    </div>
+                    <div>
+                      <label class="generator-label">Description</label>
+                      <input
+                        type="text"
+                        id="genServerDesc"
+                        class="form-input"
+                        placeholder="A custom MCP server"
+                      />
+                    </div>
+                    <div>
+                      <label class="generator-label">API Base URL (optional)</label>
+                      <input
+                        type="text"
+                        id="genServerBaseUrl"
+                        class="form-input"
+                        placeholder="https://api.example.com"
+                      />
+                    </div>
+                    <div>
+                      <label class="generator-label">Output Language</label>
+                      <select id="genLanguage" class="form-select">
+                        <option value="python">Python (mcp SDK)</option>
+                        <option value="nodejs">Node.js (TypeScript)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="generator-label">Generation Mode</label>
+                      <select id="genMode" class="form-select">
+                        <option value="scaffold">Scaffold (stubs)</option>
+                        <option value="openapi">OpenAPI Proxy (real HTTP)</option>
+                      </select>
+                      <div class="generator-hint" style="margin-top: 6px;">
+                        OpenAPI mode generates a real MCP server that calls your API.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- OpenAPI Import -->
+                <div class="inspector-section generator-card">
+                  <h3>🧾 Import API Spec (OpenAPI)</h3>
+                  <p class="generator-hint">
+                    Upload an OpenAPI JSON or YAML file (or URL) to auto-generate tool definitions.
+                  </p>
+                  <div class="generator-stack">
+                    <div class="generator-row">
+                      <input
+                        type="text"
+                        id="openApiUrlInput"
+                        class="form-input"
+                        placeholder="https://api.example.com/openapi.json"
+                      />
+                      <button class="btn" onclick="loadOpenApiFromUrl()">🌐 Load URL</button>
+                      <button class="btn" onclick="loadOpenApiExample()">⭐ Load Sample</button>
+                      <button class="btn" onclick="triggerOpenApiFile()">📥 Upload JSON/YAML</button>
+                      <input
+                        id="openApiFileInput"
+                        type="file"
+                        accept=".json,application/json,.yaml,.yml,application/yaml,text/yaml"
+                        style="display: none"
+                        onchange="handleOpenApiFile(event)"
+                      />
+                    </div>
+                    <div id="openApiSummary" class="generator-hint">No spec loaded.</div>
+                    <div class="generator-row">
+                      <select id="openApiServerSelect" class="form-select">
+                        <option value="">No servers detected</option>
+                      </select>
+                      <button class="btn" onclick="applyOpenApiServer()">Use Base URL</button>
+                      <div class="generator-hint" style="margin: 0;">From spec servers[]</div>
+                    </div>
+                    <div id="openApiSecuritySummary" class="generator-hint">No security schemes detected.</div>
+                    <div class="generator-row">
+                      <select id="openApiTagFilter" class="form-select" onchange="applyOpenApiFilters()">
+                        <option value="all">All tags</option>
+                      </select>
+                      <select id="openApiMethodFilter" class="form-select" onchange="applyOpenApiFilters()">
+                        <option value="all">All methods</option>
+                        <option value="get">GET</option>
+                        <option value="post">POST</option>
+                        <option value="put">PUT</option>
+                        <option value="patch">PATCH</option>
+                        <option value="delete">DELETE</option>
+                      </select>
+                      <input
+                        type="text"
+                        id="openApiSearchFilter"
+                        class="form-input"
+                        placeholder="Filter by path or name"
+                        oninput="applyOpenApiFilters()"
+                      />
+                    </div>
+                    <div id="openApiTagChips" class="generator-tag-chips"></div>
+                    <div id="openApiEndpointsList" class="generator-endpoints">
+                      <div class="generator-empty">
+                        Load a spec to see endpoints.
+                      </div>
+                    </div>
+                    <div class="generator-actions">
+                      <button class="btn" onclick="selectAllOpenApi(true)">Select All</button>
+                      <button class="btn" onclick="selectAllOpenApi(false)">Clear</button>
+                      <button class="btn primary" onclick="importOpenApiTools(false)">
+                        ➕ Add Selected to Tool Designer
+                      </button>
+                      <button class="btn" onclick="importOpenApiTools(true)">
+                        🔄 Replace Tools
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Generate Actions -->
+                <div class="inspector-section generator-card">
+                  <h3>🚀 Build Output</h3>
+                  <div class="generator-actions">
+                    <button class="btn primary" onclick="generateMCPCode()">Generate Code</button>
+                    <button class="btn" onclick="previewMCPCode()">Preview</button>
+                    <button class="btn" onclick="downloadGeneratorProject()">Download Project</button>
+                    <button class="btn" onclick="downloadGeneratorZip()">Download ZIP</button>
+                    <button class="btn" onclick="showGeneratorRunModal()">Run Locally</button>
+                    <button class="btn" onclick="saveGeneratorToFolder()">Save to Folder</button>
+                    <button class="btn" onclick="showGeneratorTestModal()">Test in Studio</button>
+                    <button class="btn success" data-gen-auto-run="1" onclick="runGeneratorAndConnect()">Run & Connect (Auto)</button>
+                    <button class="btn" onclick="clearGenerator()">Clear</button>
+                  </div>
+                  <div class="generator-hint" style="margin-top: 10px;">
+                    Download Project exports a JSON bundle; ZIP exports a runnable folder with README + .env example.
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Generate Actions -->
-            <div class="inspector-section">
-              <div style="display: flex; gap: 8px; flex-wrap: wrap">
-                <button class="btn primary" onclick="generateMCPCode()" style="flex: 1">
-                  🚀 Generate Code
-                </button>
-                <button class="btn" onclick="previewMCPCode()" style="flex: 1">👁️ Preview</button>
-                <button class="btn" onclick="clearGenerator()">🗑️ Clear</button>
-              </div>
-            </div>
-
-            <!-- Code Preview -->
-            <div class="inspector-section" id="generatorPreviewSection" style="display: none">
-              <h3 style="display: flex; justify-content: space-between; align-items: center">
-                <span>📄 Generated Code</span>
-                <div style="display: flex; gap: 4px">
-                  <button
-                    class="btn"
-                    onclick="copyGeneratedCode()"
-                    style="font-size: 0.65rem; padding: 2px 6px"
-                  >
-                    📋 Copy
-                  </button>
-                  <button
-                    class="btn success"
-                    onclick="downloadGeneratedCode()"
-                    style="font-size: 0.65rem; padding: 2px 6px"
-                  >
-                    📥 Download
-                  </button>
+              <div class="generator-col">
+                <!-- Tool Designer -->
+                <div class="inspector-section generator-card">
+                  <h3 class="generator-title-row">
+                    <span>🔧 Tool Designer</span>
+                    <button class="btn" onclick="addGeneratorTool()">➕ Add Tool</button>
+                  </h3>
+                  <div id="generatorToolsList" class="generator-tool-list">
+                    <div class="generator-empty">
+                      No tools defined. Click "Add Tool" to start designing.
+                    </div>
+                  </div>
                 </div>
-              </h3>
-              <pre
-                id="generatorCodePreview"
-                style="
-                  background: var(--bg-card);
-                  padding: 12px;
-                  border-radius: 8px;
-                  overflow: auto;
-                  max-height: 300px;
-                  font-size: 0.7rem;
-                "
-              ></pre>
+
+                <!-- Code Preview -->
+                <div class="inspector-section generator-card" id="generatorPreviewSection" style="display: none">
+                  <h3 class="generator-title-row">
+                    <span>📄 Generated Code</span>
+                    <div class="generator-actions compact">
+                      <button class="btn" onclick="copyGeneratedCode()">📋 Copy</button>
+                      <button class="btn success" onclick="downloadGeneratedCode()">📥 Download</button>
+                    </div>
+                  </h3>
+                  <pre id="generatorCodePreview" class="generator-code"></pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2335,6 +2403,18 @@
             </div>
 
             <div class="form-group">
+              <label class="form-label">Working Directory (optional)</label>
+              <input
+                type="text"
+                class="form-input"
+                id="serverCwd"
+                placeholder="C:\\path\\to\\project or /path/to/project"
+                oninput="updateConfigPreview()"
+              />
+              <div class="form-hint">Folder where your MCP server script lives.</div>
+            </div>
+
+            <div class="form-group">
               <label class="form-label">Arguments</label>
               <textarea
                 class="form-input"
@@ -2645,6 +2725,15 @@ env:
           </div>
 
           <div class="form-group">
+            <label class="form-label">Assistant QA</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted)">
+              <input type="checkbox" id="assistantLlmOverride" />
+              Simulate LLM offline (assistant will show "LLM not configured")
+            </label>
+            <div class="form-hint">Local toggle for testing assistant error states.</div>
+          </div>
+
+          <div class="form-group">
             <label class="form-label">Project Bundle</label>
             <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center">
               <button type="button" class="btn" onclick="exportProjectBundle()">📦 Export Project</button>
@@ -2834,20 +2923,33 @@ env:
             <button class="assistant-icon-btn" onclick="toggleAssistantPopout()" title="Pop out">🗗</button>
             <button class="assistant-icon-btn" onclick="toggleAssistantSize()" title="Resize">⤢</button>
             <button class="assistant-icon-btn" onclick="clearAssistantChat()" title="Clear chat">🧹</button>
+            <button class="assistant-icon-btn" onclick="triggerAssistantFileUpload()" title="Upload OpenAPI">📎</button>
             <button class="assistant-icon-btn" onclick="showSettingsModal()" title="LLM Settings">⚙️</button>
             <button class="assistant-icon-btn" onclick="toggleAssistant(false)" title="Close">✕</button>
           </div>
         </div>
         <div class="assistant-body" id="assistantMessages"></div>
+        <div class="assistant-chips" id="assistantChips"></div>
         <div class="assistant-input">
+          <button class="assistant-upload-btn" onclick="triggerAssistantFileUpload()" title="Import OpenAPI JSON/YAML">
+            📎
+          </button>
           <textarea id="assistantInput" rows="2" placeholder="Ask about workflows, contracts, or workspace..."></textarea>
           <button class="btn primary" id="assistantSendBtn" onclick="sendAssistantMessage()">Send</button>
         </div>
         <div class="assistant-footer">
           Uses your current LLM settings. Configure in <strong>⚙️ LLM Settings</strong>.
         </div>
+        <div class="assistant-resize-handle" onmousedown="startAssistantResize(event)" title="Resize"></div>
       </div>
     </div>
+    <input
+      id="assistantFileInput"
+      type="file"
+      accept=".json,application/json,.yaml,.yml,application/yaml,text/yaml"
+      style="display: none"
+      onchange="handleAssistantFileUpload(event)"
+    />
 
     <script src="app.js"></script>
     <script src="workflow.js"></script>

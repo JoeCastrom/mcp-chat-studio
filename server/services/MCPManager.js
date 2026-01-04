@@ -60,6 +60,7 @@ class MCPConnection {
           command: this.config.command,
           args: this.config.args || [],
           env,
+          cwd: this.config.cwd
         });
       } else if (this.config.type === 'sse' || this.config.url) {
         const url = new URL(this.config.url);
@@ -385,6 +386,8 @@ export class MCPManager {
     this.connections = new Map();
     this.configs = new Map();
     this.userConnections = new Map(); // Map<sessionId, Map<serverName, MCPConnection>>
+    this.lastErrors = new Map();
+    this.lastConnectedAt = new Map();
   }
 
   /**
@@ -505,8 +508,15 @@ export class MCPManager {
       config.type === 'mock'
         ? new MockConnection(serverName, config)
         : new MCPConnection(serverName, config);
-    await connection.connect(userToken);
-    this.connections.set(serverName, connection);
+    try {
+      await connection.connect(userToken);
+      this.connections.set(serverName, connection);
+      this.lastErrors.delete(serverName);
+      this.lastConnectedAt.set(serverName, new Date().toISOString());
+    } catch (error) {
+      this.lastErrors.set(serverName, { message: error.message, at: new Date().toISOString() });
+      throw error;
+    }
 
     return connection;
   }
@@ -543,8 +553,15 @@ export class MCPManager {
       )}...)`
     );
     connection = new MCPConnection(serverName, config);
-    await connection.connect(userToken);
-    userConns.set(serverName, connection);
+    try {
+      await connection.connect(userToken);
+      userConns.set(serverName, connection);
+      this.lastErrors.delete(serverName);
+      this.lastConnectedAt.set(serverName, new Date().toISOString());
+    } catch (error) {
+      this.lastErrors.set(serverName, { message: error.message, at: new Date().toISOString() });
+      throw error;
+    }
 
     return connection;
   }
@@ -803,6 +820,9 @@ export class MCPManager {
         type: config.type || (config.command ? 'stdio' : 'sse'),
         requiresAuth,
         userConnected: userConnection?.isConnected() || false,
+        lastError: this.lastErrors.get(serverName)?.message || null,
+        lastErrorAt: this.lastErrors.get(serverName)?.at || null,
+        lastConnectedAt: this.lastConnectedAt.get(serverName) || null,
         config, // Include config for export feature
       };
     }

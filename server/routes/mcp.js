@@ -209,7 +209,7 @@ router.post('/disconnect/:serverName', async (req, res) => {
  */
 router.post('/add', async (req, res) => {
   try {
-    const { name, type, command, args, url, env, description, requiresAuth, timeout, mockId } = req.body;
+    const { name, type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Server name is required' });
@@ -242,6 +242,7 @@ router.post('/add', async (req, res) => {
     } else if (command) {
       config.command = command;
       config.args = args || [];
+      if (cwd) config.cwd = cwd;
       if (env) config.env = env;
     } else {
       config.url = url;
@@ -275,7 +276,7 @@ router.post('/add', async (req, res) => {
 router.put('/update/:serverName', async (req, res) => {
   try {
     const { serverName } = req.params;
-    const { type, command, args, url, env, description, requiresAuth, timeout, mockId } = req.body;
+    const { type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } = req.body;
 
     const mcpManager = getMCPManager();
     const existingConfig = mcpManager.configs.get(serverName);
@@ -303,6 +304,7 @@ router.put('/update/:serverName', async (req, res) => {
     } else if (command) {
       config.command = command;
       config.args = args || [];
+      if (cwd) config.cwd = cwd;
       if (env) config.env = env;
     } else {
       config.url = url;
