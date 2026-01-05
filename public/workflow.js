@@ -1728,9 +1728,9 @@ async function toggleAIBuilder() {
   const sidebar = document.getElementById('aiBuilderSidebar');
   if (!sidebar) return;
 
-  const isOpen = sidebar.style.transform === 'translateX(0%)';
+  const isOpen = document.body.classList.contains('ai-builder-open');
   if (isOpen) {
-    sidebar.style.transform = 'translateX(100%)';
+    document.body.classList.remove('ai-builder-open');
     return;
   }
 
@@ -1751,11 +1751,149 @@ async function toggleAIBuilder() {
     }
   }
   
-  sidebar.style.transform = 'translateX(0%)';
-  document.getElementById('aiBuilderPrompt').focus();
+  document.body.classList.add('ai-builder-open');
+  requestAnimationFrame(() => positionAIBuilder());
+  bindAIBuilderPositioning();
+  const promptEl = document.getElementById('aiBuilderPrompt');
+  if (promptEl) {
+    setTimeout(() => promptEl.focus(), 120);
+  }
   
   // Refresh the model badge when opening
   updateAIBuilderModelBadge();
+}
+
+let aiBuilderPositionBound = false;
+const AI_BUILDER_POSITION_KEY = 'mcp_ai_builder_position';
+let aiBuilderDragState = null;
+
+function bindAIBuilderPositioning() {
+  if (aiBuilderPositionBound) return;
+  aiBuilderPositionBound = true;
+  window.addEventListener('resize', () => {
+    if (document.body.classList.contains('ai-builder-open')) {
+      positionAIBuilder();
+    }
+  });
+}
+
+function loadAIBuilderPosition() {
+  try {
+    const raw = localStorage.getItem(AI_BUILDER_POSITION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.top === 'number' && typeof parsed?.left === 'number') {
+      return parsed;
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+}
+
+function saveAIBuilderPosition(top, left) {
+  localStorage.setItem(AI_BUILDER_POSITION_KEY, JSON.stringify({ top, left }));
+}
+
+function positionAIBuilder() {
+  const sidebar = document.getElementById('aiBuilderSidebar');
+  const runBtn = document.getElementById('workflowRunBtn');
+  if (!sidebar || !runBtn) return;
+
+  sidebar.style.right = 'auto';
+  sidebar.style.bottom = 'auto';
+
+  const rect = runBtn.getBoundingClientRect();
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+  const panelWidth = sidebar.offsetWidth || 360;
+  const panelHeight = sidebar.offsetHeight || 520;
+
+  const saved = loadAIBuilderPosition();
+  if (saved) {
+    const top = Math.min(Math.max(saved.top, 16), viewportH - panelHeight - 16);
+    const left = Math.min(Math.max(saved.left, 16), viewportW - panelWidth - 16);
+    sidebar.style.top = `${top}px`;
+    sidebar.style.left = `${left}px`;
+    return;
+  }
+
+  let top = rect.bottom + 8;
+  const maxTop = viewportH - panelHeight - 16;
+  if (top > maxTop) {
+    top = Math.max(16, maxTop);
+  }
+
+  let left = rect.right - panelWidth;
+  if (left < 16) {
+    left = 16;
+  }
+  const maxLeft = viewportW - panelWidth - 16;
+  if (left > maxLeft) {
+    left = Math.max(16, maxLeft);
+  }
+
+  sidebar.style.top = `${top}px`;
+  sidebar.style.left = `${left}px`;
+}
+
+function startAIBuilderDrag(event) {
+  if (event.button !== 0) return;
+  if (event.target.closest('button')) return;
+  const sidebar = document.getElementById('aiBuilderSidebar');
+  if (!sidebar) return;
+
+  document.body.classList.add('ai-builder-dragging');
+  const rect = sidebar.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+  aiBuilderDragState = {
+    offsetX,
+    offsetY,
+    nextLeft: rect.left,
+    nextTop: rect.top,
+    rafId: null
+  };
+
+  const applyDragPosition = () => {
+    if (!aiBuilderDragState) return;
+    const { nextLeft, nextTop } = aiBuilderDragState;
+    sidebar.style.left = `${nextLeft}px`;
+    sidebar.style.top = `${nextTop}px`;
+    aiBuilderDragState.rafId = null;
+  };
+
+  const onMove = (moveEvent) => {
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const panelWidth = sidebar.offsetWidth || rect.width;
+    const panelHeight = sidebar.offsetHeight || rect.height;
+
+    let left = moveEvent.clientX - offsetX;
+    let top = moveEvent.clientY - offsetY;
+
+    left = Math.min(Math.max(left, 16), viewportW - panelWidth - 16);
+    top = Math.min(Math.max(top, 16), viewportH - panelHeight - 16);
+
+    aiBuilderDragState.nextLeft = left;
+    aiBuilderDragState.nextTop = top;
+    if (!aiBuilderDragState.rafId) {
+      aiBuilderDragState.rafId = requestAnimationFrame(applyDragPosition);
+    }
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.classList.remove('ai-builder-dragging');
+    const left = parseFloat(sidebar.style.left || rect.left) || rect.left;
+    const top = parseFloat(sidebar.style.top || rect.top) || rect.top;
+    saveAIBuilderPosition(top, left);
+    aiBuilderDragState = null;
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 async function generateWorkflow() {

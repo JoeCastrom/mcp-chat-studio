@@ -214,14 +214,18 @@ export class LLMClient {
     const apiKey = this.getApiKey();
     const auth = this.config.auth || {};
     const extraHeader = auth.extra_header || {};
+    const formatBearer = (value) => {
+      if (!value) return value;
+      return /^bearer\s+/i.test(value) ? value : `Bearer ${value}`;
+    };
 
     switch (this.provider) {
       case 'custom':
         if (auth.type === 'client_credentials') {
           const token = await this.getAuthToken();
-          if (token) headers['Authorization'] = `Bearer ${token}`;
+          if (token) headers['Authorization'] = formatBearer(token);
         } else if ((auth.type === 'bearer' || !auth.type) && apiKey) {
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = formatBearer(apiKey);
         }
         break;
       case 'anthropic':
@@ -234,16 +238,16 @@ export class LLMClient {
       case 'openai':
       case 'groq':
       case 'together':
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['Authorization'] = formatBearer(apiKey);
         break;
       case 'openrouter':
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['Authorization'] = formatBearer(apiKey);
         headers['HTTP-Referer'] = 'https://github.com/JoeCastrom/mcp-chat-studio';
         headers['X-Title'] = 'MCP Chat Studio';
         break;
       case 'ollama':
         if (apiKey) {
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = formatBearer(apiKey);
         }
         break;
     }

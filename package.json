@@ -28,7 +28,7 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
+    "dev": "node --watch --watch-path=server --watch-path=public --watch-path=cli server/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:e2e": "npx playwright test",

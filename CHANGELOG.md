@@ -37,7 +37,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **Statistics tracking** - Last run, status, run count per monitor
 - ✨ **Manual execution** - Trigger monitor runs on-demand
 - ✨ **Graceful shutdown** - All monitors stopped cleanly on server shutdown
-- ✨ **9 API endpoints** - Full lifecycle management at `/api/monitors/*`
+  - ✨ **9 API endpoints** - Full lifecycle management at `/api/monitors/*`
+
+## [1.5.0] - 2026-01-06
+
+### 🚀 Major Features
+- ✨ **Workspace Mode** - Infinite canvas with floating panels, quick bar, command palette, sessions, templates, and export/import bundles.
+- ✨ **Studio Assistant** - Context-aware helper with quick actions, FAQs, and OpenAPI import support (URL/JSON/file).
+- ✨ **Visual MCP Generator v2** - OpenAPI JSON/YAML import, proxy mode, auth mapping, Test-in-Studio, and one‑click Run & Connect (auto‑naming + error details).
+- ✨ **Inspector Upgrades** - Diff + Matrix, bulk testing + heatmap, history → matrix, schema fuzzing, resolved preview.
+- ✨ **Contracts & CI Gates** - Schema regression snapshots, baseline diffing, and gate exports.
+- ✨ **Mocks** - Create, connect, and test mock MCP servers; generate from history.
+- ✨ **Workflows** - AI Builder, debugger (step/breakpoints), and Python/Node exports.
+
+### 🔐 Security & Reliability
+- CSRF protection + audit logging (`data/audit.log`)
+- Server-side session persistence (`data/sessions.json`)
+- DOMPurify fallback sanitizer
+- OAuth Settings UI with Test OAuth + self‑signed toggle
+
+### 🧪 Testing & CI
+- Playwright E2E suite + expanded unit tests
+- CI: coverage, security audit, perf budget, and E2E job
+
+### 🧹 Fixes & Polish
+- LLM settings UI improvements (provider visibility, Bearer auto‑prefix)
+- Server status badges (Connected / Failed / Not connected) with error details
+- Workspace & generator UX refinements, cleaner modals and toasts
 
 ### ✨ New Features
 

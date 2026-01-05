@@ -107,7 +107,21 @@ router.post('/', async (req, res) => {
       }
     } else {
       // Non-streaming response
-      const response = await llm.chat(messages, {}, tools);
+      let response;
+      try {
+        response = await llm.chat(messages, {}, tools);
+      } catch (error) {
+        if (useTools && tools?.length) {
+          console.warn(
+            `[Chat] LLM request failed with tools (${error.message}). Retrying without tools.`
+          );
+          response = await llm.chat(messages, {}, null);
+          response.toolFallback = true;
+          response.toolFallbackReason = error.message;
+        } else {
+          throw error;
+        }
+      }
 
       // Check if the model wants to call tools
       const choice = response.choices?.[0];

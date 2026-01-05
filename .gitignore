@@ -52,6 +52,8 @@ data/monitors.json
 data/mcp-servers.json
 data/llm-config.json
 data/oauth-config.json
+data/sessions.json
+data/audit.log
 workflows.json
 
 # Certificates and keys

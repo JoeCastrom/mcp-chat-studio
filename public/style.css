@@ -566,7 +566,54 @@ body::before {
 }
 
 body:not(.workflows-active) #aiBuilderSidebar {
-  transform: translateX(100%) !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.98);
+}
+
+#aiBuilderSidebar.ai-builder-panel {
+  position: fixed;
+  top: 140px;
+  width: 360px;
+  max-width: min(90vw, 440px);
+  height: 520px;
+  max-height: calc(100vh - 120px);
+  background: linear-gradient(145deg, rgba(18, 18, 26, 0.98), rgba(26, 26, 38, 0.96));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 0 24px rgba(99, 102, 241, 0.12);
+  backdrop-filter: blur(14px);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.98);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+body.ai-builder-open #aiBuilderSidebar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+#aiBuilderHeader {
+  cursor: move;
+  user-select: none;
+}
+
+body.ai-builder-dragging {
+  user-select: none;
+}
+
+body.ai-builder-dragging #aiBuilderSidebar {
+  transition: none;
 }
 
 /* In workspace mode, hide the main container and tab nav */

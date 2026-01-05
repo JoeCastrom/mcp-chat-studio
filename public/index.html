@@ -399,7 +399,17 @@
               >
                 AGENT EXECUTION TRACE
               </div>
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px">
+              <div
+                style="
+                  flex: 1;
+                  min-height: 0;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 12px;
+                  padding: 12px;
+                  overflow-y: auto;
+                "
+              >
                 <div class="brain-timeline" data-brain="chat">
                   <div class="brain-timeline-list"></div>
                 </div>
@@ -1594,8 +1604,8 @@
                 </div>
 
                 <div style="flex: 1"></div>
-                <button class="btn primary" onclick="runWorkflow()">▶️ Run</button>
-                <button class="btn" onclick="saveWorkflow()">💾 Save</button>
+                <button class="btn primary" id="workflowRunBtn" onclick="runWorkflow()">▶️ Run</button>
+                <button class="btn" id="workflowSaveBtn" onclick="saveWorkflow()">💾 Save</button>
               </div>
 
               <!-- Canvas -->
@@ -2238,26 +2248,9 @@
     </main>
 
     <!-- AI Workflow Builder Sidebar -->
-    <div
-      id="aiBuilderSidebar"
-      style="
-        position: absolute;
-        top: 56px;
-        right: 0;
-        bottom: 0;
-        width: 400px;
-        background: var(--bg-card);
-        border-left: 1px solid var(--border);
-        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-        z-index: 50;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-      "
-    >
+    <div id="aiBuilderSidebar" class="ai-builder-panel">
       <div
+        id="aiBuilderHeader"
         style="
           padding: 12px;
           border-bottom: 1px solid var(--border);
@@ -2266,6 +2259,7 @@
           align-items: center;
           background: var(--bg-surface);
         "
+        onmousedown="startAIBuilderDrag(event)"
       >
         <h3
           style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 6px"
@@ -2781,7 +2775,10 @@ env:
               <input type="checkbox" id="llmClearApiKey" />
               Clear stored API key
             </label>
-            <div class="form-hint">Stored server-side in data/llm-config.json when saved from the UI</div>
+            <div class="form-hint">
+              Stored server-side in data/llm-config.json when saved from the UI. For custom bearer auth, we auto‑prefix
+              <code>Bearer</code> if you paste a raw token.
+            </div>
           </div>
 
           <div class="form-group" id="llmAuthSection" style="display: none">

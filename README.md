@@ -748,7 +748,8 @@ llm:
     scope: "scope1 scope2"
 ```
 
-Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).
+Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).  
+In the UI, we’ll auto‑prefix `Bearer ` if you paste a raw token.
 If your gateway needs an extra header, set it in **⚙️ LLM Settings → Extra Auth Header**.
 
 #### OpenRouter (100+ Models)
@@ -1142,7 +1143,7 @@ Click **Login** to authenticate.
 - ⚠️ **SSL verification enabled** - Disable only for dev/self-signed certs (UI toggle or `OAUTH_DISABLE_SSL_VERIFY=true`)
 - 🔐 **OAuth token storage** - Set `OAUTH_TOKEN_KEY` to persist tokens encrypted in `data/oauth-tokens.json` (memory-only if unset). Use Redis/DB for multi-user production.
 - ⚠️ **Sandbox engine** - Defaults to `isolated-vm` when installed (falls back to vm2). Set `MCP_SANDBOX_ENGINE` to override.
-- 🔑 **LLM API keys (UI)** - Saved server-side in `data/llm-config.json` when entered in ⚙️ LLM Settings (not localStorage). Use `.env` for headless/CI.
+- 🔑 **LLM API keys (UI)** - Saved server-side in `data/llm-config.json` when entered in ⚙️ LLM Settings (not localStorage). For custom Bearer auth, the UI auto‑prefixes `Bearer ` if you paste a raw token. Use `.env` for headless/CI.
 - 🔒 **CSRF protection** - Browser requests require `X-CSRF-Token` (UI adds it automatically). CLI requests without an `Origin` header are allowed.
 - 📝 **Audit logging** - Security-relevant events are written to `data/audit.log`.
 - 💾 **Server-side sessions** - Chat sessions/tool history sync to `data/sessions.json` (tied to `sessionId` cookie).

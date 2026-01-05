@@ -4049,6 +4049,10 @@
             if (data.error) {
               throw new Error(data.error);
             }
+            if (data.toolFallback) {
+              const reason = data.toolFallbackReason ? ` (${data.toolFallbackReason})` : '';
+              appendMessage('system', `⚠️ Tools were disabled for this response${reason}`);
+            }
 
             // Handle tool calls
             if (data.requiresContinuation && data.toolResults) {

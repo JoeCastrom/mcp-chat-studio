@@ -1509,7 +1509,7 @@ If asked about Test in Studio or project folders, say the folder must contain se
         const model = document.getElementById('llmModel').value.trim();
         const temperature = parseFloat(document.getElementById('llmTemperature').value);
         const base_url = document.getElementById('llmBaseUrl').value.trim();
-        const api_key = document.getElementById('llmApiKey').value.trim();
+        let api_key = document.getElementById('llmApiKey').value.trim();
         const clear_api_key = document.getElementById('llmClearApiKey').checked;
         const auth_type = document.getElementById('llmAuthType').value;
         const auth_url = document.getElementById('llmAuthUrl').value.trim();
@@ -1523,6 +1523,11 @@ If asked about Test in Studio or project folders, say the folder must contain se
         const clear_auth_extra_header = document.getElementById('llmClearAuthHeader').checked;
         const assistantOverride = document.getElementById('assistantLlmOverride')?.checked || false;
 
+        const normalizeBearer = (value) => {
+          if (!value) return value;
+          return /^bearer\\s+/i.test(value) ? value : `Bearer ${value}`;
+        };
+
         assistantLLMOverride = assistantOverride;
         localStorage.setItem('mcp_assistant_llm_override', assistantOverride ? 'true' : 'false');
         updateAssistantContextLabel();
@@ -1534,6 +1539,11 @@ If asked about Test in Studio or project folders, say the folder must contain se
 
         const payload = { provider, model, temperature };
         if (base_url) payload.base_url = base_url;
+        if (api_key && provider === 'custom' && auth_type === 'bearer') {
+          api_key = normalizeBearer(api_key);
+          const apiKeyInput = document.getElementById('llmApiKey');
+          if (apiKeyInput) apiKeyInput.value = api_key;
+        }
         if (api_key) payload.api_key = api_key;
         if (clear_api_key) payload.clear_api_key = true;
 

@@ -1725,9 +1725,17 @@ function renderHealthDashboard(health) {
   if (!el) return;
 
   const successRate = typeof health.overallSuccessRate === 'number' ? health.overallSuccessRate : 0;
-  const status = successRate >= 95 ? 'healthy' : successRate >= 80 ? 'warning' : 'critical';
-  const statusColor = status === 'healthy' ? 'green' :
-                      status === 'warning' ? 'orange' : 'red';
+  const totalCalls = Number(health.totalCalls) || 0;
+  const status = totalCalls === 0
+    ? 'no data'
+    : successRate >= 95 ? 'healthy' : successRate >= 80 ? 'warning' : 'critical';
+  const statusColor = status === 'healthy'
+    ? 'green'
+    : status === 'warning'
+      ? 'orange'
+      : status === 'critical'
+        ? 'red'
+        : 'var(--text-muted)';
   const problematic = health.problematicTools || [];
   const slowTools = health.slowTools || [];
   const totalTools = health.totalTools || 0;
@@ -1756,6 +1764,7 @@ function renderHealthDashboard(health) {
           <div class="stat-label">Success Rate</div>
         </div>
       </div>
+      ${totalCalls === 0 ? '<div class="empty-state">Run tools to populate health metrics.</div>' : ''}
       ${problematic.length > 0 ? `
         <div class="problematic-tools">
           <h4>Problematic Tools:</h4>
