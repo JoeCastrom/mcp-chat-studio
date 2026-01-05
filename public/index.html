@@ -2953,6 +2953,15 @@ env:
             </select>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">TLS Verification</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-secondary)">
+              <input type="checkbox" id="oauthAllowSelfSigned" />
+              Allow self-signed certificates (dev only)
+            </label>
+            <div class="form-hint">Use only for internal PKI or dev environments.</div>
+          </div>
+
           <div id="oauthKeycloakFields">
             <div class="form-group">
               <label class="form-label">Keycloak URL</label>

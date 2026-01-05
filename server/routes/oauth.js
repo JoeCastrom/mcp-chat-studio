@@ -47,19 +47,20 @@ router.get('/config', async (req, res) => {
   const oauth = getOAuthManager();
   const persisted = await loadPersistedOAuthConfig();
 
-  res.json({
-    configured: oauth?.isConfigured() || false,
-    disabled: oauth?.config?.disabled || false,
-    provider: oauth?.provider || 'keycloak',
-    client_id: oauth?.clientId || '',
-    redirect_uri: oauth?.redirectUri || '',
-    scopes: oauth?.scopes || [],
-    use_pkce: oauth?.usePKCE !== false,
-    keycloak_url: oauth?.keycloakUrl || '',
-    keycloak_realm: oauth?.realm || '',
-    authorize_url: oauth?.customEndpoints?.authorization || '',
-    token_url: oauth?.customEndpoints?.token || '',
-    userinfo_url: oauth?.customEndpoints?.userinfo || '',
+    res.json({
+      configured: oauth?.isConfigured() || false,
+      disabled: oauth?.config?.disabled || false,
+      provider: oauth?.provider || 'keycloak',
+      client_id: oauth?.clientId || '',
+      redirect_uri: oauth?.redirectUri || '',
+      scopes: oauth?.scopes || [],
+      use_pkce: oauth?.usePKCE !== false,
+      disable_ssl_verify: oauth?.config?.disable_ssl_verify || false,
+      keycloak_url: oauth?.keycloakUrl || '',
+      keycloak_realm: oauth?.realm || '',
+      authorize_url: oauth?.customEndpoints?.authorization || '',
+      token_url: oauth?.customEndpoints?.token || '',
+      userinfo_url: oauth?.customEndpoints?.userinfo || '',
     logout_url: oauth?.customEndpoints?.logout || '',
     hasClientSecret: !!oauth?.clientSecret,
     source: persisted !== null ? 'ui' : 'config'
@@ -91,6 +92,7 @@ router.post('/config', async (req, res) => {
       redirect_uri: String(payload.redirect_uri ?? existing.redirect_uri ?? '').trim(),
       scopes,
       use_pkce: payload.use_pkce !== undefined ? !!payload.use_pkce : existing.use_pkce,
+      disable_ssl_verify: payload.disable_ssl_verify === true ? true : false,
       keycloak_url: String(payload.keycloak_url ?? existing.keycloak_url ?? '').trim(),
       keycloak_realm: String(payload.keycloak_realm ?? existing.keycloak_realm ?? '').trim(),
       authorize_url: String(payload.authorize_url ?? existing.authorize_url ?? '').trim(),

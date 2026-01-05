@@ -14,12 +14,11 @@ import {
   clearTokens
 } from './OAuthTokenStore.js';
 
-// Create HTTPS agent with configurable SSL verification
-// Default: verify SSL certificates (secure)
-// Set OAUTH_DISABLE_SSL_VERIFY=true only for development with self-signed certs
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: process.env.OAUTH_DISABLE_SSL_VERIFY !== 'true',
-});
+function createHttpsAgent(disableVerify) {
+  return new https.Agent({
+    rejectUnauthorized: !disableVerify,
+  });
+}
 
 // In-memory store for OAuth states (tokens persisted via OAuthTokenStore)
 const oauthStates = new Map();
@@ -54,6 +53,9 @@ export class OAuthManager {
   applyConfig(config) {
     const oauthConfig = config?.oauth ?? config ?? {};
     this.config = oauthConfig || {};
+    this.disableSSLVerify =
+      this.config.disable_ssl_verify === true ||
+      process.env.OAUTH_DISABLE_SSL_VERIFY === 'true';
 
     // Provider type (keycloak, github, google, or custom)
     this.provider = this.config.provider || 'keycloak';
@@ -81,6 +83,8 @@ export class OAuthManager {
 
     // PKCE support (default: true for public clients)
     this.usePKCE = this.config.use_pkce !== false;
+
+    this.httpsAgent = createHttpsAgent(this.disableSSLVerify);
   }
 
   updateConfig(oauthConfig, options = {}) {
@@ -217,7 +221,7 @@ export class OAuthManager {
       const response = await axios.post(endpoints.token, new URLSearchParams(tokenParams), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
-        httpsAgent,
+        httpsAgent: this.httpsAgent,
       });
 
       const tokens = {
@@ -252,7 +256,7 @@ export class OAuthManager {
       const response = await axios.get(endpoints.userinfo, {
         headers: { Authorization: `Bearer ${accessToken}` },
         timeout: 5000,
-        httpsAgent,
+        httpsAgent: this.httpsAgent,
       });
       return response.data;
     } catch (error) {
@@ -285,7 +289,7 @@ export class OAuthManager {
       const response = await axios.post(endpoints.token, new URLSearchParams(params), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         timeout: 10000,
-        httpsAgent,
+        httpsAgent: this.httpsAgent,
       });
 
       const newTokens = {

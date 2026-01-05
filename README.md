@@ -1125,6 +1125,7 @@ OAUTH_CLIENT_ID=your-client-id
 OAUTH_CLIENT_SECRET=your-secret
 OAUTH_AUTHORIZE_URL=https://...  # For custom providers
 OAUTH_TOKEN_URL=https://...
+OAUTH_DISABLE_SSL_VERIFY=true    # Dev only (self-signed/internal PKI)
 MCP_SANDBOX_ENGINE=vm2           # Optional: set to isolated-vm if installed
 ```
 
@@ -1138,7 +1139,7 @@ Click **Login** to authenticate.
 
 - ⚠️ **Never commit `.env` file** - Contains API keys and secrets
 - ⚠️ **Use environment variables** - All secrets should be in `.env` or environment
-- ⚠️ **SSL verification enabled** - Disabled only for dev with self-signed certs
+- ⚠️ **SSL verification enabled** - Disable only for dev/self-signed certs (UI toggle or `OAUTH_DISABLE_SSL_VERIFY=true`)
 - 🔐 **OAuth token storage** - Set `OAUTH_TOKEN_KEY` to persist tokens encrypted in `data/oauth-tokens.json` (memory-only if unset). Use Redis/DB for multi-user production.
 - ⚠️ **Sandbox engine** - Defaults to `isolated-vm` when installed (falls back to vm2). Set `MCP_SANDBOX_ENGINE` to override.
 - 🔑 **LLM API keys (UI)** - Saved server-side in `data/llm-config.json` when entered in ⚙️ LLM Settings (not localStorage). Use `.env` for headless/CI.

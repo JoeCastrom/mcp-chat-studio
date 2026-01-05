@@ -2267,6 +2267,8 @@
             ? config.scopes.join(' ')
             : (config.scopes || '');
           document.getElementById('oauthUsePkce').value = config.use_pkce === false ? 'false' : 'true';
+          const selfSignedEl = document.getElementById('oauthAllowSelfSigned');
+          if (selfSignedEl) selfSignedEl.checked = !!config.disable_ssl_verify;
           document.getElementById('oauthKeycloakUrl').value = config.keycloak_url || '';
           document.getElementById('oauthKeycloakRealm').value = config.keycloak_realm || '';
           document.getElementById('oauthAuthorizeUrl').value = config.authorize_url || '';
@@ -2324,6 +2326,7 @@
         const redirectUri = document.getElementById('oauthRedirectUri').value.trim();
         const scopes = document.getElementById('oauthScopes').value.trim();
         const usePkce = document.getElementById('oauthUsePkce').value === 'true';
+        const disableSslVerify = document.getElementById('oauthAllowSelfSigned')?.checked || false;
         const keycloakUrl = document.getElementById('oauthKeycloakUrl').value.trim();
         const keycloakRealm = document.getElementById('oauthKeycloakRealm').value.trim();
         const authorizeUrl = document.getElementById('oauthAuthorizeUrl').value.trim();
@@ -2351,6 +2354,7 @@
           redirect_uri: redirectUri,
           scopes,
           use_pkce: usePkce,
+          disable_ssl_verify: disableSslVerify,
           keycloak_url: keycloakUrl,
           keycloak_realm: keycloakRealm,
           authorize_url: customEndpoints.authorize_url,
