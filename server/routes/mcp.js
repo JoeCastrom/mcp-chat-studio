@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import yaml from 'js-yaml';
 import { getMCPManager } from '../services/MCPManager.js';
 import { getOAuthManager } from '../services/OAuthManager.js';
 import { getToolExplorer } from '../services/ToolExplorer.js';
@@ -117,6 +118,50 @@ router.get('/auth-required', (req, res) => {
   } catch (error) {
     console.error('[MCP/AuthRequired] Error:', error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+function normalizeServerMap(raw) {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Config is empty or invalid');
+  }
+
+  let servers = raw.mcpServers || raw.servers || null;
+
+  if (!servers && (raw.command || raw.url || raw.type)) {
+    const name = raw.name || raw.id || 'imported-server';
+    servers = { [name]: raw };
+  }
+
+  if (!servers || typeof servers !== 'object') {
+    throw new Error('No MCP servers found in config');
+  }
+
+  return servers;
+}
+
+/**
+ * POST /api/mcp/parse-config
+ * Parse YAML/JSON config and return normalized server map
+ */
+router.post('/parse-config', (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      return res.status(400).json({ error: 'Config text is required' });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = yaml.load(text);
+    }
+
+    const servers = normalizeServerMap(parsed);
+    res.json({ servers });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
 

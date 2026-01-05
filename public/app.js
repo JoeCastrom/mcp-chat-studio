@@ -1319,24 +1319,20 @@
 
       // Save current form as custom template
       async function saveAsCustomTemplate() {
-        const name = document.getElementById('serverName').value.trim();
+        const formName = document.getElementById('serverName').value.trim();
         const type = document.getElementById('serverType').value;
         const description = document.getElementById('serverDescription').value.trim();
         const env = collectEnvVars();
         const requiresAuth = document.getElementById('serverRequiresAuth')?.checked || false;
 
-        if (!name) {
-          appendMessage('error', 'Enter a server name first to save as template');
-          return;
-        }
-
         const templateName = await appPrompt('Template name:', {
           title: 'Save Template',
           label: 'Template name',
-          defaultValue: name,
+          defaultValue: formName || 'My MCP Server',
           required: true
         });
         if (!templateName) return;
+        const name = formName || templateName;
 
         const template = {
           name,
@@ -1668,7 +1664,7 @@
         document.getElementById('importConfigModal').classList.remove('active');
       }
 
-      function parseAndImportConfig() {
+      async function parseAndImportConfig() {
         const text = document.getElementById('importConfigText').value.trim();
         if (!text) {
           appendMessage('error', 'Please paste a config');
@@ -1676,25 +1672,27 @@
         }
 
         try {
-          let config;
+          const response = await fetch('/api/mcp/parse-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ text }),
+          });
 
-          // Try JSON first
-          try {
-            config = JSON.parse(text);
-          } catch {
-            // Try simple YAML parsing (basic key: value format)
-            config = parseSimpleYaml(text);
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            throw new Error(data.error || `Parse failed (${response.status})`);
           }
 
-          // Normalize: extract single server config
-          if (config.mcpServers && typeof config.mcpServers === 'object') {
-            const serverNames = Object.keys(config.mcpServers);
-            if (serverNames.length > 0) {
-              const firstServer = serverNames[0];
-              document.getElementById('serverName').value = firstServer;
-              config = config.mcpServers[firstServer];
-            }
+          const servers = data.servers || {};
+          const serverNames = Object.keys(servers);
+          if (serverNames.length === 0) {
+            throw new Error('No MCP servers found in config');
           }
+
+          const firstServer = serverNames[0];
+          let config = servers[firstServer];
+          document.getElementById('serverName').value = firstServer;
 
           // Fill form fields
           if (config.command) {
@@ -1731,7 +1729,10 @@
 
           updateConfigPreview();
           hideImportConfigModal();
-          appendMessage('system', '✅ Config imported! Review and submit.');
+          const extra = serverNames.length > 1
+            ? ` Imported ${serverNames.length} servers; showing "${firstServer}".`
+            : '';
+          appendMessage('system', `✅ Config imported! Review and submit.${extra}`);
         } catch (error) {
           appendMessage('error', `Failed to parse config: ${error.message}`);
         }
@@ -3558,17 +3559,19 @@
 
         try {
           const text = await file.text();
-          let config;
+          const response = await fetch('/api/mcp/parse-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ text }),
+          });
 
-          // Try JSON first, then YAML
-          try {
-            config = JSON.parse(text);
-          } catch {
-            config = parseSimpleYaml(text);
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            throw new Error(data.error || `Parse failed (${response.status})`);
           }
 
-          // Handle mcpServers wrapper
-          const servers = config.mcpServers || config;
+          const servers = data.servers || {};
           let addedCount = 0;
 
           for (const [name, cfg] of Object.entries(servers)) {
@@ -3576,12 +3579,16 @@
 
             const payload = {
               name,
-              type: cfg.type || 'stdio',
+              type: cfg.type || (cfg.command ? 'stdio' : 'sse'),
               description: cfg.description || '',
               command: cfg.command,
               args: cfg.args || [],
               url: cfg.url,
               env: cfg.env || {},
+              cwd: cfg.cwd,
+              requiresAuth: cfg.requiresAuth || cfg.requiresOAuth || false,
+              timeout: cfg.timeout,
+              mockId: cfg.mockId
             };
 
             const response = await fetch('/api/mcp/add', {
@@ -3596,7 +3603,7 @@
           }
 
           appendMessage('system', `📤 Imported ${addedCount} server(s) from ${file.name}`);
-          loadServers();
+          loadMCPStatus();
         } catch (error) {
           appendMessage('error', 'Import failed: ' + error.message);
         }
