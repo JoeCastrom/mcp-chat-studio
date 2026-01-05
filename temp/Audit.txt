@@ -26,10 +26,10 @@ Issue	Severity	Recommendation
 Monolithic 
 
 app.js
-🟡 Medium	Partially addressed: Assistant + Generator + Modals + History moved into `public/app/assistant.js`, `public/app/generator.js`, `public/app/modals.js`, and `public/app/history.js`. Core app.js still large; continue splitting into smaller modules.
+🟡 Medium	Partially addressed: Assistant + Generator + Modals + History + Inspector + Workspace menu moved into `public/app/assistant.js`, `public/app/generator.js`, `public/app/modals.js`, `public/app/history.js`, `public/app/inspector.js`, and `public/app/workspace-menu.js`. Core app.js still large; continue splitting into smaller modules.
 No TypeScript	🟡 Medium	For a tool of this complexity, TypeScript would prevent bugs and improve DX. Consider gradual migration.
 In-memory storage	🟡 Medium	OAuth tokens persist encrypted in `data/oauth-tokens.json` when `OAUTH_TOKEN_KEY` is set (memory fallback). Chat sessions sync to `data/sessions.json`. Consider Redis/DB for multi-user.
-vm2 security	🟡 In Progress	Sandbox adapter added with `isolated-vm` default when installed (fallback to vm2). vm2 remains default for NodeVM scripts.
+vm2 security	🟢 Improved	Sandbox adapter defaults to `isolated-vm` when installed (fallback to vm2). ScriptRunner now uses VM sandbox with isolated-vm support.
 No database	🟡 Medium	localStorage + JSON files won't scale for teams. PostgreSQL/SQLite for workflows, runs, analytics.
 2. Test Coverage
 Current State
@@ -47,7 +47,7 @@ e2e/
 └── inspector.spec.js (Inspector flows)
 ⚠️ Coverage Gaps
 Missing Tests	Priority
-Frontend tests	🔴 High - No unit tests for client code
+Frontend tests	🟡 Medium - Added modals + history + inspector auth unit tests; continue expanding coverage
 MonitorManager	✅ Added tests
 OAuthManager	✅ Added tests
 Integration/E2E tests	✅ Added - Playwright E2E suite
@@ -70,7 +70,7 @@ Information density	🟡 Medium	Some panels have too many buttons/options. Progr
 No search in workspace	🟡 Medium	Command palette exists but could find panels, tools, recent history
 Panel connections not obvious	🟢 Low	Connection lines exist but their purpose isn't clear to new users
 Empty states	🟡 Medium	Some panels lack helpful empty states with CTAs
-Mobile responsiveness	🔴 High	No responsive design - tool is desktop-only
+Mobile responsiveness	🟡 Medium	Basic responsive breakpoints added (tablet/mobile usable, still desktop-first)
 Loading states	🟡 Medium	Some async operations don't show loading indicators
 Feature Organization Suggestion
 📊 TESTING
@@ -102,7 +102,7 @@ Team Workspaces	❌ Missing	Multi-user with RBAC
 Environment Vault	🟡 Partial	Encrypted secrets storage
 Version History	❌ Missing	Git-like diffing for collections/workflows
 Request History Panel	❌ Missing	Persistent history across sessions
-Authentication per-request	🟡 Partial	Bearer/OAuth per tool call
+Authentication per-request	✅ Added	Inspector supports per-request Bearer/Basic/API key + header/query overrides for OpenAPI proxy tools
 🟡 Nice to Have
 Feature	Value
 Plugin System	Allow extensions for custom panels, exporters
@@ -126,7 +126,7 @@ OAuth tokens in-memory	🟡 Medium	Encrypted persistence added via `data/oauth-t
 No CSRF protection	✅ Added	Double-submit CSRF token with `X-CSRF-Token` header (browser UI auto-attaches)
 API keys in localStorage	🟡 Medium	Move to HTTP-only cookies or secure backend storage
 No audit logging	✅ Added	Audit log written to `data/audit.log` for OAuth/MCP/LLM/session events
-Input sanitization	🟡 Medium	DOMPurify allowlist sanitizer wired in (fallback to internal allowlist) + template escaping in advanced-features; expand DOMPurify config for richer HTML as needed
+Input sanitization	🟡 Medium	DOMPurify allowlist sanitizer wired in (fallback to internal allowlist) + template escaping; assistant output now sanitized, continue expanding coverage for rich panels
 6. CI/CD Review
 Current Pipeline
 # .github/workflows/ci.yml
@@ -201,7 +201,7 @@ Potential Issues
 Area	Concern
 app.js size	615KB single file may cause parsing delays
 DOM manipulation	Direct DOM updates could be slow with many panels
-No virtual scrolling	Long lists (history, logs) may lag
+No virtual scrolling	Long lists (history, logs) may lag (history pagination + protocol log cap added)
 Connection lines SVG	Frequent redraws on pan/zoom
 Recommendations
 Code split 

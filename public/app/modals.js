@@ -290,3 +290,16 @@ async function appPrompt(message, options = {}) {
 async function appFormModal(options = {}) {
   return showAppModal(options);
 }
+
+// Export to global scope for browser and test contexts
+if (typeof globalThis !== 'undefined') {
+  globalThis.escapeHtml = escapeHtml;
+  globalThis.sanitizeHtml = sanitizeHtml;
+  globalThis.formatModalMessage = formatModalMessage;
+  globalThis.showAppModal = showAppModal;
+  globalThis.appConfirm = appConfirm;
+  globalThis.appAlert = appAlert;
+  globalThis.appPrompt = appPrompt;
+  globalThis.appFormModal = appFormModal;
+}
+

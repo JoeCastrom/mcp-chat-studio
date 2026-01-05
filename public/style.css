@@ -2183,6 +2183,89 @@ kbd {
   100% { transform: scale(1); opacity: 1; }
 }
 
+@media (max-width: 1100px) {
+  .header {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    row-gap: 8px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .tab-nav {
+    top: 96px;
+    height: 44px;
+  }
+
+  .sidebar {
+    width: 240px;
+  }
+
+  .content {
+    padding: 12px;
+  }
+
+  .inspector-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 800px) {
+  .logo-text {
+    display: none;
+  }
+
+  .header {
+    min-height: 48px;
+  }
+
+  .header .btn {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+
+  .tab-btn {
+    font-size: 0.75rem;
+    padding: 6px 10px;
+  }
+
+  .assistant-panel {
+    width: min(92vw, 360px);
+    max-height: 520px;
+  }
+
+  .assistant-panel.large {
+    width: min(92vw, 420px);
+    max-height: 600px;
+  }
+
+  .sidebar {
+    width: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tab-nav {
+    top: 88px;
+  }
+
+  .sidebar {
+    width: 200px;
+  }
+
+  .content {
+    padding: 8px;
+  }
+
+  .assistant-panel.popout {
+    right: 12px;
+    bottom: 80px;
+  }
+}
+
 @keyframes assistantDropAccept {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(1.04); }

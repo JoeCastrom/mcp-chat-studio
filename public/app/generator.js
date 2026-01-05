@@ -933,13 +933,17 @@ main().catch(console.error);
         const toolFns = toolDefs.map(tool => {
           const params = tool.params || [];
           const argsSignature = buildPythonArgsSignature(params);
+          const extraSignature = '__headers: dict = None, __query: dict = None';
+          const fullSignature = argsSignature ? `${argsSignature}, ${extraSignature}` : extraSignature;
           const authNote = tool.auth ? `\n    Auth: ${formatOpenApiAuthSummary(tool.auth)}` : '';
           const endpointNote = tool.path ? `\n    Endpoint: ${tool.method?.toUpperCase() || 'GET'} ${tool.path}` : '';
           return `
 @mcp.tool()
-async def ${tool.name}(${argsSignature}):
+async def ${tool.name}(${fullSignature}):
     """${tool.description || 'No description'}${endpointNote}${authNote}"""
     args = {${params.map(param => `'${param.name}': ${param.name}`).join(', ')}}
+    args["__headers"] = __headers
+    args["__query"] = __query
     return await call_tool("${tool.name}", args)
 `;
         }).join('\n');
@@ -1064,6 +1068,14 @@ async def call_tool(tool_name, args):
       cookie = f"{param['name']}={urllib.parse.quote(str(value))}"
       headers["Cookie"] = f"{existing}; {cookie}" if existing else cookie
   _apply_auth(headers, query, tool_def.get("auth"))
+  extra_headers = args.get("__headers") if args else None
+  if isinstance(extra_headers, dict):
+    for key, value in extra_headers.items():
+      headers[str(key)] = str(value)
+  extra_query = args.get("__query") if args else None
+  if isinstance(extra_query, dict):
+    for key, value in extra_query.items():
+      query[str(key)] = str(value)
   url = _build_url(tool_def, args)
   if query:
     url += ("&" if "?" in url else "?") + urllib.parse.urlencode(query)
@@ -1208,7 +1220,16 @@ TOOLS.forEach(tool => {
   });
   const fallbackSchema = { type: 'object', properties: paramsSchema };
   if (required.length) fallbackSchema.required = required;
-  const inputSchema = tool.inputSchema || fallbackSchema;
+  const inputSchema = tool.inputSchema ? JSON.parse(JSON.stringify(tool.inputSchema)) : fallbackSchema;
+  if (!inputSchema.properties) inputSchema.properties = {};
+  inputSchema.properties.__headers = {
+    type: 'object',
+    description: 'Optional per-request header overrides'
+  };
+  inputSchema.properties.__query = {
+    type: 'object',
+    description: 'Optional per-request query overrides'
+  };
 
   server.registerTool(
     tool.name,
@@ -1241,6 +1262,16 @@ TOOLS.forEach(tool => {
         }
       });
       await applyAuth(headers, query, tool.auth);
+      if (args?.__headers && typeof args.__headers === 'object' && !Array.isArray(args.__headers)) {
+        Object.entries(args.__headers).forEach(([key, value]) => {
+          headers.set(key, String(value));
+        });
+      }
+      if (args?.__query && typeof args.__query === 'object' && !Array.isArray(args.__query)) {
+        Object.entries(args.__query).forEach(([key, value]) => {
+          query.set(key, String(value));
+        });
+      }
       let url = buildUrl(tool, args);
       const queryString = query.toString();
       if (queryString) {

@@ -3,6 +3,13 @@
  */
 
 import { jest, beforeEach } from '@jest/globals';
+import { JSDOM } from 'jsdom';
+
+// Setup jsdom window/document for tests that need DOM APIs
+const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: 'http://localhost/' });
+globalThis.window = dom.window;
+globalThis.document = dom.window.document;
+globalThis.DOMPurify = null; // Let sanitizeHtml use fallback
 
 // Mock localStorage
 const localStorageMock = {
@@ -26,6 +33,14 @@ localStorageMock.clear.mockImplementation(() => {
 });
 
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
+
+// requestAnimationFrame shim for jsdom
+if (!globalThis.requestAnimationFrame) {
+  globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+}
+if (!globalThis.cancelAnimationFrame) {
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+}
 
 // Mock fetch
 globalThis.fetch = jest.fn();

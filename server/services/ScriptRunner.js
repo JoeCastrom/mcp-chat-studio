@@ -3,7 +3,7 @@
  * Execute pre-request and post-response scripts (like Postman scripts)
  */
 
-import { createSandboxNodeVM } from './SandboxEngine.js';
+import { createSandboxVM } from './SandboxEngine.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -23,6 +23,147 @@ export class ScriptRunner {
     }
 
     this.loadScripts();
+  }
+
+  buildSandboxPayload(context = {}) {
+    return {
+      variables: context.variables || {},
+      environment: context.environment || {},
+      request: context.request || {},
+      response: context.response || {}
+    };
+  }
+
+  buildScriptWrapper(code, payload) {
+    const ctxJson = JSON.stringify(payload || {});
+    const prelude = `
+const __ctx = (typeof globalThis !== 'undefined' && globalThis.__ctx) ? globalThis.__ctx : ${ctxJson};
+const __assertions = [];
+const __makeStore = (data) => ({
+  _data: data || {},
+  get: function(key) { return this._data[key]; },
+  set: function(key, value) { this._data[key] = value; }
+});
+const console = {
+  log: function() {},
+  warn: function() {},
+  error: function() {}
+};
+const pm = {};
+pm.variables = __makeStore(__ctx.variables);
+pm.environment = __makeStore(__ctx.environment);
+pm.request = __ctx.request || {};
+pm.response = __ctx.response || {};
+pm.test = function(name, fn) {
+  try {
+    fn();
+    __assertions.push({ name: name, passed: true });
+  } catch (error) {
+    __assertions.push({ name: name, passed: false, error: error.message });
+  }
+};
+pm.expect = function(value) {
+  return {
+    to: {
+      equal: function(expected) {
+        if (value !== expected) {
+          throw new Error('Expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(value));
+        }
+      },
+      be: {
+        ok: function() {
+          if (!value) {
+            throw new Error('Expected truthy value, got ' + JSON.stringify(value));
+          }
+        },
+        null: function() {
+          if (value !== null) {
+            throw new Error('Expected null, got ' + JSON.stringify(value));
+          }
+        },
+        undefined: function() {
+          if (value !== undefined) {
+            throw new Error('Expected undefined, got ' + JSON.stringify(value));
+          }
+        }
+      },
+      contain: function(expected) {
+        if (typeof value === 'string') {
+          if (!value.includes(expected)) {
+            throw new Error('Expected string to contain "' + expected + '"');
+          }
+        } else if (Array.isArray(value)) {
+          if (!value.includes(expected)) {
+            throw new Error('Expected array to contain ' + JSON.stringify(expected));
+          }
+        } else {
+          throw new Error('Value must be string or array for contain check');
+        }
+      },
+      have: {
+        property: function(prop) {
+          if (!(prop in value)) {
+            throw new Error('Expected object to have property "' + prop + '"');
+          }
+        },
+        length: function(expected) {
+          if (!value || typeof value.length !== 'number') {
+            throw new Error('Value does not have length property');
+          }
+          if (value.length !== expected) {
+            throw new Error('Expected length ' + expected + ', got ' + value.length);
+          }
+        }
+      }
+    },
+    not: {
+      to: {
+        equal: function(expected) {
+          if (value === expected) {
+            throw new Error('Expected not to equal ' + JSON.stringify(expected));
+          }
+        },
+        contain: function(expected) {
+          if (typeof value === 'string' && value.includes(expected)) {
+            throw new Error('Expected string not to contain "' + expected + '"');
+          } else if (Array.isArray(value) && value.includes(expected)) {
+            throw new Error('Expected array not to contain ' + JSON.stringify(expected));
+          }
+        }
+      }
+    }
+  };
+};
+`;
+    const postlude = `
+JSON.stringify({
+  variables: pm.variables._data || {},
+  environment: pm.environment._data || {},
+  assertions: __assertions
+});
+`;
+    return `${prelude}\n${code}\n${postlude}`;
+  }
+
+  parseScriptResult(rawResult, payload) {
+    let parsed = null;
+    if (typeof rawResult === 'string') {
+      try {
+        parsed = JSON.parse(rawResult);
+      } catch (error) {
+        parsed = null;
+      }
+    } else if (rawResult && typeof rawResult === 'object') {
+      parsed = rawResult;
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      parsed = {};
+    }
+    return {
+      variables: parsed.variables || payload.variables || {},
+      environment: parsed.environment || payload.environment || {},
+      assertions: Array.isArray(parsed.assertions) ? parsed.assertions : []
+    };
   }
 
   /**
@@ -256,152 +397,36 @@ export class ScriptRunner {
    */
   async executeScript(script, context) {
     console.log(`[ScriptRunner] Executing ${script.type}-script: ${script.name}`);
-
-    // Create assertion tracker
-    const assertions = [];
-
-    // Create test utilities (like Postman's pm.test)
-    const testUtils = {
-      test: (name, fn) => {
-        try {
-          fn();
-          assertions.push({ name, passed: true });
-        } catch (error) {
-          assertions.push({ name, passed: false, error: error.message });
-        }
-      },
-      expect: (value) => ({
-        to: {
-          equal: (expected) => {
-            if (value !== expected) {
-              throw new Error(`Expected ${JSON.stringify(expected)}, got ${JSON.stringify(value)}`);
-            }
-          },
-          be: {
-            ok: () => {
-              if (!value) {
-                throw new Error(`Expected truthy value, got ${JSON.stringify(value)}`);
-              }
-            },
-            null: () => {
-              if (value !== null) {
-                throw new Error(`Expected null, got ${JSON.stringify(value)}`);
-              }
-            },
-            undefined: () => {
-              if (value !== undefined) {
-                throw new Error(`Expected undefined, got ${JSON.stringify(value)}`);
-              }
-            }
-          },
-          contain: (expected) => {
-            if (typeof value === 'string') {
-              if (!value.includes(expected)) {
-                throw new Error(`Expected string to contain "${expected}"`);
-              }
-            } else if (Array.isArray(value)) {
-              if (!value.includes(expected)) {
-                throw new Error(`Expected array to contain ${JSON.stringify(expected)}`);
-              }
-            } else {
-              throw new Error('Value must be string or array for contain check');
-            }
-          },
-          have: {
-            property: (prop) => {
-              if (!(prop in value)) {
-                throw new Error(`Expected object to have property "${prop}"`);
-              }
-            },
-            length: (expected) => {
-              if (!value.length) {
-                throw new Error('Value does not have length property');
-              }
-              if (value.length !== expected) {
-                throw new Error(`Expected length ${expected}, got ${value.length}`);
-              }
-            }
-          }
-        },
-        not: {
-          to: {
-            equal: (expected) => {
-              if (value === expected) {
-                throw new Error(`Expected not to equal ${JSON.stringify(expected)}`);
-              }
-            },
-            contain: (expected) => {
-              if (typeof value === 'string' && value.includes(expected)) {
-                throw new Error(`Expected string not to contain "${expected}"`);
-              } else if (Array.isArray(value) && value.includes(expected)) {
-                throw new Error(`Expected array not to contain ${JSON.stringify(expected)}`);
-              }
-            }
-          }
-        }
-      }),
-      console: {
-        log: (...args) => console.log('[Script]', ...args),
-        error: (...args) => console.error('[Script]', ...args)
-      }
-    };
-
-    // Create sandbox with context and utilities
-    const sandbox = {
-      pm: {
-        variables: {
-          get: (key) => context.variables?.[key],
-          set: (key, value) => {
-            if (!context.variables) context.variables = {};
-            context.variables[key] = value;
-          }
-        },
-        environment: {
-          get: (key) => context.environment?.[key],
-          set: (key, value) => {
-            if (!context.environment) context.environment = {};
-            context.environment[key] = value;
-          }
-        },
-        request: context.request || {},
-        response: context.response || {},
-        test: testUtils.test,
-        expect: testUtils.expect
-      },
-      console: testUtils.console,
-      JSON: JSON,
-      Math: Math,
-      Date: Date,
-      setTimeout: undefined, // Disable async operations
-      setInterval: undefined,
-      require: undefined // Disable require
-    };
-
     try {
-      // Create VM with sandbox
-      const vm = createSandboxNodeVM({
-        console: 'redirect',
-        sandbox,
-        timeout: 5000, // 5 second timeout
+      const payload = this.buildSandboxPayload(context);
+      const wrapper = this.buildScriptWrapper(script.code, payload);
+      const vm = createSandboxVM({
+        sandbox: { __ctx: payload },
+        timeout: 5000,
         eval: false,
-        wasm: false,
-        require: false
+        wasm: false
       });
 
-      // Execute script
-      vm.run(script.code);
+      let rawResult;
+      try {
+        rawResult = vm.run(wrapper);
+      } finally {
+        if (typeof vm.dispose === 'function') {
+          vm.dispose();
+        }
+      }
 
-      // Return modified context
+      const parsed = this.parseScriptResult(rawResult, payload);
       const result = {
         context: {
           ...context,
-          variables: sandbox.pm.variables,
-          environment: sandbox.pm.environment
+          variables: parsed.variables,
+          environment: parsed.environment
         }
       };
 
-      if (assertions.length > 0) {
-        result.assertions = assertions;
+      if (parsed.assertions.length > 0) {
+        result.assertions = parsed.assertions;
       }
 
       console.log(`[ScriptRunner] Script ${script.name} completed successfully`);
@@ -419,16 +444,21 @@ export class ScriptRunner {
    */
   validateScript(code) {
     try {
-      const vm = createSandboxNodeVM({
-        console: 'off',
-        sandbox: {},
+      const payload = this.buildSandboxPayload({});
+      const wrapper = this.buildScriptWrapper(code, payload);
+      const vm = createSandboxVM({
+        sandbox: { __ctx: payload },
         timeout: 100,
         eval: false,
-        wasm: false,
-        require: false
+        wasm: false
       });
-
-      vm.run(code);
+      try {
+        vm.run(wrapper);
+      } finally {
+        if (typeof vm.dispose === 'function') {
+          vm.dispose();
+        }
+      }
 
       return { valid: true };
     } catch (error) {

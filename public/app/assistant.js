@@ -313,6 +313,22 @@ If asked about Test in Studio or project folders, say the folder must contain se
         label.textContent = `Context: ${ctx.layout} ${suffix} ${lastTool} ${status}`.replace(/\s+/g, ' ').trim();
       }
 
+      function formatAssistantContent(content) {
+        const safeContent = escapeHtml(content || '');
+        let formatted = safeContent;
+        formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+        formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+        formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/\n/g, '<br>');
+        return sanitizeHtml(formatted);
+      }
+
+      function appendAssistantHint(msgEl, hintText) {
+        if (!msgEl) return;
+        const hintHtml = `<br><strong>Next:</strong> ${escapeHtml(hintText)}`;
+        msgEl.innerHTML = sanitizeHtml(`${msgEl.innerHTML}${hintHtml}`);
+      }
+
       function renderAssistantMessages() {
         const list = document.getElementById('assistantMessages');
         if (!list) return;
@@ -324,12 +340,12 @@ If asked about Test in Studio or project folders, say the folder must contain se
           if (msg.type === 'action' && msg.action) {
             return `
               <div class="assistant-message assistant">
-                <div style="margin-bottom: 6px;">${escapeHtml(msg.content || '')}</div>
+                <div style="margin-bottom: 6px;">${formatAssistantContent(msg.content || '')}</div>
                 <button class="btn" onclick="${msg.action}">${escapeHtml(msg.actionLabel || 'Run')}</button>
               </div>
             `;
           }
-          return `<div class="assistant-message ${msg.role}">${escapeHtml(msg.content)}</div>`;
+          return `<div class="assistant-message ${msg.role}">${formatAssistantContent(msg.content)}</div>`;
         }).join('');
         list.scrollTop = list.scrollHeight;
       }
@@ -517,7 +533,7 @@ If asked about Test in Studio or project folders, say the folder must contain se
           const input = document.getElementById('openApiUrlInput');
           if (input) input.value = url;
           await loadOpenApiFromUrl();
-          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
+          appendAssistantHint(msg, 'click Generate Code or Test in Studio.');
           return true;
         }
 
@@ -540,7 +556,7 @@ If asked about Test in Studio or project folders, say the folder must contain se
             openPanelByName('generator');
           }
           applyOpenApiSpec(jsonSpec, 'main chat paste');
-          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
+          appendAssistantHint(msg, 'click Generate Code or Test in Studio.');
           return true;
         }
         return false;

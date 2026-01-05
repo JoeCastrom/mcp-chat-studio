@@ -170,11 +170,11 @@ describe('LLMClient', () => {
   });
 
   describe('OpenRouter Headers', () => {
-    test('should include attribution headers for OpenRouter', () => {
+    test('should include attribution headers for OpenRouter', async () => {
       client.provider = 'openrouter';
       process.env.OPENROUTER_API_KEY = 'test-key';
 
-      const headers = client.getHeaders();
+      const headers = await client.getHeaders();
 
       expect(headers['HTTP-Referer']).toBe('https://github.com/JoeCastrom/mcp-chat-studio');
       expect(headers['X-Title']).toBe('MCP Chat Studio');

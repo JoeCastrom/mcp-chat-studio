@@ -634,6 +634,81 @@
                 </div>
               </div>
 
+              <div class="inspector-section" id="inspectorAuthSection">
+                <h3>🔐 Auth Overrides</h3>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px">
+                  Per-request auth for OpenAPI proxy tools. Values can use <code>{{env.key}}</code>.
+                </p>
+                <label class="toggle" style="font-size: 0.75rem">
+                  <input
+                    type="checkbox"
+                    id="inspectorAuthEnabled"
+                    onchange="toggleInspectorAuth(this.checked)"
+                  />
+                  <span class="switch"></span>
+                  <span>Enable auth overrides</span>
+                </label>
+                <div id="inspectorAuthNotice" class="form-hint" style="margin-top: 6px">
+                  Auth overrides apply to OpenAPI proxy tools only.
+                </div>
+                <div id="inspectorAuthFields" style="display: none; margin-top: 10px">
+                  <div class="form-group">
+                    <label class="form-label">Auth Type</label>
+                    <select class="form-select" id="inspectorAuthType" onchange="onInspectorAuthTypeChange()">
+                      <option value="none">None</option>
+                      <option value="bearer">Bearer Token</option>
+                      <option value="basic">Basic Auth</option>
+                      <option value="apikey">API Key</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="inspectorAuthBearerGroup" style="display: none">
+                    <label class="form-label">Bearer Token</label>
+                    <input type="text" class="form-input" id="inspectorAuthBearer" placeholder="eyJhbGci..." oninput="saveInspectorAuthSettings(); renderInspectorPreview()" />
+                  </div>
+                  <div class="form-group" id="inspectorAuthBasicGroup" style="display: none">
+                    <label class="form-label">Basic Auth</label>
+                    <div style="display: grid; gap: 8px">
+                      <input type="text" class="form-input" id="inspectorAuthBasicUser" placeholder="Username" oninput="saveInspectorAuthSettings(); renderInspectorPreview()" />
+                      <input type="password" class="form-input" id="inspectorAuthBasicPass" placeholder="Password" oninput="saveInspectorAuthSettings(); renderInspectorPreview()" />
+                    </div>
+                  </div>
+                  <div class="form-group" id="inspectorAuthApiKeyGroup" style="display: none">
+                    <label class="form-label">API Key</label>
+                    <div style="display: grid; gap: 8px">
+                      <input type="text" class="form-input" id="inspectorAuthApiKeyName" placeholder="Header/Query name (e.g., X-API-Key)" oninput="saveInspectorAuthSettings(); renderInspectorPreview()" />
+                      <input type="password" class="form-input" id="inspectorAuthApiKey" placeholder="API key value" oninput="saveInspectorAuthSettings(); renderInspectorPreview()" />
+                      <select class="form-select" id="inspectorAuthApiKeyIn" onchange="saveInspectorAuthSettings(); renderInspectorPreview()">
+                        <option value="header">Header</option>
+                        <option value="query">Query</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Extra Headers (JSON)</label>
+                    <textarea
+                      id="inspectorAuthHeaders"
+                      class="form-input"
+                      rows="3"
+                      style="font-family: 'JetBrains Mono', monospace"
+                      placeholder='{\"X-Trace\": \"123\"}'
+                      oninput="saveInspectorAuthSettings(); renderInspectorPreview()"
+                    ></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Extra Query Params (JSON)</label>
+                    <textarea
+                      id="inspectorAuthQuery"
+                      class="form-input"
+                      rows="3"
+                      style="font-family: 'JetBrains Mono', monospace"
+                      placeholder='{\"debug\": \"true\"}'
+                      oninput="saveInspectorAuthSettings(); renderInspectorPreview()"
+                    ></textarea>
+                  </div>
+                </div>
+                <div id="inspectorAuthStatus" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px"></div>
+              </div>
+
               <div class="inspector-section" id="mockRecorderSection">
                 <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap">
                   <div>
@@ -2996,6 +3071,8 @@ env:
     <script src="vendor/dompurify/purify.min.js"></script>
     <script src="app/modals.js"></script>
     <script src="app.js"></script>
+    <script src="app/workspace-menu.js"></script>
+    <script src="app/inspector.js"></script>
     <script src="app/history.js"></script>
     <script src="app/generator.js"></script>
     <script src="app/assistant.js"></script>

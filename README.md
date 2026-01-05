@@ -119,6 +119,7 @@ Three powerful new testing tools:
 - **🕘 History → Matrix** - Launch a cross-server compare directly from past runs
 - **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
 - **🔍 Resolved Preview** - See variable substitutions before execution
+- **🔐 Per-request Auth Overrides** - Bearer/Basic/API key + header/query overrides for OpenAPI proxy tools
 - **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env
 
 ### 📋 Contract Testing
@@ -1078,6 +1079,20 @@ The Inspector provides **low-level MCP debugging** without using the LLM.
 | object      | JSON textarea         |
 | enum        | Dropdown with options |
 
+### Auth Overrides (OpenAPI Proxy Tools)
+
+Per-request auth is available for OpenAPI proxy tools generated in the **Generator**.
+
+1. Toggle **🔐 Auth Overrides** in Inspector
+2. Choose **Bearer**, **Basic**, or **API Key**
+3. Optionally add **Headers JSON** / **Query JSON**
+4. Execute the tool — overrides are sent as `__headers` / `__query`
+
+Notes:
+- Auth overrides apply only to **OpenAPI proxy tools** (generated with the OpenAPI Generator).
+- If a tool does not support overrides, the Inspector shows a warning and ignores the overrides.
+- Re-generate older OpenAPI servers to get `__headers`/`__query` support.
+
 ### When to Use
 
 - **Debugging** - Test tools without LLM interpretation
@@ -1204,7 +1219,7 @@ Click **Login** to authenticate.
 - ⚠️ **Use environment variables** - All secrets should be in `.env` or environment
 - ⚠️ **SSL verification enabled** - Disabled only for dev with self-signed certs
 - 🔐 **OAuth token storage** - Set `OAUTH_TOKEN_KEY` to persist tokens encrypted in `data/oauth-tokens.json` (memory-only if unset). Use Redis/DB for multi-user production.
-- ⚠️ **Sandbox engine** - Defaults to `isolated-vm` when installed (falls back to vm2). Set `MCP_SANDBOX_ENGINE` to override; NodeVM scripts still fall back to vm2.
+- ⚠️ **Sandbox engine** - Defaults to `isolated-vm` when installed (falls back to vm2). Set `MCP_SANDBOX_ENGINE` to override.
 - 🔑 **LLM API keys (UI)** - Saved server-side in `data/llm-config.json` when entered in ⚙️ LLM Settings (not localStorage). Use `.env` for headless/CI.
 - 🔒 **CSRF protection** - Browser requests require `X-CSRF-Token` (UI adds it automatically). CLI requests without an `Origin` header are allowed.
 - 📝 **Audit logging** - Security-relevant events are written to `data/audit.log`.

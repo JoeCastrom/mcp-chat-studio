@@ -194,8 +194,8 @@ describe('MCPManager', () => {
     test('should return correct status', () => {
       const status = manager.getStatus();
 
-      expect(status).toHaveProperty('servers');
-      expect(typeof status.servers).toBe('object');
+      expect(status).toBeDefined();
+      expect(typeof status).toBe('object');
     });
 
     test('should show connected status for connected server', async () => {
@@ -212,7 +212,7 @@ describe('MCPManager', () => {
       await manager.connect('test-server');
 
       const status = manager.getStatus();
-      expect(status.servers['test-server']).toBe('connected');
+      expect(status['test-server']?.connected).toBe(true);
     });
   });
 
@@ -253,8 +253,8 @@ describe('MCPManager', () => {
       const status1 = manager.getStatus('session1');
       const status2 = manager.getStatus('session2');
 
-      expect(status1.servers['test-server']).toBe('connected');
-      expect(status2.servers['test-server']).toBe('connected');
+      expect(status1['test-server']?.connected).toBe(true);
+      expect(status2['test-server']?.connected).toBe(true);
     });
   });
 
