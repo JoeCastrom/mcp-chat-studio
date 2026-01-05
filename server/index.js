@@ -230,8 +230,15 @@ app.use('/api', generalLimiter);
 
 app.use(express.static(join(__dirname, '../public')));
 const dompurifyPath = join(__dirname, '../node_modules/dompurify/dist');
-if (existsSync(dompurifyPath)) {
+const dompurifyFile = join(dompurifyPath, 'purify.min.js');
+if (existsSync(dompurifyFile)) {
   app.use('/vendor/dompurify', express.static(dompurifyPath));
+} else {
+  console.warn('[DOMPurify] purify.min.js not found. Falling back to built-in sanitizer only.');
+  app.get('/vendor/dompurify/purify.min.js', (req, res) => {
+    res.type('application/javascript');
+    res.send('window.DOMPurify = null;');
+  });
 }
 
 // Swagger API documentation

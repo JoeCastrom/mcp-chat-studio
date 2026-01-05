@@ -1352,7 +1352,9 @@
             duration,
             success: !data.error && data.result?.isError !== true,
           });
-          refreshBrainView();
+          if (typeof window.refreshBrainView === 'function') {
+            window.refreshBrainView();
+          }
 
           // Record step for scenarios (if recording is active)
           recordStep({
@@ -1393,7 +1395,9 @@
             duration,
             success: false,
           });
-          refreshBrainView();
+          if (typeof window.refreshBrainView === 'function') {
+            window.refreshBrainView();
+          }
 
           // Record step for scenarios (if recording is active)
           recordStep({

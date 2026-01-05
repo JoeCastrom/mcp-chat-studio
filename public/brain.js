@@ -45,6 +45,10 @@ function initBrainView() {
   updateBrainGraph(messages);
 }
 
+function refreshBrainView() {
+  initBrainView();
+}
+
 function getToolHistoryMessages() {
   if (typeof window.getToolExecutionHistory !== 'function') return [];
   const history = window.getToolExecutionHistory() || [];
@@ -281,6 +285,7 @@ function estimateTokens(content) {
 
 window.initBrainView = initBrainView;
 window.updateBrainGraph = updateBrainGraph;
+window.refreshBrainView = refreshBrainView;
 window.resetBrainTimeline = () => {
   brainState.messageTimestamps.clear();
   brainState.baseTime = null;

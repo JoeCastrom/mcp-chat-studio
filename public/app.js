@@ -796,7 +796,9 @@
             refreshHistoryPanel();
           }
           updateTokenDisplay();
-          refreshBrainView();
+          if (typeof window.refreshBrainView === 'function') {
+            window.refreshBrainView();
+          }
           showNotification('Shared session imported.', 'success');
         } catch (error) {
           showNotification(`Failed to import shared session: ${error.message}`, 'error');
@@ -1134,6 +1136,7 @@
         toggleServerTypeFields();
         updateConfigPreview();
         loadExistingServerTemplates();
+        loadCustomTemplates();
         // Reset title and button for "Add" mode
         document.querySelector('#addServerModal .modal-title').textContent = 'Add MCP Server';
         document.getElementById('addServerSubmitBtn').textContent = 'Add Server';
@@ -1362,7 +1365,12 @@
         // Save template
         const templateId = `custom_${templateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
         customTemplates[templateId] = { ...template, displayName: templateName };
-        localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
+        try {
+          localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
+        } catch (error) {
+          appendMessage('error', 'Failed to save template to local storage. Check browser storage settings.');
+          return;
+        }
 
         // Update dropdown
         loadCustomTemplates();
@@ -4237,7 +4245,9 @@
           sessionManager.saveMessages(messages);
         }
 
-        refreshBrainView();
+        if (typeof window.refreshBrainView === 'function') {
+          window.refreshBrainView();
+        }
         return div;
       }
 
@@ -4281,7 +4291,9 @@
         if (typeof resetBrainTimeline === 'function') {
           resetBrainTimeline();
         }
-        refreshBrainView();
+        if (typeof window.refreshBrainView === 'function') {
+          window.refreshBrainView();
+        }
 
         console.log('[Session] Cleared');
       }
@@ -7375,7 +7387,9 @@
           refreshHistoryPanel();
         }
         updateTokenDisplay();
-        refreshBrainView();
+        if (typeof window.refreshBrainView === 'function') {
+          window.refreshBrainView();
+        }
       }
 
       // ==========================================
@@ -9216,8 +9230,12 @@
       if (typeof loadInspectorAuthSettings === 'function') {
         loadInspectorAuthSettings();
       }
-      loadMockRecorderState();
-      renderMockRecorder();
+      if (typeof loadMockRecorderState === 'function') {
+        loadMockRecorderState();
+      }
+      if (typeof renderMockRecorder === 'function') {
+        renderMockRecorder();
+      }
 
       // Refresh MCP status periodically
       const mcpStatusInterval = setInterval(loadMCPStatus, 30000);
@@ -9254,49 +9272,123 @@
       window.exportConfig = exportConfig;
       window.importConfigFile = importConfigFile;
       window.handleConfigFileImport = handleConfigFileImport;
-      window.toggleInspectorInputMode = toggleInspectorInputMode;
-      window.fillInspectorDefaults = fillInspectorDefaults;
-      window.saveInspectorVariables = saveInspectorVariables;
-      window.clearInspectorVariables = clearInspectorVariables;
-      window.showVariablesManager = showVariablesManager;
-      window.loadInspectorServers = loadInspectorServers;
+      if (typeof toggleInspectorInputMode === 'function') {
+        window.toggleInspectorInputMode = toggleInspectorInputMode;
+      }
+      if (typeof fillInspectorDefaults === 'function') {
+        window.fillInspectorDefaults = fillInspectorDefaults;
+      }
+      if (typeof saveInspectorVariables === 'function') {
+        window.saveInspectorVariables = saveInspectorVariables;
+      }
+      if (typeof clearInspectorVariables === 'function') {
+        window.clearInspectorVariables = clearInspectorVariables;
+      }
+      if (typeof showVariablesManager === 'function') {
+        window.showVariablesManager = showVariablesManager;
+      }
+      if (typeof loadInspectorServers === 'function') {
+        window.loadInspectorServers = loadInspectorServers;
+      }
       window.appConfirm = appConfirm;
       window.appAlert = appAlert;
       window.appPrompt = appPrompt;
       window.appFormModal = appFormModal;
-      window.getGlobalVariables = getGlobalVariables;
-      window.getEnvironmentVariables = getEnvironmentVariables;
-      window.getRuntimeVariables = getRuntimeVariables;
-      window.toggleMockRecorder = toggleMockRecorder;
-      window.clearMockRecorder = clearMockRecorder;
-      window.createMockFromRecorder = createMockFromRecorder;
-      window.recordMockEntry = recordMockEntry;
-      window.loadSchemaDiffServers = loadSchemaDiffServers;
-      window.loadSchemaDiffTools = loadSchemaDiffTools;
-      window.saveSchemaBaseline = saveSchemaBaseline;
-      window.compareSchemaBaseline = compareSchemaBaseline;
-      window.runSchemaDiff = runSchemaDiff;
+      if (typeof getGlobalVariables === 'function') {
+        window.getGlobalVariables = getGlobalVariables;
+      }
+      if (typeof getEnvironmentVariables === 'function') {
+        window.getEnvironmentVariables = getEnvironmentVariables;
+      }
+      if (typeof getRuntimeVariables === 'function') {
+        window.getRuntimeVariables = getRuntimeVariables;
+      }
+      if (typeof toggleMockRecorder === 'function') {
+        window.toggleMockRecorder = toggleMockRecorder;
+      }
+      if (typeof clearMockRecorder === 'function') {
+        window.clearMockRecorder = clearMockRecorder;
+      }
+      if (typeof createMockFromRecorder === 'function') {
+        window.createMockFromRecorder = createMockFromRecorder;
+      }
+      if (typeof recordMockEntry === 'function') {
+        window.recordMockEntry = recordMockEntry;
+      }
+      if (typeof loadSchemaDiffServers === 'function') {
+        window.loadSchemaDiffServers = loadSchemaDiffServers;
+      }
+      if (typeof loadSchemaDiffTools === 'function') {
+        window.loadSchemaDiffTools = loadSchemaDiffTools;
+      }
+      if (typeof saveSchemaBaseline === 'function') {
+        window.saveSchemaBaseline = saveSchemaBaseline;
+      }
+      if (typeof compareSchemaBaseline === 'function') {
+        window.compareSchemaBaseline = compareSchemaBaseline;
+      }
+      if (typeof runSchemaDiff === 'function') {
+        window.runSchemaDiff = runSchemaDiff;
+      }
       window.getToolExecutionHistory = () => toolExecutionHistory;
       window.getLocalScenarios = () => sessionManager.getScenarios();
       window.createScenarioFromHistory = createScenarioFromHistory;
-      window.runScenarioMatrix = runScenarioMatrix;
-      window.runScenarioDataset = runScenarioDataset;
-      window.showDatasetManager = showDatasetManager;
-      window.loadCrossServerOptions = loadCrossServerOptions;
-      window.updateCrossServerToolOptions = updateCrossServerToolOptions;
-      window.toggleCrossServerSelection = toggleCrossServerSelection;
-      window.selectAllCrossServers = selectAllCrossServers;
-      window.runCrossServerCompare = runCrossServerCompare;
-      window.runInspectorMatrix = runInspectorMatrix;
-      window.generateFuzzCases = generateFuzzCases;
-      window.saveBulkFailuresAsScenario = saveBulkFailuresAsScenario;
-      window.saveBulkFailuresAsDataset = saveBulkFailuresAsDataset;
-      window.exportBulkTestResultsText = exportBulkTestResultsText;
-      window.showOAuthSettingsModal = showOAuthSettingsModal;
-      window.hideOAuthSettingsModal = hideOAuthSettingsModal;
-      window.saveOAuthSettings = saveOAuthSettings;
-      window.disableOAuthConfig = disableOAuthConfig;
-      window.resetProviderVisibility = resetProviderVisibility;
-      window.shareSessionLink = shareSessionLink;
+      if (typeof runScenarioMatrix === 'function') {
+        window.runScenarioMatrix = runScenarioMatrix;
+      }
+      if (typeof runScenarioDataset === 'function') {
+        window.runScenarioDataset = runScenarioDataset;
+      }
+      if (typeof showDatasetManager === 'function') {
+        window.showDatasetManager = showDatasetManager;
+      }
+      if (typeof loadCrossServerOptions === 'function') {
+        window.loadCrossServerOptions = loadCrossServerOptions;
+      }
+      if (typeof updateCrossServerToolOptions === 'function') {
+        window.updateCrossServerToolOptions = updateCrossServerToolOptions;
+      }
+      if (typeof toggleCrossServerSelection === 'function') {
+        window.toggleCrossServerSelection = toggleCrossServerSelection;
+      }
+      if (typeof selectAllCrossServers === 'function') {
+        window.selectAllCrossServers = selectAllCrossServers;
+      }
+      if (typeof runCrossServerCompare === 'function') {
+        window.runCrossServerCompare = runCrossServerCompare;
+      }
+      if (typeof runInspectorMatrix === 'function') {
+        window.runInspectorMatrix = runInspectorMatrix;
+      }
+      if (typeof generateFuzzCases === 'function') {
+        window.generateFuzzCases = generateFuzzCases;
+      }
+      if (typeof saveBulkFailuresAsScenario === 'function') {
+        window.saveBulkFailuresAsScenario = saveBulkFailuresAsScenario;
+      }
+      if (typeof saveBulkFailuresAsDataset === 'function') {
+        window.saveBulkFailuresAsDataset = saveBulkFailuresAsDataset;
+      }
+      if (typeof exportBulkTestResultsText === 'function') {
+        window.exportBulkTestResultsText = exportBulkTestResultsText;
+      }
+      if (typeof showOAuthSettingsModal === 'function') {
+        window.showOAuthSettingsModal = showOAuthSettingsModal;
+      }
+      if (typeof hideOAuthSettingsModal === 'function') {
+        window.hideOAuthSettingsModal = hideOAuthSettingsModal;
+      }
+      if (typeof saveOAuthSettings === 'function') {
+        window.saveOAuthSettings = saveOAuthSettings;
+      }
+      if (typeof disableOAuthConfig === 'function') {
+        window.disableOAuthConfig = disableOAuthConfig;
+      }
+      if (typeof resetProviderVisibility === 'function') {
+        window.resetProviderVisibility = resetProviderVisibility;
+      }
+      if (typeof shareSessionLink === 'function') {
+        window.shareSessionLink = shareSessionLink;
+      }
 
 
