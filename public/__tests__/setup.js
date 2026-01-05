@@ -3,13 +3,6 @@
  */
 
 import { jest, beforeEach } from '@jest/globals';
-import { JSDOM } from 'jsdom';
-
-// Setup jsdom window/document for tests that need DOM APIs
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: 'http://localhost/' });
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.DOMPurify = null; // Let sanitizeHtml use fallback
 
 // Mock localStorage
 const localStorageMock = {

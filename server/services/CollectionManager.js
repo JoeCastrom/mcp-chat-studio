@@ -3,7 +3,7 @@
  * Organize scenarios into collections (like Postman)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getMCPManager } from './MCPManager.js';
@@ -132,7 +132,7 @@ export class CollectionManager {
       throw new Error(`Collection ${id} not found`);
     }
 
-    require('fs').unlinkSync(filePath);
+    unlinkSync(filePath);
     console.log(`[CollectionManager] Deleted collection ${id}`);
 
     return { success: true };
