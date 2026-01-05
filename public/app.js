@@ -1467,6 +1467,17 @@
       loadCustomTemplates();
 
       // Submit Add Server Form
+      function stripWrappingQuotes(value) {
+        const trimmed = value.trim();
+        if (
+          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+          (trimmed.startsWith("'") && trimmed.endsWith("'"))
+        ) {
+          return trimmed.slice(1, -1);
+        }
+        return trimmed;
+      }
+
       async function submitAddServer(event) {
         event.preventDefault();
 
@@ -1484,9 +1495,10 @@
         }
 
         if (type === 'stdio') {
-          const command = document.getElementById('serverCommand').value.trim();
+          const command = stripWrappingQuotes(document.getElementById('serverCommand').value.trim());
           const argsStr = document.getElementById('serverArgs').value.trim();
-          const cwd = document.getElementById('serverCwd')?.value.trim();
+          const cwdRaw = document.getElementById('serverCwd')?.value.trim();
+          const cwd = cwdRaw ? stripWrappingQuotes(cwdRaw) : '';
 
           if (!command) {
             appendMessage('error', 'Command is required for stdio servers');
@@ -1501,6 +1513,7 @@
                 .split(/[\r\n]+/)
                 .map(line => line.trim().replace(/^-\s+/, '')) // Strip leading "- " (YAML list format)
                 .flatMap(line => line.split(/\s+/))
+                .map(arg => stripWrappingQuotes(arg))
                 .filter(arg => arg.length > 0)
             : [];
         } else {
