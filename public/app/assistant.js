@@ -1800,6 +1800,9 @@ If asked about Test in Studio or project folders, say the folder must contain se
         if (panelId === 'inspectorPanel' && typeof loadInspectorServers === 'function') {
           loadInspectorServers();
         }
+        if (panelId === 'chatPanel' && typeof populateSystemPrompts === 'function') {
+          populateSystemPrompts();
+        }
         if (panelId === 'debuggerPanel' && typeof loadDebuggerWorkflows === 'function') {
           loadDebuggerWorkflows();
         }
