@@ -2527,6 +2527,34 @@
         }
       }
 
+      async function resetPersistedServers() {
+        const confirmed = await appConfirm(
+          'Clear saved MCP server configs? Active connections will remain until you remove them.',
+          {
+            title: 'Reset Saved Servers',
+            confirmText: 'Reset',
+            confirmVariant: 'danger'
+          }
+        );
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch('/api/mcp/persisted', {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          const data = await response.json();
+          if (!response.ok || data.error) {
+            showNotification(data.error || 'Failed to reset saved servers', 'error');
+            return;
+          }
+          showNotification('Saved server configs cleared.', 'success');
+          loadMCPStatus();
+        } catch (error) {
+          showNotification(`Failed to reset saved servers: ${error.message}`, 'error');
+        }
+      }
+
       function safeParseJson(value) {
         if (value === undefined || value === null) return null;
         if (typeof value !== 'string') return value;
@@ -4264,6 +4292,10 @@
           const response = await fetch('/api/mcp/status', {
             credentials: 'include',
           });
+          const notice = response.headers.get('X-MCP-Config-Notice');
+          if (notice) {
+            showNotification(notice, 'warning');
+          }
           const status = await response.json();
           window.lastMcpStatus = status;
 

@@ -2876,6 +2876,14 @@ env:
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Saved Servers</label>
+            <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center">
+              <button type="button" class="btn" onclick="resetPersistedServers()">🧹 Reset Saved Servers</button>
+            </div>
+            <div class="form-hint">Clears persisted MCP server configs (active connections stay until you remove them).</div>
+          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn" onclick="hideSettingsModal()">Cancel</button>
             <button type="submit" class="btn primary">Save Settings</button>

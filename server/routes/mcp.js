@@ -8,7 +8,13 @@ import yaml from 'js-yaml';
 import { getMCPManager } from '../services/MCPManager.js';
 import { getOAuthManager } from '../services/OAuthManager.js';
 import { getToolExplorer } from '../services/ToolExplorer.js';
-import { loadPersistedServers, upsertPersistedServer, removePersistedServer } from '../services/MCPConfigStore.js';
+import {
+  loadPersistedServers,
+  upsertPersistedServer,
+  removePersistedServer,
+  clearPersistedServers,
+  consumePersistedServersNotice
+} from '../services/MCPConfigStore.js';
 
 const router = Router();
 
@@ -44,6 +50,10 @@ router.get('/status', async (req, res) => {
     let status = mcpManager.getStatus(sessionId);
 
     const persistedServers = await loadPersistedServers();
+    const notice = consumePersistedServersNotice();
+    if (notice) {
+      res.set('X-MCP-Config-Notice', notice);
+    }
     const persistedEntries = Object.entries(persistedServers || {});
     if (persistedEntries.length > 0) {
       let added = false;
@@ -61,6 +71,20 @@ router.get('/status', async (req, res) => {
     res.json(status);
   } catch (error) {
     console.error('[MCP/Status] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/mcp/persisted
+ * Clear persisted MCP server configs (file only)
+ */
+router.delete('/persisted', async (req, res) => {
+  try {
+    await clearPersistedServers();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[MCP/Persisted] Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '../../data');
 const STORE_PATH = join(DATA_DIR, 'mcp-servers.json');
+let lastNotice = null;
 
 function repairJsonStringEscapes(raw) {
   let out = '';
@@ -76,6 +77,7 @@ export async function loadPersistedServers() {
         return {};
       }
       await writeFile(STORE_PATH, JSON.stringify(data, null, 2), 'utf8');
+      lastNotice = 'Repaired invalid saved server config file.';
       console.warn('[MCPConfigStore] Repaired invalid JSON in mcp-servers.json');
       return data;
     }
@@ -88,6 +90,7 @@ export async function loadPersistedServers() {
       try {
         const fallbackName = `mcp-servers.json.broken-${Date.now()}`;
         await rename(STORE_PATH, join(DATA_DIR, fallbackName));
+        lastNotice = 'Saved server config was invalid and was moved aside. Please re-add servers if needed.';
         console.warn(`[MCPConfigStore] Moved invalid file to ${fallbackName}`);
       } catch (renameError) {
         console.warn('[MCPConfigStore] Failed to move invalid config:', renameError.message);
@@ -95,6 +98,16 @@ export async function loadPersistedServers() {
     }
     return {};
   }
+}
+
+export function consumePersistedServersNotice() {
+  const notice = lastNotice;
+  lastNotice = null;
+  return notice;
+}
+
+export async function clearPersistedServers() {
+  await savePersistedServers({});
 }
 
 export async function savePersistedServers(servers) {
