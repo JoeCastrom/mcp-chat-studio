@@ -2331,6 +2331,20 @@
         const userinfoUrl = document.getElementById('oauthUserinfoUrl').value.trim();
         const logoutUrl = document.getElementById('oauthLogoutUrl').value.trim();
 
+        const customEndpoints = provider === 'custom'
+          ? {
+              authorize_url: authorizeUrl,
+              token_url: tokenUrl,
+              userinfo_url: userinfoUrl,
+              logout_url: logoutUrl
+            }
+          : {
+              authorize_url: '',
+              token_url: '',
+              userinfo_url: '',
+              logout_url: ''
+            };
+
         const payload = {
           provider,
           client_id: clientId,
@@ -2339,10 +2353,10 @@
           use_pkce: usePkce,
           keycloak_url: keycloakUrl,
           keycloak_realm: keycloakRealm,
-          authorize_url: authorizeUrl,
-          token_url: tokenUrl,
-          userinfo_url: userinfoUrl,
-          logout_url: logoutUrl,
+          authorize_url: customEndpoints.authorize_url,
+          token_url: customEndpoints.token_url,
+          userinfo_url: customEndpoints.userinfo_url,
+          logout_url: customEndpoints.logout_url,
           clear_secret: clearSecret
         };
 
