@@ -120,7 +120,7 @@ Three powerful new testing tools:
 - **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
 - **🔍 Resolved Preview** - See variable substitutions before execution
 - **🔐 Per-request Auth Overrides** - Bearer/Basic/API key + header/query overrides for OpenAPI proxy tools
-- **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env
+- **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env (includes a Test OAuth button)
 
 ### 📋 Contract Testing
 Consumer-driven contract testing for MCP servers:
@@ -749,7 +749,7 @@ llm:
 ```
 
 Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).
-If your gateway needs an extra header (e.g., `x-llm-api-client-id`), set it in **⚙️ LLM Settings → Extra Auth Header**.
+If your gateway needs an extra header, set it in **⚙️ LLM Settings → Extra Auth Header**.
 
 #### OpenRouter (100+ Models)
 

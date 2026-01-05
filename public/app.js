@@ -2316,9 +2316,7 @@
         }
       }
 
-      async function saveOAuthSettings(event) {
-        event.preventDefault();
-
+      function getOAuthFormPayload() {
         const provider = document.getElementById('oauthProvider').value;
         const clientId = document.getElementById('oauthClientId').value.trim();
         const clientSecret = document.getElementById('oauthClientSecret').value.trim();
@@ -2332,11 +2330,6 @@
         const tokenUrl = document.getElementById('oauthTokenUrl').value.trim();
         const userinfoUrl = document.getElementById('oauthUserinfoUrl').value.trim();
         const logoutUrl = document.getElementById('oauthLogoutUrl').value.trim();
-
-        if (!clientId) {
-          await appAlert('Client ID is required to configure OAuth.', { title: 'Missing Client ID' });
-          return;
-        }
 
         const payload = {
           provider,
@@ -2355,6 +2348,19 @@
 
         if (clientSecret) {
           payload.client_secret = clientSecret;
+        }
+
+        return { payload, clientId, redirectUri };
+      }
+
+      async function saveOAuthSettings(event) {
+        event.preventDefault();
+
+        const { payload, clientId } = getOAuthFormPayload();
+
+        if (!clientId) {
+          await appAlert('Client ID is required to configure OAuth.', { title: 'Missing Client ID' });
+          return;
         }
 
         try {
@@ -2376,6 +2382,57 @@
           checkAuthStatus();
         } catch (error) {
           showNotification(`Failed to save OAuth config: ${error.message}`, 'error');
+        }
+      }
+
+      async function testOAuthSettings() {
+        const { payload, clientId, redirectUri } = getOAuthFormPayload();
+
+        if (!clientId) {
+          await appAlert('Client ID is required to test OAuth.', { title: 'Missing Client ID' });
+          return;
+        }
+
+        if (!redirectUri) {
+          await appAlert('Redirect URI is required to test OAuth.', { title: 'Missing Redirect URI' });
+          return;
+        }
+
+        const originCallback = `${window.location.origin}/api/oauth/callback`;
+        if (redirectUri && redirectUri !== originCallback) {
+          const proceed = await appConfirm(
+            `Redirect URI does not match the current app URL.\n\nApp: ${originCallback}\nOAuth: ${redirectUri}\n\nContinue anyway?`,
+            { title: 'Redirect URI mismatch', confirmText: 'Continue' }
+          );
+          if (!proceed) return;
+        }
+
+        try {
+          const saveResponse = await fetch('/api/oauth/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          const saveData = await saveResponse.json();
+
+          if (saveData.error) {
+            showNotification(`Failed to save OAuth config: ${saveData.error}`, 'error');
+            return;
+          }
+
+          const loginResponse = await fetch('/api/oauth/login', { credentials: 'include' });
+          const loginData = await loginResponse.json();
+          if (loginData.error || !loginData.authUrl) {
+            showNotification(loginData.error || 'OAuth login failed.', 'error');
+            return;
+          }
+
+          window.open(loginData.authUrl, '_blank', 'noopener');
+          showNotification('OAuth test started. Complete login in the new tab.', 'info');
+          checkAuthStatus();
+        } catch (error) {
+          showNotification(`OAuth test failed: ${error.message}`, 'error');
         }
       }
 
@@ -7093,6 +7150,15 @@
         select.innerHTML = Object.entries(prompts).map(([id, p]) => 
           `<option value="${id}" ${id === activeId ? 'selected' : ''}>${p.icon} ${escapeHtml(p.name)}${p.custom ? ' ★' : ''}</option>`
         ).join('');
+      }
+
+      const systemPromptSelect = document.getElementById('systemPromptSelect');
+      if (systemPromptSelect) {
+        systemPromptSelect.addEventListener('focus', () => {
+          if (systemPromptSelect.options.length === 0) {
+            populateSystemPrompts();
+          }
+        });
       }
       
       // Change active system prompt

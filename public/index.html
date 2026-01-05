@@ -2822,9 +2822,9 @@ env:
 
           <div class="form-group" id="llmExtraHeaderGroup" style="display: none">
             <label class="form-label">Extra Auth Header (optional)</label>
-            <div class="form-hint">For providers that require a second header (e.g., <code>x-llm-api-client-id</code>).</div>
-            <input type="text" class="form-input" id="llmAuthHeaderName" placeholder="x-llm-api-client-id" />
-            <input type="password" class="form-input" id="llmAuthHeaderValue" placeholder="Bearer sk-..." style="margin-top: 8px" />
+            <div class="form-hint">For gateways that require a second auth header (name + value). Many expect <code>Bearer &lt;token&gt;</code>.</div>
+            <input type="text" class="form-input" id="llmAuthHeaderName" placeholder="x-client-id" />
+            <input type="password" class="form-input" id="llmAuthHeaderValue" placeholder="Bearer &lt;token&gt;" style="margin-top: 8px" />
             <label style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); margin-top: 6px">
               <input type="checkbox" id="llmClearAuthHeader" />
               Clear stored header value
@@ -2931,6 +2931,7 @@ env:
               id="oauthRedirectUri"
               placeholder="http://localhost:3082/api/oauth/callback"
             />
+            <div class="form-hint">Must match the exact redirect URI allowed in your OAuth client.</div>
           </div>
 
           <div class="form-group">
@@ -2991,6 +2992,7 @@ env:
         <div class="modal-actions">
           <button type="button" class="btn" onclick="hideOAuthSettingsModal()">Cancel</button>
           <button type="button" class="btn" onclick="disableOAuthConfig()" style="color: var(--error)">Disable OAuth</button>
+          <button type="button" class="btn" onclick="testOAuthSettings()">Test OAuth</button>
           <button type="submit" form="oauthSettingsForm" class="btn primary">Save</button>
         </div>
       </div>
