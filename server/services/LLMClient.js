@@ -213,6 +213,7 @@ export class LLMClient {
     };
     const apiKey = this.getApiKey();
     const auth = this.config.auth || {};
+    const extraHeader = auth.extra_header || {};
 
     switch (this.provider) {
       case 'custom':
@@ -245,6 +246,10 @@ export class LLMClient {
           headers['Authorization'] = `Bearer ${apiKey}`;
         }
         break;
+    }
+
+    if (extraHeader?.name && extraHeader?.value) {
+      headers[extraHeader.name] = extraHeader.value;
     }
 
     return headers;

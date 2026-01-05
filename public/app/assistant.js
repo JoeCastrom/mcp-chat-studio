@@ -1518,6 +1518,9 @@ If asked about Test in Studio or project folders, say the folder must contain se
         const auth_scope = document.getElementById('llmAuthScope').value.trim();
         const auth_audience = document.getElementById('llmAuthAudience').value.trim();
         const clear_auth_secret = document.getElementById('llmClearAuthSecret').checked;
+        const auth_extra_header_name = document.getElementById('llmAuthHeaderName').value.trim();
+        const auth_extra_header_value = document.getElementById('llmAuthHeaderValue').value.trim();
+        const clear_auth_extra_header = document.getElementById('llmClearAuthHeader').checked;
         const assistantOverride = document.getElementById('assistantLlmOverride')?.checked || false;
 
         assistantLLMOverride = assistantOverride;
@@ -1542,6 +1545,9 @@ If asked about Test in Studio or project folders, say the folder must contain se
           payload.auth_scope = auth_scope;
           payload.auth_audience = auth_audience;
           if (clear_auth_secret) payload.clear_auth_secret = true;
+          if (auth_extra_header_name) payload.auth_extra_header_name = auth_extra_header_name;
+          if (auth_extra_header_value) payload.auth_extra_header_value = auth_extra_header_value;
+          if (clear_auth_extra_header) payload.clear_auth_extra_header = true;
         }
 
         try {

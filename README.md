@@ -749,6 +749,7 @@ llm:
 ```
 
 Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).
+If your gateway needs an extra header (e.g., `x-llm-api-client-id`), set it in **⚙️ LLM Settings → Extra Auth Header**.
 
 #### OpenRouter (100+ Models)
 

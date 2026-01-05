@@ -2198,6 +2198,15 @@
           document.getElementById('llmClearAuthSecret').checked = false;
           document.getElementById('llmAuthScope').value = config.auth_scope || '';
           document.getElementById('llmAuthAudience').value = config.auth_audience || '';
+          document.getElementById('llmAuthHeaderName').value = config.auth_extra_header_name || '';
+          const headerValueEl = document.getElementById('llmAuthHeaderValue');
+          if (headerValueEl) {
+            headerValueEl.value = '';
+            headerValueEl.placeholder = config.hasAuthExtraHeader
+              ? 'Stored (hidden)'
+              : 'Bearer sk-...';
+          }
+          document.getElementById('llmClearAuthHeader').checked = false;
           renderProviderVisibilityOptions();
           applyProviderVisibility();
           onProviderChange(false);
@@ -2776,6 +2785,7 @@
         const baseUrlInput = document.getElementById('llmBaseUrl');
         const authSection = document.getElementById('llmAuthSection');
         const authFields = document.getElementById('llmAuthFields');
+        const extraHeaderGroup = document.getElementById('llmExtraHeaderGroup');
         const ollamaGroup = document.getElementById('ollamaModelGroup');
         const modelGroup = document.getElementById('llmModelGroup');
 
@@ -2790,6 +2800,7 @@
             apiKeyGroup.style.display = 'none';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'llama3.2, mistral, codellama...';
             baseUrlInput.placeholder = 'http://localhost:11434/v1';
             if (ollamaGroup) {
@@ -2803,6 +2814,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'gpt-4o, gpt-4, gpt-3.5-turbo...';
             baseUrlInput.placeholder = 'https://api.openai.com/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2813,6 +2825,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'claude-3-5-sonnet-20241022...';
             baseUrlInput.placeholder = 'https://api.anthropic.com/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2823,6 +2836,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'gemini-1.5-pro, gemini-1.5-flash...';
             baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com/v1beta';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2833,6 +2847,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'gpt-4o, gpt-4...';
             baseUrlInput.placeholder = 'https://your-resource.openai.azure.com';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2843,6 +2858,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'llama-3.3-70b-versatile, mixtral-8x7b...';
             baseUrlInput.placeholder = 'https://api.groq.com/openai/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2853,6 +2869,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'meta-llama/Llama-3.3-70B-Instruct-Turbo...';
             baseUrlInput.placeholder = 'https://api.together.xyz/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2863,6 +2880,7 @@
             apiKeyGroup.style.display = 'block';
             if (authSection) authSection.style.display = 'none';
             if (authFields) authFields.style.display = 'none';
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'none';
             modelInput.placeholder = 'anthropic/claude-3.5-sonnet, openai/gpt-4o...';
             baseUrlInput.placeholder = 'https://openrouter.ai/api/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';
@@ -2872,6 +2890,7 @@
             hintEl.textContent = 'Custom OpenAI-compatible endpoint';
             if (authSection) authSection.style.display = 'block';
             onLLMAuthTypeChange();
+            if (extraHeaderGroup) extraHeaderGroup.style.display = 'block';
             modelInput.placeholder = 'gpt-4, llama3.1, custom-model';
             baseUrlInput.placeholder = 'https://your-llm.example.com/v1';
             if (ollamaGroup) ollamaGroup.style.display = 'none';

@@ -58,6 +58,8 @@ router.get('/config', (req, res) => {
       auth_scope: llmClient.config.auth?.scope || '',
       auth_audience: llmClient.config.auth?.audience || '',
       hasAuthSecret: !!llmClient.config.auth?.client_secret,
+      auth_extra_header_name: llmClient.config.auth?.extra_header?.name || '',
+      hasAuthExtraHeader: !!llmClient.config.auth?.extra_header?.value,
       allowedProviders: getAllowedProviders(),
     });
   } catch (error) {
@@ -85,7 +87,10 @@ router.post('/config', async (req, res) => {
       auth_client_secret,
       auth_scope,
       auth_audience,
-      clear_auth_secret
+      clear_auth_secret,
+      auth_extra_header_name,
+      auth_extra_header_value,
+      clear_auth_extra_header
     } = req.body;
     const llmClient = getLLMClient();
     const persisted = await loadPersistedLLMConfig();
@@ -148,6 +153,21 @@ router.post('/config', async (req, res) => {
       nextAuth.client_secret = auth_client_secret;
     } else if (clear_auth_secret) {
       delete nextAuth.client_secret;
+    }
+    if (auth_extra_header_name !== undefined || auth_extra_header_value !== undefined) {
+      const currentExtra = nextAuth.extra_header || {};
+      const nextExtra = {
+        name: auth_extra_header_name !== undefined ? auth_extra_header_name : currentExtra.name || '',
+        value: auth_extra_header_value !== undefined ? auth_extra_header_value : currentExtra.value || ''
+      };
+      if (nextExtra.name || nextExtra.value) {
+        nextAuth.extra_header = nextExtra;
+      } else {
+        delete nextAuth.extra_header;
+      }
+    }
+    if (clear_auth_extra_header) {
+      delete nextAuth.extra_header;
     }
 
     llmClient.config.auth = nextAuth;
