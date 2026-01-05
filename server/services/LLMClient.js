@@ -249,7 +249,12 @@ export class LLMClient {
     }
 
     if (extraHeader?.name && extraHeader?.value) {
-      headers[extraHeader.name] = extraHeader.value;
+      const headerName = extraHeader.name.trim();
+      let headerValue = extraHeader.value;
+      if (headerName.toLowerCase() === 'x-llm-api-client-id' && !/^bearer\s+/i.test(headerValue)) {
+        headerValue = `Bearer ${headerValue}`;
+      }
+      headers[headerName] = headerValue;
     }
 
     return headers;

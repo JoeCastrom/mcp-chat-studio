@@ -3734,6 +3734,19 @@
         }
       }
 
+      function buildChatRequestMessages() {
+        const base = messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        }));
+        const systemPrompt = sessionManager.getActivePrompt();
+        if (systemPrompt) {
+          return [{ role: 'system', content: systemPrompt }, ...base];
+        }
+        return base;
+      }
+
       // Send message (or cancel if already loading)
       async function sendMessage() {
         if (isLoading) {
@@ -3785,16 +3798,14 @@
 
             let fullContent = '';
 
+            const requestMessages = buildChatRequestMessages();
             const response = await fetch('/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               signal: currentAbortController.signal,
               body: JSON.stringify({
-                messages: messages.map(m => ({
-                  role: m.role,
-                  content: m.content,
-                })),
+                messages: requestMessages,
                 useTools: false, // Disable tools for streaming
                 stream: true,
               }),
@@ -3869,7 +3880,7 @@
             messages.push({ role: 'assistant', content: fullContent || 'No response generated.' });
             
             // Track tokens for streaming
-            const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+            const inputTokens = sessionManager.estimateTokens(JSON.stringify(requestMessages));
             const outputTokens = sessionManager.estimateTokens(fullContent);
             sessionManager.addTokens(inputTokens, outputTokens);
             updateTokenDisplay();
@@ -3885,16 +3896,14 @@
           currentLoadingEl = appendLoading();
 
           try {
+            const requestMessages = buildChatRequestMessages();
             const response = await fetch('/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               signal: currentAbortController.signal,
               body: JSON.stringify({
-                messages: messages.map(m => ({
-                  role: m.role,
-                  content: m.content,
-                })),
+                messages: requestMessages,
                 useTools: useToolsEl.checked,
               }),
             });
@@ -3939,13 +3948,14 @@
               // Continue conversation
               currentLoadingEl = appendLoading();
 
+              const continueMessages = buildChatRequestMessages();
               const continueResponse = await fetch('/api/chat/continue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 signal: currentAbortController.signal,
                 body: JSON.stringify({
-                  messages,
+                  messages: continueMessages,
                   useTools: useToolsEl.checked,
                 }),
               });
@@ -3967,7 +3977,7 @@
               appendMessage('assistant', finalContent);
               
               // Track tokens
-              const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+              const inputTokens = sessionManager.estimateTokens(JSON.stringify(continueMessages));
               const outputTokens = sessionManager.estimateTokens(finalContent);
               sessionManager.addTokens(inputTokens, outputTokens);
               updateTokenDisplay();
@@ -3979,7 +3989,7 @@
               appendMessage('assistant', responseContent);
               
               // Track tokens
-              const inputTokens = sessionManager.estimateTokens(JSON.stringify(messages));
+              const inputTokens = sessionManager.estimateTokens(JSON.stringify(requestMessages));
               const outputTokens = sessionManager.estimateTokens(responseContent);
               sessionManager.addTokens(inputTokens, outputTokens);
               updateTokenDisplay();
