@@ -1,0 +1,18 @@
+{
+  "b0b3744b-53c7-4854-bf5d-ef9c20a63649": {
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "👋 Welcome to **MCP Chat Studio**! I'm your AI assistant with MCP tool support. Connect to MCP servers using the sidebar to enable powerful tools. Some servers may require authentication - click \"Login\" to connect to secured services."
+      },
+      {
+        "role": "user",
+        "content": "Hello, this is a test message."
+      }
+    ],
+    "toolHistory": [],
+    "settings": {},
+    "updatedAt": "2026-01-05T01:34:17.084Z",
+    "createdAt": "2026-01-05T01:34:17.085Z"
+  }
+}

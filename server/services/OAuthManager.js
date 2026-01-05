@@ -7,6 +7,12 @@ import axios from 'axios';
 import crypto from 'crypto';
 import https from 'https';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  getToken,
+  setToken,
+  deleteToken,
+  clearTokens
+} from './OAuthTokenStore.js';
 
 // Create HTTPS agent with configurable SSL verification
 // Default: verify SSL certificates (secure)
@@ -15,9 +21,8 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: process.env.OAUTH_DISABLE_SSL_VERIFY !== 'true',
 });
 
-// In-memory store for OAuth states and tokens (use Redis in production)
+// In-memory store for OAuth states (tokens persisted via OAuthTokenStore)
 const oauthStates = new Map();
-const userTokens = new Map();
 
 // Provider presets for common OAuth providers
 const PROVIDER_PRESETS = {
@@ -81,7 +86,7 @@ export class OAuthManager {
   updateConfig(oauthConfig, options = {}) {
     this.applyConfig(oauthConfig);
     if (options.clearTokens !== false) {
-      userTokens.clear();
+      clearTokens();
       oauthStates.clear();
     }
   }
@@ -226,7 +231,7 @@ export class OAuthManager {
       };
 
       // Store tokens by session ID
-      userTokens.set(stateData.sessionId, tokens);
+      setToken(stateData.sessionId, tokens);
 
       // Get user info
       const userInfo = await this.getUserInfo(tokens.access_token);
@@ -260,7 +265,7 @@ export class OAuthManager {
    * Refresh tokens
    */
   async refreshTokens(sessionId) {
-    const tokens = userTokens.get(sessionId);
+    const tokens = getToken(sessionId);
     if (!tokens?.refresh_token) {
       throw new Error('No refresh token available');
     }
@@ -293,12 +298,12 @@ export class OAuthManager {
           : tokens.refresh_expires_at,
       };
 
-      userTokens.set(sessionId, newTokens);
+      setToken(sessionId, newTokens);
       return newTokens;
     } catch (error) {
       console.error('[OAuth] Token refresh failed:', error.response?.data || error.message);
       // Clear invalid tokens
-      userTokens.delete(sessionId);
+      deleteToken(sessionId);
       throw new Error('Token refresh failed - please login again');
     }
   }
@@ -307,7 +312,7 @@ export class OAuthManager {
    * Get valid access token for a session (auto-refresh if needed)
    */
   async getAccessToken(sessionId) {
-    const tokens = userTokens.get(sessionId);
+    const tokens = getToken(sessionId);
     if (!tokens) {
       return null;
     }
@@ -329,7 +334,7 @@ export class OAuthManager {
    * Check if user is authenticated
    */
   isAuthenticated(sessionId) {
-    const tokens = userTokens.get(sessionId);
+    const tokens = getToken(sessionId);
     return !!tokens?.access_token;
   }
 
@@ -337,14 +342,14 @@ export class OAuthManager {
    * Logout - clear tokens
    */
   logout(sessionId) {
-    userTokens.delete(sessionId);
+    deleteToken(sessionId);
   }
 
   /**
    * Get logout URL for Keycloak
    */
   getLogoutUrl(sessionId, postLogoutRedirect) {
-    const tokens = userTokens.get(sessionId);
+    const tokens = getToken(sessionId);
     const endpoints = this.getEndpoints();
 
     const params = new URLSearchParams({

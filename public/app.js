@@ -9,6 +9,48 @@
         debug: (...args) => isDevelopment && console.log('[DEBUG]', ...args)
       };
 
+      const CSRF_COOKIE_NAME = 'csrf_token';
+
+      function getCookieValue(name) {
+        return document.cookie
+          .split(';')
+          .map(item => item.trim())
+          .filter(Boolean)
+          .map(item => item.split('='))
+          .find(([key]) => key === name)?.[1] || '';
+      }
+
+      function isSameOriginUrl(url) {
+        try {
+          const target = new URL(url, window.location.origin);
+          return target.origin === window.location.origin;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function shouldAttachCsrf(method, url) {
+        const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+        if (safeMethods.includes(method)) return false;
+        return isSameOriginUrl(url);
+      }
+
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const request = input instanceof Request ? input : new Request(input, init);
+        const method = (request.method || 'GET').toUpperCase();
+        if (shouldAttachCsrf(method, request.url)) {
+          const token = getCookieValue(CSRF_COOKIE_NAME);
+          if (token) {
+            const headers = new Headers(request.headers);
+            headers.set('X-CSRF-Token', token);
+            const updated = new Request(request, { headers });
+            return originalFetch(updated);
+          }
+        }
+        return originalFetch(request);
+      };
+
       // ==========================================
       // SESSION MANAGER - Persist state to localStorage
       // ==========================================
@@ -33,6 +75,7 @@
               timestamp: Date.now(),
             };
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
+            queueSessionSync(session);
           } catch (e) {
             console.warn('[Session] Failed to save:', e.message);
           }
@@ -59,6 +102,7 @@
         clear() {
           try {
             localStorage.removeItem(this.STORAGE_KEY);
+            clearServerSession();
           } catch (e) {
             console.warn('[Session] Failed to clear:', e.message);
           }
@@ -449,6 +493,82 @@
         },
       };
 
+      let sessionSyncTimer = null;
+      let sessionSyncPayload = null;
+
+      function queueSessionSync(payload) {
+        sessionSyncPayload = payload;
+        if (sessionSyncTimer) return;
+        sessionSyncTimer = setTimeout(async () => {
+          const data = sessionSyncPayload;
+          sessionSyncPayload = null;
+          sessionSyncTimer = null;
+          if (!data) return;
+          try {
+            await fetch('/api/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(data)
+            });
+          } catch (error) {
+            console.warn('[Session] Server sync failed:', error.message);
+          }
+        }, 1500);
+      }
+
+      async function restoreSessionFromServer() {
+        try {
+          const response = await fetch('/api/session', { credentials: 'include' });
+          const data = await response.json();
+          const serverSession = data?.session;
+          if (!serverSession?.messages?.length) return;
+
+          const localSession = sessionManager.load();
+          const localCount = localSession?.messages?.length ?? messages.length;
+          const localTimestamp = localSession?.timestamp || 0;
+          const serverUpdatedAt = serverSession.updatedAt ? Date.parse(serverSession.updatedAt) : 0;
+          const shouldRestore = localCount <= 1 || (serverUpdatedAt && serverUpdatedAt > localTimestamp);
+
+          if (!shouldRestore) return;
+
+          const mergedSession = {
+            ...localSession,
+            ...serverSession,
+            settings: {
+              ...(localSession?.settings || {}),
+              ...(serverSession?.settings || {})
+            },
+            messages: serverSession.messages,
+            toolHistory: serverSession.toolHistory || []
+          };
+
+          messages = mergedSession.messages;
+          toolExecutionHistory = mergedSession.toolHistory;
+          sessionManager.save(mergedSession);
+          restoreSession();
+          if (typeof refreshHistoryPanel === 'function') {
+            refreshHistoryPanel();
+          }
+          updateTokenDisplay();
+          refreshBrainView();
+          console.log('[Session] Restored session from server');
+        } catch (error) {
+          console.warn('[Session] Server restore failed:', error.message);
+        }
+      }
+
+      async function clearServerSession() {
+        try {
+          await fetch('/api/session', {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+        } catch (error) {
+          console.warn('[Session] Server clear failed:', error.message);
+        }
+      }
+
       // ==========================================
       // STATE - Load from session or use defaults
       // ==========================================
@@ -588,6 +708,32 @@
         selectEl.value = toolName;
       }
 
+      function showNotification(message, type = 'info') {
+        if (!message) return;
+        let container = document.getElementById('notificationContainer');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'notificationContainer';
+          container.className = 'notification-container';
+          document.body.appendChild(container);
+        }
+        const durations = {
+          success: 5500,
+          info: 6000,
+          warning: 7000,
+          error: 8000
+        };
+        const duration = durations[type] || 4500;
+        const toast = document.createElement('div');
+        toast.className = `notification ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.classList.add('fade-out');
+          setTimeout(() => toast.remove(), 300);
+        }, duration);
+      }
+
       function notifyUser(message, type = 'info') {
         if (typeof showNotification === 'function') {
           showNotification(message, type);
@@ -616,6 +762,47 @@
       } else if (urlParams.get('error')) {
         appendMessage('error', `Login failed: ${urlParams.get('error')}`);
         window.history.replaceState({}, '', '/');
+      }
+
+      async function checkSharedSessionLink() {
+        const shareToken = urlParams.get('share');
+        if (!shareToken) return;
+        try {
+          const response = await fetch(`/api/session/share/${shareToken}`, { credentials: 'include' });
+          const data = await response.json();
+          if (!response.ok) {
+            showNotification(data.error || 'Shared session not found', 'error');
+            window.history.replaceState({}, '', '/');
+            return;
+          }
+
+          const sharedSession = data.session;
+          const messageCount = sharedSession?.messages?.length || 0;
+          const historyCount = sharedSession?.toolHistory?.length || 0;
+          const confirmed = await appConfirm(
+            `Import shared session with ${messageCount} messages and ${historyCount} tool runs?`,
+            { title: 'Import Shared Session', confirmText: 'Import' }
+          );
+          if (!confirmed) {
+            window.history.replaceState({}, '', '/');
+            return;
+          }
+
+          messages = sharedSession.messages || [sessionManager.getWelcomeMessage()];
+          toolExecutionHistory = sharedSession.toolHistory || [];
+          sessionManager.save(sharedSession);
+          restoreSession();
+          if (typeof refreshHistoryPanel === 'function') {
+            refreshHistoryPanel();
+          }
+          updateTokenDisplay();
+          refreshBrainView();
+          showNotification('Shared session imported.', 'success');
+        } catch (error) {
+          showNotification(`Failed to import shared session: ${error.message}`, 'error');
+        } finally {
+          window.history.replaceState({}, '', '/');
+        }
       }
 
       // Auto-resize textarea
@@ -2294,6 +2481,25 @@
         }
       }
 
+      async function shareSessionLink() {
+        try {
+          const response = await fetch('/api/session/share', {
+            method: 'POST',
+            credentials: 'include'
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            showNotification(data.error || 'Failed to create share link', 'error');
+            return;
+          }
+          const shareUrl = `${window.location.origin}/?share=${data.token}`;
+          await navigator.clipboard.writeText(shareUrl);
+          showNotification('Share link copied to clipboard.', 'success');
+        } catch (error) {
+          showNotification(`Failed to share session: ${error.message}`, 'error');
+        }
+      }
+
       function safeParseJson(value) {
         if (value === undefined || value === null) return null;
         if (typeof value !== 'string') return value;
@@ -2802,1912 +3008,6 @@
           if (modelInput) modelInput.value = value;
         }
       });
-
-      // ==========================================
-      // STUDIO ASSISTANT WIDGET
-      // ==========================================
-
-      const ASSISTANT_STORAGE_KEY = 'mcp_chat_studio_assistant';
-      let assistantMessages = [];
-      let assistantOpen = false;
-      let assistantDock = 'right';
-      let assistantPopout = false;
-      let assistantLastFAQ = null;
-      let assistantPopoutPos = { x: null, y: null };
-      let assistantDragState = null;
-      let assistantSize = 'default';
-      let assistantCustomSize = null;
-      let assistantResizeState = null;
-      let assistantLLMReady = true;
-      let assistantLLMOverride = false;
-      let assistantRecentCommands = [];
-      let assistantLastTool = null;
-
-      const assistantPrompt = `You are the MCP Chat Studio assistant. Help users learn and use the app.
-You answer questions about MCP servers, Inspector, Workflows, Scenarios, Collections, Contracts, Mocks, Debugger, Workspace mode, and the Generator.
-Be concise, suggest next actions, and ask a clarifying question if needed.
-If asked about Test in Studio or project folders, say the folder must contain server.py (Python) or server.js (Node) plus requirements.txt/package.json.`;
-
-      const assistantFAQ = [
-        {
-          title: 'Connect a server',
-          keywords: ['connect', 'server', 'mcp', 'add server', 'template'],
-          answer: 'Use the **MCP Servers** sidebar → **Add** → pick a template or fill in command/args. Click **Connect** to see tools.'
-        },
-        {
-          title: 'Run a tool',
-          keywords: ['inspector', 'run tool', 'execute', 'tool call'],
-          answer: 'Go to **Inspector**, select server + tool, fill args, then **Execute**. Results show below with protocol logs.'
-        },
-        {
-          title: 'Record scenarios',
-          keywords: ['scenario', 'record', 'replay', 'recording'],
-          answer: 'Open **Scenarios**, click **Start Recording**, then execute tools in Inspector. Stop and **Save Scenario**.'
-        },
-        {
-          title: 'Collections + reports',
-          keywords: ['collection', 'run report', 'runner', 'iterations'],
-          answer: 'Create a **Collection**, add scenarios, then **Run**. The report shows pass/fail + exports (JSON/JUnit).'
-        },
-        {
-          title: 'Matrix runs',
-          keywords: ['matrix', 'compare servers', 'cross-server'],
-          answer: 'Use **Scenario → Matrix** or **Inspector → Diff → Cross‑Server Snapshot**. Connect 2+ servers for heatmaps.'
-        },
-        {
-          title: 'Generator (OpenAPI)',
-          keywords: ['generator', 'openapi', 'proxy', 'generate server'],
-          answer: 'Open **Generator**, load an OpenAPI spec, select endpoints, then **Generate Code** or **Download ZIP**. OpenAPI Proxy mode creates a real MCP server that calls your API.'
-        },
-        {
-          title: 'Test in Studio (project folder)',
-          keywords: ['test in studio', 'project folder', 'working directory', 'cwd', 'zip', 'save to folder'],
-          answer: 'Click **Test in Studio** after generating. Paste the folder path that contains `server.py` (Python) or `server.js` (Node), plus `requirements.txt` or `package.json`. Studio cannot detect paths automatically.'
-        },
-        {
-          title: 'Assistant OpenAPI import',
-          keywords: ['assistant', 'upload', 'paste', 'openapi url', 'openapi json'],
-          answer: 'Paste an OpenAPI URL/JSON here or click the 📎 button to upload a spec. I can import it into the Generator for you.'
-        },
-        {
-          title: 'Quick Start',
-          keywords: ['quick start', 'start', 'getting started', 'guide'],
-          answer: 'Use the **🚀 Start** button in the header for a guided checklist with jump‑buttons to Inspector, Scenarios, Collections, Contracts, and Generator.'
-        },
-        {
-          title: 'Contracts',
-          keywords: ['contract', 'schema', 'breaking change', 'regression'],
-          answer: 'Go to **Contracts** → **New Contract**. Validate responses and use **Schema Regression** to diff snapshots.'
-        },
-        {
-          title: 'Mocks',
-          keywords: ['mock', 'mock server', 'offline'],
-          answer: 'Go to **Mocks**, create or **From History**, then **Connect** to register as an MCP server.'
-        },
-        {
-          title: 'Workflow debugger',
-          keywords: ['debugger', 'workflow', 'breakpoint', 'step'],
-          answer: 'Create a workflow, then open **Debugger** to start a session, step nodes, and inspect variables.'
-        },
-        {
-          title: 'Workspace mode',
-          keywords: ['workspace', 'panels', 'layout', 'dock'],
-          answer: 'Toggle **Workspace** in the header. Right‑click to add panels, use the mini‑map + zoom, and save sessions.'
-        },
-        {
-          title: 'LLM settings',
-          keywords: ['llm', 'provider', 'model', 'apikey', 'api key'],
-          answer: 'Click the **⚙️** button to set provider/model/base URL, add API keys, or pick visible providers.'
-        }
-      ];
-
-      function loadAssistantState() {
-        try {
-          const raw = localStorage.getItem(ASSISTANT_STORAGE_KEY);
-          if (!raw) return null;
-          return JSON.parse(raw);
-        } catch (error) {
-          return null;
-        }
-      }
-
-      function saveAssistantState() {
-        try {
-          localStorage.setItem(ASSISTANT_STORAGE_KEY, JSON.stringify({
-            open: assistantOpen,
-            messages: assistantMessages.slice(-30),
-            dock: assistantDock,
-            popout: assistantPopout,
-            popoutPos: assistantPopoutPos,
-            size: assistantSize,
-            customSize: assistantCustomSize,
-            recentCommands: assistantRecentCommands,
-            lastTool: assistantLastTool
-          }));
-        } catch (error) {
-          console.warn('[Assistant] Failed to save:', error.message);
-        }
-      }
-
-      function applyAssistantLayout() {
-        const widget = document.getElementById('assistantWidget');
-        const panel = document.getElementById('assistantPanel');
-        if (!widget || !panel) return;
-        widget.classList.toggle('dock-left', assistantDock === 'left');
-        panel.classList.toggle('popout', assistantPopout);
-        const hasCustom = assistantCustomSize && Number.isFinite(assistantCustomSize.width) && Number.isFinite(assistantCustomSize.height);
-        panel.classList.toggle('large', assistantSize === 'large' && !hasCustom);
-        if (hasCustom) {
-          panel.style.width = `${assistantCustomSize.width}px`;
-          panel.style.height = `${assistantCustomSize.height}px`;
-          panel.style.maxHeight = `${assistantCustomSize.height}px`;
-        } else {
-          panel.style.width = '';
-          panel.style.height = '';
-          panel.style.maxHeight = '';
-        }
-        if (assistantPopout) {
-          panel.style.right = 'auto';
-          panel.style.left = assistantPopoutPos.x !== null ? `${assistantPopoutPos.x}px` : '';
-          panel.style.top = assistantPopoutPos.y !== null ? `${assistantPopoutPos.y}px` : '';
-          panel.style.bottom = assistantPopoutPos.x !== null ? 'auto' : '';
-        } else {
-          panel.style.left = '';
-          panel.style.top = '';
-          panel.style.bottom = '';
-          panel.style.right = '';
-        }
-      }
-
-      function toggleAssistantDock() {
-        assistantDock = assistantDock === 'left' ? 'right' : 'left';
-        applyAssistantLayout();
-        saveAssistantState();
-      }
-
-      function toggleAssistantPopout() {
-        assistantPopout = !assistantPopout;
-        applyAssistantLayout();
-        saveAssistantState();
-      }
-
-      function toggleAssistantSize() {
-        if (assistantCustomSize) {
-          assistantCustomSize = null;
-          assistantSize = 'default';
-        } else {
-          assistantSize = assistantSize === 'large' ? 'default' : 'large';
-        }
-        applyAssistantLayout();
-        saveAssistantState();
-      }
-
-      function startAssistantResize(event) {
-        if (event.button !== 0) return;
-        const panel = document.getElementById('assistantPanel');
-        if (!panel) return;
-        const rect = panel.getBoundingClientRect();
-        assistantResizeState = {
-          startX: event.clientX,
-          startY: event.clientY,
-          startWidth: rect.width,
-          startHeight: rect.height
-        };
-        event.preventDefault();
-      }
-
-      document.addEventListener('mousemove', event => {
-        if (!assistantResizeState) return;
-        const panel = document.getElementById('assistantPanel');
-        if (!panel) return;
-        const deltaX = event.clientX - assistantResizeState.startX;
-        const deltaY = event.clientY - assistantResizeState.startY;
-        const minWidth = 280;
-        const minHeight = 260;
-        const maxWidth = Math.min(window.innerWidth - 24, 720);
-        const maxHeight = Math.min(window.innerHeight - 24, 720);
-        const width = Math.max(minWidth, Math.min(maxWidth, assistantResizeState.startWidth + deltaX));
-        const height = Math.max(minHeight, Math.min(maxHeight, assistantResizeState.startHeight + deltaY));
-        assistantCustomSize = { width: Math.round(width), height: Math.round(height) };
-        applyAssistantLayout();
-      });
-
-      function getPanelLabel(panelId) {
-        const map = {
-          chatPanel: 'Chat',
-          inspectorPanel: 'Inspector',
-          historyPanel: 'History',
-          scenariosPanel: 'Scenarios',
-          workflowsPanel: 'Workflows',
-          generatorPanel: 'Generator',
-          collectionsPanel: 'Collections',
-          monitorsPanel: 'Monitors',
-          toolexplorerPanel: 'Tool Explorer',
-          mocksPanel: 'Mocks',
-          scriptsPanel: 'Scripts',
-          docsPanel: 'Docs',
-          contractsPanel: 'Contracts',
-          performancePanel: 'Performance',
-          debuggerPanel: 'Debugger',
-          brainPanel: 'Brain'
-        };
-        return map[panelId] || panelId || 'Unknown';
-      }
-
-      function getWorkspacePanelLabel(type) {
-        const fallback = {
-          chat: 'Chat',
-          inspector: 'Inspector',
-          workflows: 'Workflows',
-          scenarios: 'Scenarios',
-          collections: 'Collections',
-          history: 'History',
-          toolexplorer: 'Tool Explorer',
-          performance: 'Performance',
-          debugger: 'Debugger',
-          brain: 'Brain'
-        };
-        if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panelDefs?.[type]?.title) {
-          return floatingWorkspace.panelDefs[type].title;
-        }
-        return fallback[type] || type;
-      }
-
-      function getAssistantContext() {
-        const isWorkspace = document.body.classList.contains('workspace-mode');
-        const layout = isWorkspace ? 'Workspace' : 'Classic';
-
-        let activePanel = 'Unknown';
-        let openPanels = [];
-
-        if (isWorkspace && typeof floatingWorkspace !== 'undefined') {
-          const activeEl = document.querySelector('.floating-panel.active');
-          const activePanelId = activeEl?.id;
-          const activePanelMeta = floatingWorkspace.panels?.find(p => p.id === activePanelId);
-          activePanel = activePanelMeta ? getWorkspacePanelLabel(activePanelMeta.type) : 'Workspace';
-          openPanels = (floatingWorkspace.panels || []).map(p => getWorkspacePanelLabel(p.type));
-        } else {
-          const activeClassic = document.querySelector('.content-panel.active')?.id
-            || localStorage.getItem('activeClassicPanel');
-          activePanel = getPanelLabel(activeClassic);
-        }
-
-        const serverCount = document.getElementById('serverCount')?.textContent?.trim() || '0';
-        const inspectorServer = document.getElementById('inspectorServerSelect')?.value || '';
-        const inspectorTool = document.getElementById('inspectorToolSelect')?.value || '';
-
-        return {
-          layout,
-          activePanel,
-          openPanels: Array.from(new Set(openPanels)).slice(0, 6),
-          inspector: {
-            server: inspectorServer || null,
-            tool: inspectorTool || null
-          },
-          connectedServers: serverCount
-        };
-      }
-
-      function buildAssistantContextMessage() {
-        const ctx = getAssistantContext();
-        const panels = ctx.openPanels.length ? ctx.openPanels.join(', ') : 'N/A';
-        const lastToolLabel = assistantLastTool?.tool
-          ? `${assistantLastTool.tool}${assistantLastTool.server ? ` @ ${assistantLastTool.server}` : ''}`
-          : null;
-        return [
-          `Layout: ${ctx.layout}`,
-          `Active panel: ${ctx.activePanel}`,
-          `Open panels: ${panels}`,
-          `Connected servers: ${ctx.connectedServers}`,
-          lastToolLabel ? `Last tool: ${lastToolLabel}` : null,
-          ctx.inspector.server ? `Inspector server: ${ctx.inspector.server}` : null,
-          ctx.inspector.tool ? `Inspector tool: ${ctx.inspector.tool}` : null
-        ].filter(Boolean).join('\n');
-      }
-
-      function isAssistantLLMAvailable() {
-        return !assistantLLMOverride && assistantLLMReady;
-      }
-
-      function updateAssistantContextLabel() {
-        const label = document.getElementById('assistantContextLabel');
-        if (!label) return;
-        const ctx = getAssistantContext();
-        const suffix = ctx.activePanel ? `· ${ctx.activePanel}` : '';
-        const status = isAssistantLLMAvailable() ? '' : '· LLM not configured';
-        const lastTool = assistantLastTool?.tool ? `· Last tool: ${assistantLastTool.tool}` : '';
-        label.textContent = `Context: ${ctx.layout} ${suffix} ${lastTool} ${status}`.replace(/\s+/g, ' ').trim();
-      }
-
-      function renderAssistantMessages() {
-        const list = document.getElementById('assistantMessages');
-        if (!list) return;
-        if (!assistantMessages.length) {
-          list.innerHTML = '<div class="assistant-message assistant">Ask me anything about MCP Chat Studio.</div>';
-          return;
-        }
-        list.innerHTML = assistantMessages.map(msg => {
-          if (msg.type === 'action' && msg.action) {
-            return `
-              <div class="assistant-message assistant">
-                <div style="margin-bottom: 6px;">${escapeHtml(msg.content || '')}</div>
-                <button class="btn" onclick="${msg.action}">${escapeHtml(msg.actionLabel || 'Run')}</button>
-              </div>
-            `;
-          }
-          return `<div class="assistant-message ${msg.role}">${escapeHtml(msg.content)}</div>`;
-        }).join('');
-        list.scrollTop = list.scrollHeight;
-      }
-
-      function renderAssistantChips() {
-        const chipWrap = document.getElementById('assistantChips');
-        if (!chipWrap) return;
-        if (!assistantRecentCommands.length) {
-          chipWrap.innerHTML = '';
-          chipWrap.style.display = 'none';
-          return;
-        }
-        chipWrap.style.display = 'flex';
-        chipWrap.innerHTML = assistantRecentCommands.map(cmd => {
-          const label = cmd.length > 32 ? `${cmd.slice(0, 29)}…` : cmd;
-          return `
-          <button class="assistant-chip" type="button" onclick="sendAssistantCommandFromChip(${JSON.stringify(cmd)})" title="${escapeHtml(cmd)}">
-            ${escapeHtml(label)}
-          </button>
-        `;
-        }).join('');
-      }
-
-      function recordAssistantCommand(command) {
-        const normalized = command.trim().replace(/\s+/g, ' ');
-        if (!normalized) return;
-        const lower = normalized.toLowerCase();
-        assistantRecentCommands = [
-          normalized,
-          ...assistantRecentCommands.filter(cmd => cmd.toLowerCase() !== lower)
-        ].slice(0, 6);
-        renderAssistantChips();
-        saveAssistantState();
-      }
-
-      function sendAssistantCommandFromChip(command) {
-        const input = document.getElementById('assistantInput');
-        if (!input) return;
-        input.value = command;
-        sendAssistantMessage();
-      }
-
-      function toggleAssistant(forceOpen) {
-        const panel = document.getElementById('assistantPanel');
-        if (!panel) return;
-        assistantOpen = typeof forceOpen === 'boolean' ? forceOpen : !assistantOpen;
-        panel.classList.toggle('open', assistantOpen);
-        if (assistantOpen) {
-          updateAssistantContextLabel();
-          renderAssistantMessages();
-          renderAssistantChips();
-          document.getElementById('assistantInput')?.focus();
-        }
-        saveAssistantState();
-      }
-
-      function clearAssistantChat() {
-        assistantMessages = [];
-        assistantLastFAQ = null;
-        renderAssistantMessages();
-        saveAssistantState();
-      }
-
-      function triggerAssistantFileUpload() {
-        document.getElementById('assistantFileInput')?.click();
-      }
-
-      async function handleAssistantFileUpload(event) {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        try {
-          const text = await file.text();
-          await handleAssistantOpenApiText(text, file.name || 'local file');
-        } catch (error) {
-          assistantMessages.push({ role: 'assistant', content: `Failed to read file: ${error.message}` });
-          renderAssistantMessages();
-          saveAssistantState();
-        } finally {
-          event.target.value = '';
-        }
-      }
-
-      function extractOpenApiUrl(content) {
-        const urlMatch = content.match(/https?:\/\/[^\s)"]+/i);
-        if (!urlMatch) return null;
-        const url = urlMatch[0];
-        const lower = url.toLowerCase();
-        if (lower.includes('openapi') || lower.includes('swagger') || lower.endsWith('.json') || lower.endsWith('.yaml') || lower.endsWith('.yml')) {
-          return url;
-        }
-        return null;
-      }
-
-      function extractOpenApiJson(content) {
-        let text = content.trim();
-        const fenced = text.match(/```(?:json|yaml)?\s*([\s\S]*?)```/i);
-        if (fenced) text = fenced[1].trim();
-        if (!text.startsWith('{')) return null;
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed && (parsed.openapi || parsed.swagger)) {
-            return parsed;
-          }
-        } catch (error) {
-          return null;
-        }
-        return null;
-      }
-
-      async function tryMainChatOpenApi(content) {
-        const url = extractOpenApiUrl(content);
-        if (url) {
-          const confirmed = await appConfirm(`Import OpenAPI from ${url}?`, {
-            title: 'OpenAPI detected',
-            confirmText: 'Import',
-            cancelText: 'Cancel'
-          });
-          if (!confirmed) return true;
-          const msg = appendMessage('assistant', '✅ Importing OpenAPI into Generator...');
-          if (document.body.classList.contains('workspace-mode')) {
-            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
-              floatingWorkspace.focusPanelByType('generator');
-            } else {
-              openWorkspacePanel('generator');
-            }
-          } else {
-            openPanelByName('generator');
-          }
-          const input = document.getElementById('openApiUrlInput');
-          if (input) input.value = url;
-          await loadOpenApiFromUrl();
-          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
-          return true;
-        }
-
-        const jsonSpec = extractOpenApiJson(content);
-        if (jsonSpec) {
-          const confirmed = await appConfirm('Import OpenAPI JSON into Generator?', {
-            title: 'OpenAPI detected',
-            confirmText: 'Import',
-            cancelText: 'Cancel'
-          });
-          if (!confirmed) return true;
-          const msg = appendMessage('assistant', '✅ Importing OpenAPI JSON into Generator...');
-          if (document.body.classList.contains('workspace-mode')) {
-            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
-              floatingWorkspace.focusPanelByType('generator');
-            } else {
-              openWorkspacePanel('generator');
-            }
-          } else {
-            openPanelByName('generator');
-          }
-          applyOpenApiSpec(jsonSpec, 'main chat paste');
-          if (msg) msg.innerHTML += '<br><strong>Next:</strong> click Generate Code or Test in Studio.';
-          return true;
-        }
-        return false;
-      }
-
-      function pulseAssistantUploadButton() {
-        const buttons = document.querySelectorAll('.assistant-icon-btn');
-        if (!buttons.length) return;
-        const target = Array.from(buttons).find(btn => btn.textContent?.trim() === '📎');
-        if (!target) return;
-        target.classList.add('pulse');
-        setTimeout(() => target.classList.remove('pulse'), 1600);
-      }
-
-      async function handleAssistantOpenApiUrl(url) {
-        const confirmed = await appConfirm(`Load OpenAPI from ${url}?`, {
-          title: 'OpenAPI detected',
-          confirmText: 'Load',
-          cancelText: 'Cancel'
-        });
-        if (!confirmed) {
-          assistantMessages.push({ role: 'assistant', content: 'Okay, not loading that OpenAPI spec.' });
-          renderAssistantMessages();
-          saveAssistantState();
-          return true;
-        }
-        if (document.body.classList.contains('workspace-mode')) {
-          if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
-            floatingWorkspace.focusPanelByType('generator');
-          } else {
-            openWorkspacePanel('generator');
-          }
-        } else {
-          openPanelByName('generator');
-        }
-        const input = document.getElementById('openApiUrlInput');
-        if (input) input.value = url;
-        await loadOpenApiFromUrl();
-        assistantMessages.push({ role: 'assistant', content: '✅ Loaded OpenAPI into Generator.' });
-        assistantMessages.push({
-          type: 'action',
-          content: 'Next: generate and test the MCP proxy.',
-          action: 'assistantGenerateAndTestOpenApi()',
-          actionLabel: 'Generate + Test'
-        });
-        renderAssistantMessages();
-        saveAssistantState();
-        return true;
-      }
-
-      async function handleAssistantOpenApiText(text, source) {
-        const confirmed = await appConfirm(`Import OpenAPI from ${source}?`, {
-          title: 'OpenAPI detected',
-          confirmText: 'Import',
-          cancelText: 'Cancel'
-        });
-        if (!confirmed) {
-          assistantMessages.push({ role: 'assistant', content: 'Okay, not importing that spec.' });
-          renderAssistantMessages();
-          saveAssistantState();
-          return true;
-        }
-        if (document.body.classList.contains('workspace-mode')) {
-          if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
-            floatingWorkspace.focusPanelByType('generator');
-          } else {
-            openWorkspacePanel('generator');
-          }
-        } else {
-          openPanelByName('generator');
-        }
-        await parseOpenApiText(text, source);
-        assistantMessages.push({ role: 'assistant', content: '✅ OpenAPI imported into Generator.' });
-        assistantMessages.push({
-          type: 'action',
-          content: 'Next: generate and test the MCP proxy.',
-          action: 'assistantGenerateAndTestOpenApi()',
-          actionLabel: 'Generate + Test'
-        });
-        renderAssistantMessages();
-        saveAssistantState();
-        return true;
-      }
-
-      async function tryAssistantOpenApi(content) {
-        const url = extractOpenApiUrl(content);
-        if (url) {
-          return await handleAssistantOpenApiUrl(url);
-        }
-        const jsonSpec = extractOpenApiJson(content);
-        if (jsonSpec) {
-          const confirmed = await appConfirm('Import OpenAPI JSON into Generator?', {
-            title: 'OpenAPI detected',
-            confirmText: 'Import',
-            cancelText: 'Cancel'
-          });
-          if (!confirmed) {
-            assistantMessages.push({ role: 'assistant', content: 'Okay, not importing that JSON.' });
-            renderAssistantMessages();
-            saveAssistantState();
-            return true;
-          }
-          if (document.body.classList.contains('workspace-mode')) {
-            if (typeof floatingWorkspace !== 'undefined' && floatingWorkspace.panels?.some(p => p.type === 'generator')) {
-              floatingWorkspace.focusPanelByType('generator');
-            } else {
-              openWorkspacePanel('generator');
-            }
-          } else {
-            openPanelByName('generator');
-          }
-          applyOpenApiSpec(jsonSpec, 'assistant paste');
-          assistantMessages.push({ role: 'assistant', content: '✅ OpenAPI JSON imported into Generator.' });
-          assistantMessages.push({
-            type: 'action',
-            content: 'Next: generate and test the MCP proxy.',
-            action: 'assistantGenerateAndTestOpenApi()',
-            actionLabel: 'Generate + Test'
-          });
-          renderAssistantMessages();
-          saveAssistantState();
-          return true;
-        }
-        return false;
-      }
-
-      function assistantGenerateAndTestOpenApi() {
-        try {
-          generateMCPCode();
-          showGeneratorTestModal();
-        } catch (error) {
-          appendMessage('error', `Generator failed: ${error.message}`);
-        }
-      }
-
-      function findAssistantFAQ(message) {
-        const text = message.toLowerCase();
-        let best = null;
-        let bestScore = 0;
-        assistantFAQ.forEach(entry => {
-          const score = entry.keywords.reduce((sum, keyword) => (
-            text.includes(keyword) ? sum + 1 : sum
-          ), 0);
-          if (score > bestScore) {
-            bestScore = score;
-            best = entry;
-          }
-        });
-        if (best && bestScore >= 1) return best;
-        return null;
-      }
-
-      async function sendAssistantMessage() {
-        const input = document.getElementById('assistantInput');
-        const sendBtn = document.getElementById('assistantSendBtn');
-        if (!input || !sendBtn) return;
-        const content = input.value.trim();
-        if (!content) return;
-
-        assistantMessages.push({ role: 'user', content });
-        recordAssistantCommand(content);
-        input.value = '';
-        renderAssistantMessages();
-        updateAssistantContextLabel();
-
-        if (await tryAssistantOpenApi(content)) {
-          return;
-        }
-
-        if (await tryAssistantAction(content)) {
-          saveAssistantState();
-          return;
-        }
-
-        const lower = content.toLowerCase();
-        if (assistantLastFAQ && (lower === 'details' || lower === 'more')) {
-          const followUp = assistantLastFAQ.question;
-          const faqAnswer = assistantLastFAQ.answer;
-          assistantLastFAQ = null;
-          await callAssistantLLM({
-            question: followUp,
-            faqAnswer
-          }, sendBtn);
-          return;
-        }
-
-        const faqHit = findAssistantFAQ(content);
-        if (faqHit) {
-          assistantLastFAQ = { question: content, answer: faqHit.answer };
-          assistantMessages.push({
-            role: 'assistant',
-            content: `${faqHit.answer}\n\nNeed more detail? Reply **details** to ask the LLM.`
-          });
-          renderAssistantMessages();
-          saveAssistantState();
-          return;
-        }
-
-        await callAssistantLLM({ question: content }, sendBtn);
-      }
-
-      async function callAssistantLLM({ question, faqAnswer }, sendBtn) {
-        sendBtn.disabled = true;
-        sendBtn.textContent = '...';
-
-        const contextMessage = buildAssistantContextMessage();
-        const history = assistantMessages.slice(-12);
-        const payload = [
-          { role: 'system', content: assistantPrompt },
-          { role: 'system', content: `Context:\n${contextMessage}` },
-          ...history
-        ];
-        if (faqAnswer) {
-          payload.splice(2, 0, { role: 'system', content: `FAQ context: ${faqAnswer}` });
-        }
-
-        try {
-          if (assistantLLMOverride) {
-            assistantLLMReady = false;
-            assistantMessages.push({
-              role: 'assistant',
-              content: 'LLM is disabled for QA testing. Turn it back on in ⚙️ LLM Settings.'
-            });
-            return;
-          }
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              messages: payload,
-              useTools: false,
-              stream: false
-            })
-          });
-          const data = await response.json();
-          if (!response.ok || data?.error) {
-            assistantLLMReady = false;
-            const reason = data?.error || response.statusText || 'LLM unavailable';
-            assistantMessages.push({
-              role: 'assistant',
-              content: `LLM request failed: ${reason}. Open ⚙️ LLM Settings to configure a provider.`
-            });
-          } else {
-            assistantLLMReady = true;
-            const reply = data.choices?.[0]?.message?.content || 'No response generated.';
-            assistantMessages.push({ role: 'assistant', content: reply });
-          }
-        } catch (error) {
-          assistantLLMReady = false;
-          assistantMessages.push({ role: 'assistant', content: `Error: ${error.message}` });
-        } finally {
-          sendBtn.disabled = false;
-          sendBtn.textContent = 'Send';
-          renderAssistantMessages();
-          saveAssistantState();
-          updateAssistantContextLabel();
-        }
-      }
-
-      async function showAssistantCommands() {
-        const actions = [
-          'Open <panel> (e.g., "open inspector", "open collections")',
-          'Switch to workspace / classic',
-          'Build workspace <preset|panels> (e.g., "build workspace debug", "build workspace with chat, inspector, workflows")',
-          'Add panel <name> / Close panel <name>',
-          'Arrange workspace / Fit all',
-          'Resize panel <name> 600x500',
-          'Save workspace session <name>',
-          'Load workspace session <name>',
-          'Delete workspace session <name>',
-          'Export workspace / Import workspace',
-          'Toggle minimap / Toggle grid',
-          'Zoom in / Zoom out / Reset zoom',
-          'Run scenario <name>',
-          'Run collection <name>',
-          'Run matrix (from last Inspector request)',
-          'Start recording / Stop recording',
-          'Open add server',
-          'Clear history'
-        ];
-
-        await appAlert(actions.map(item => `• ${item}`).join('\n'), {
-          title: 'Assistant Commands'
-        });
-      }
-
-      function openPanelByName(panelKey) {
-        const map = {
-          chat: 'chatPanel',
-          inspector: 'inspectorPanel',
-          history: 'historyPanel',
-          scenarios: 'scenariosPanel',
-          workflows: 'workflowsPanel',
-          generator: 'generatorPanel',
-          collections: 'collectionsPanel',
-          monitors: 'monitorsPanel',
-          toolexplorer: 'toolexplorerPanel',
-          mocks: 'mocksPanel',
-          scripts: 'scriptsPanel',
-          docs: 'docsPanel',
-          contracts: 'contractsPanel',
-          performance: 'performancePanel',
-          debugger: 'debuggerPanel',
-          brain: 'brainPanel'
-        };
-        if (document.body.classList.contains('workspace-mode')) {
-          if (typeof floatingWorkspace !== 'undefined' && typeof floatingWorkspace.focusPanelByType === 'function') {
-            floatingWorkspace.focusPanelByType(panelKey);
-            return true;
-          }
-        }
-        const panelId = map[panelKey];
-        if (panelId && typeof switchClassicPanel === 'function') {
-          switchClassicPanel(panelId);
-          return true;
-        }
-        return false;
-      }
-
-      function openWorkspacePanel(panelKey) {
-        if (typeof floatingWorkspace === 'undefined') return false;
-        if (!document.body.classList.contains('workspace-mode')) {
-          setLayoutMode('workspace');
-        }
-        floatingWorkspace.togglePanel(panelKey);
-        return true;
-      }
-
-      function closeWorkspacePanel(panelKey) {
-        if (typeof floatingWorkspace === 'undefined') return false;
-        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
-        if (!panel) return false;
-        floatingWorkspace.closePanel(panel.id);
-        return true;
-      }
-
-      function resizeWorkspacePanel(panelKey, width, height) {
-        if (typeof floatingWorkspace === 'undefined') return false;
-        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
-        if (!panel) return false;
-        panel.width = width;
-        panel.height = height;
-        const el = document.getElementById(panel.id);
-        if (el) {
-          el.style.width = `${width}px`;
-          el.style.height = `${height}px`;
-        }
-        floatingWorkspace.updateConnections();
-        floatingWorkspace.updateMiniMap();
-        floatingWorkspace.saveLayout();
-        return true;
-      }
-
-      function minimizeWorkspacePanel(panelKey, shouldMinimize) {
-        if (typeof floatingWorkspace === 'undefined') return false;
-        const panel = floatingWorkspace.panels?.find(p => p.type === panelKey);
-        if (!panel) return false;
-        if (panel.minimized === shouldMinimize) return true;
-        floatingWorkspace.toggleMinimize(panel.id);
-        return true;
-      }
-
-      function arrangeWorkspacePanels() {
-        if (typeof floatingWorkspace === 'undefined') return false;
-        const panels = floatingWorkspace.panels || [];
-        if (!panels.length) return false;
-        const cols = 3;
-        const gapX = 420;
-        const gapY = 320;
-        const startX = 80;
-        const startY = 80;
-        panels.forEach((panel, idx) => {
-          panel.x = startX + (idx % cols) * gapX;
-          panel.y = startY + Math.floor(idx / cols) * gapY;
-          const el = document.getElementById(panel.id);
-          if (el) {
-            el.style.left = `${panel.x}px`;
-            el.style.top = `${panel.y}px`;
-          }
-        });
-        floatingWorkspace.updateConnections();
-        floatingWorkspace.updateMiniMap();
-        floatingWorkspace.saveLayout();
-        return true;
-      }
-
-      async function tryAssistantAction(message) {
-        const text = message.toLowerCase();
-        const hasVerb = (verbs) => verbs.some(v => text.includes(v));
-        const extractName = (phrases) => {
-          for (const phrase of phrases) {
-            const idx = text.indexOf(phrase);
-            if (idx >= 0) {
-              const raw = message.slice(idx + phrase.length).trim();
-              return raw.replace(/^["']|["']$/g, '').trim();
-            }
-          }
-          return '';
-        };
-        const matchByName = (items, name) => {
-          const lowered = name.toLowerCase();
-          return items.filter(item => item.name?.toLowerCase().includes(lowered));
-        };
-
-        const openVerbs = ['open', 'show', 'go to', 'switch to', 'take me to'];
-        const runVerbs = ['run', 'execute', 'start'];
-        const toggleVerbs = ['toggle', 'switch'];
-
-        const panelKeywords = {
-          chat: ['chat'],
-          inspector: ['inspector', 'tool runner', 'tools'],
-          history: ['history', 'log'],
-          scenarios: ['scenario', 'recording'],
-          workflows: ['workflow', 'flows'],
-          collections: ['collection'],
-          monitors: ['monitor', 'health'],
-          toolexplorer: ['tool explorer', 'analytics', 'leaderboard'],
-          mocks: ['mock'],
-          scripts: ['script'],
-          docs: ['docs', 'documentation'],
-          contracts: ['contract'],
-          performance: ['performance', 'latency'],
-          debugger: ['debugger'],
-          brain: ['brain', 'timeline']
-        };
-
-        const panelKeyFromText = Object.keys(panelKeywords)
-          .find(key => panelKeywords[key].some(keyword => text.includes(keyword)));
-
-        if (hasVerb(openVerbs)) {
-          if (panelKeyFromText) {
-            openPanelByName(panelKeyFromText);
-            assistantMessages.push({ role: 'assistant', content: `✅ Opened ${panelKeywords[panelKeyFromText][0].replace(/^\w/, c => c.toUpperCase())}.` });
-            return true;
-          }
-        }
-
-        if (hasVerb(openVerbs) && (text.includes('add server') || text.includes('server modal'))) {
-          showAddServerModal();
-          assistantMessages.push({ role: 'assistant', content: '✅ Opened Add MCP Server.' });
-          return true;
-        }
-
-        if (text.includes('upload') && (text.includes('openapi') || text.includes('spec') || text.includes('json') || text.includes('yaml'))) {
-          pulseAssistantUploadButton();
-          assistantMessages.push({
-            role: 'assistant',
-            content: 'Click the **📎** button in the assistant header to upload an OpenAPI JSON/YAML file. Browsers block auto‑opening the file picker from text commands.'
-          });
-          return true;
-        }
-
-        if (hasVerb(toggleVerbs) && text.includes('workspace')) {
-          setLayoutMode('workspace');
-          assistantMessages.push({ role: 'assistant', content: '✅ Switched to Workspace mode.' });
-          return true;
-        }
-        if (hasVerb(toggleVerbs) && text.includes('classic')) {
-          setLayoutMode('classic');
-          assistantMessages.push({ role: 'assistant', content: '✅ Switched to Classic mode.' });
-          return true;
-        }
-
-        if (text.includes('build workspace') || text.includes('new workspace') || text.includes('reset workspace')) {
-          if (!document.body.classList.contains('workspace-mode')) {
-            setLayoutMode('workspace');
-          }
-          const presets = ['debug', 'testing', 'development', 'analytics'];
-          const preset = presets.find(name => text.includes(name));
-          const requestedPanels = Object.keys(panelKeywords).filter(key =>
-            panelKeywords[key].some(keyword => text.includes(keyword))
-          );
-
-          const confirmed = await appConfirm('This will replace your current workspace layout. Continue?', {
-            title: 'Build Workspace',
-            confirmText: 'Build'
-          });
-          if (!confirmed) {
-            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Workspace not changed.' });
-            return true;
-          }
-
-          if (preset && typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.loadPreset(preset);
-            assistantMessages.push({ role: 'assistant', content: `✅ Loaded workspace preset "${preset}".` });
-            return true;
-          }
-
-          if (requestedPanels.length > 0 && typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.closeAllPanels({ skipSave: true });
-            requestedPanels.forEach((type, index) => {
-              floatingWorkspace.addPanel(type, 100 + (index % 3) * 400, 80 + Math.floor(index / 3) * 300, {
-                skipSave: true,
-                skipConnections: true,
-                skipMiniMap: true
-              });
-            });
-            floatingWorkspace.updateConnections();
-            floatingWorkspace.updateMiniMap();
-            floatingWorkspace.saveLayout();
-            assistantMessages.push({ role: 'assistant', content: `✅ Built workspace with ${requestedPanels.join(', ')}.` });
-            return true;
-          }
-
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.loadPreset('development');
-            assistantMessages.push({ role: 'assistant', content: '✅ Loaded workspace preset "development".' });
-            return true;
-          }
-        }
-
-        if (text.includes('show presets') || text.includes('workspace presets')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.showPresetsModal();
-            assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace presets.' });
-            return true;
-          }
-        }
-
-        if (text.includes('command palette')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.showCommandPalette();
-            assistantMessages.push({ role: 'assistant', content: '✅ Opened command palette.' });
-            return true;
-          }
-        }
-
-        if (text.includes('fit all')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            const confirmed = await appConfirm('Fit all panels into view?', {
-              title: 'Fit All Panels',
-              confirmText: 'Fit'
-            });
-            if (!confirmed) {
-              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Fit all skipped.' });
-              return true;
-            }
-            floatingWorkspace.fitAll();
-            assistantMessages.push({ role: 'assistant', content: '✅ Fit all panels.' });
-            return true;
-          }
-        }
-
-        if (text.includes('arrange') || text.includes('tidy')) {
-          if (arrangeWorkspacePanels()) {
-            const confirmed = await appConfirm('Auto-arrange all workspace panels?', {
-              title: 'Arrange Workspace',
-              confirmText: 'Arrange'
-            });
-            if (!confirmed) {
-              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Layout unchanged.' });
-              return true;
-            }
-            arrangeWorkspacePanels();
-            assistantMessages.push({ role: 'assistant', content: '✅ Arranged workspace panels.' });
-            return true;
-          }
-        }
-
-        if (text.includes('toggle minimap') || text.includes('minimap')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.toggleMiniMap();
-            assistantMessages.push({ role: 'assistant', content: '✅ Toggled minimap.' });
-            return true;
-          }
-        }
-
-        if (text.includes('toggle grid') || text.includes('grid snap')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.snapToGrid = !floatingWorkspace.snapToGrid;
-            assistantMessages.push({ role: 'assistant', content: `✅ Grid snap ${floatingWorkspace.snapToGrid ? 'enabled' : 'disabled'}.` });
-            return true;
-          }
-        }
-
-        if (text.includes('zoom in')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.zoomIn();
-            assistantMessages.push({ role: 'assistant', content: '✅ Zoomed in.' });
-            return true;
-          }
-        }
-
-        if (text.includes('zoom out')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.zoomOut();
-            assistantMessages.push({ role: 'assistant', content: '✅ Zoomed out.' });
-            return true;
-          }
-        }
-
-        if (text.includes('reset zoom')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.resetZoom();
-            assistantMessages.push({ role: 'assistant', content: '✅ Reset zoom.' });
-            return true;
-          }
-        }
-
-        if (text.includes('add panel') && panelKeyFromText) {
-          if (openWorkspacePanel(panelKeyFromText)) {
-            assistantMessages.push({ role: 'assistant', content: `✅ Added ${panelKeywords[panelKeyFromText][0]} panel.` });
-            return true;
-          }
-        }
-
-        if ((text.includes('close panel') || text.includes('remove panel')) && panelKeyFromText) {
-          if (closeWorkspacePanel(panelKeyFromText)) {
-            assistantMessages.push({ role: 'assistant', content: `✅ Closed ${panelKeywords[panelKeyFromText][0]} panel.` });
-            return true;
-          }
-        }
-
-        if (text.includes('resize') && panelKeyFromText) {
-          const sizeMatch = text.match(/(\d{2,4})\s*[x×]\s*(\d{2,4})/);
-          if (!sizeMatch) {
-            assistantMessages.push({ role: 'assistant', content: 'Please provide a size, e.g., "resize inspector 600x500".' });
-            return true;
-          }
-          const width = parseInt(sizeMatch[1], 10);
-          const height = parseInt(sizeMatch[2], 10);
-          const confirmed = await appConfirm(`Resize ${panelKeywords[panelKeyFromText][0]} to ${width}x${height}?`, {
-            title: 'Resize Panel',
-            confirmText: 'Resize'
-          });
-          if (!confirmed) {
-            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Panel not resized.' });
-            return true;
-          }
-          if (resizeWorkspacePanel(panelKeyFromText, width, height)) {
-            assistantMessages.push({ role: 'assistant', content: `✅ Resized ${panelKeywords[panelKeyFromText][0]} to ${width}x${height}.` });
-            return true;
-          }
-        }
-
-        if ((text.includes('minimize') || text.includes('collapse')) && panelKeyFromText) {
-          if (minimizeWorkspacePanel(panelKeyFromText, true)) {
-            assistantMessages.push({ role: 'assistant', content: `✅ Minimized ${panelKeywords[panelKeyFromText][0]} panel.` });
-            return true;
-          }
-        }
-
-        if ((text.includes('maximize') || text.includes('restore')) && panelKeyFromText) {
-          if (minimizeWorkspacePanel(panelKeyFromText, false)) {
-            assistantMessages.push({ role: 'assistant', content: `✅ Restored ${panelKeywords[panelKeyFromText][0]} panel.` });
-            return true;
-          }
-        }
-
-        if (text.includes('save workspace') || text.includes('save session')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            const name = extractName(['save workspace', 'save session']) || await appPrompt('Session name:', {
-              title: 'Save Workspace Session',
-              label: 'Session name',
-              required: true
-            });
-            if (!name) return true;
-            floatingWorkspace.saveWorkspaceSession(name);
-            assistantMessages.push({ role: 'assistant', content: `✅ Saved workspace session "${name}".` });
-            return true;
-          }
-        }
-
-        if (text.includes('load session') || text.includes('load workspace')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            const name = extractName(['load session', 'load workspace']);
-            const sessions = floatingWorkspace.getWorkspaceSessions() || [];
-            if (!sessions.length) {
-              assistantMessages.push({ role: 'assistant', content: 'No saved workspace sessions found.' });
-              return true;
-            }
-            if (!name) {
-              floatingWorkspace.showSessionsModal();
-              assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace sessions.' });
-              return true;
-            }
-            const matches = matchByName(sessions, name);
-            if (matches.length !== 1) {
-              assistantMessages.push({ role: 'assistant', content: matches.length ? `Multiple sessions match: ${matches.map(m => `"${m.name}"`).join(', ')}` : `No session named "${name}".` });
-              return true;
-            }
-            floatingWorkspace.loadWorkspaceSession(matches[0].id);
-            assistantMessages.push({ role: 'assistant', content: `✅ Loaded workspace session "${matches[0].name}".` });
-            return true;
-          }
-        }
-
-        if (text.includes('delete session') || text.includes('remove session')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            const name = extractName(['delete session', 'remove session']);
-            const sessions = floatingWorkspace.getWorkspaceSessions() || [];
-            if (!sessions.length) {
-              assistantMessages.push({ role: 'assistant', content: 'No saved workspace sessions found.' });
-              return true;
-            }
-            if (!name) {
-              floatingWorkspace.showSessionsModal();
-              assistantMessages.push({ role: 'assistant', content: '✅ Opened workspace sessions.' });
-              return true;
-            }
-            const matches = matchByName(sessions, name);
-            if (matches.length !== 1) {
-              assistantMessages.push({ role: 'assistant', content: matches.length ? `Multiple sessions match: ${matches.map(m => `"${m.name}"`).join(', ')}` : `No session named "${name}".` });
-              return true;
-            }
-            const confirmed = await appConfirm(`Delete workspace session "${matches[0].name}"?`, {
-              title: 'Delete Workspace Session',
-              confirmText: 'Delete',
-              confirmVariant: 'danger'
-            });
-            if (!confirmed) {
-              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Session not deleted.' });
-              return true;
-            }
-            floatingWorkspace.deleteWorkspaceSession(matches[0].id);
-            assistantMessages.push({ role: 'assistant', content: `✅ Deleted workspace session "${matches[0].name}".` });
-            return true;
-          }
-        }
-
-        if (text.includes('export workspace')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.exportWorkspace();
-            assistantMessages.push({ role: 'assistant', content: '✅ Exported workspace bundle.' });
-            return true;
-          }
-        }
-
-        if (text.includes('import workspace')) {
-          if (typeof floatingWorkspace !== 'undefined') {
-            floatingWorkspace.importWorkspace();
-            assistantMessages.push({ role: 'assistant', content: '✅ Choose a workspace bundle to import.' });
-            return true;
-          }
-        }
-
-        if (hasVerb(runVerbs) && (text.includes('matrix') || text.includes('cross-server'))) {
-          if (typeof runInspectorMatrix === 'function') {
-            await runInspectorMatrix();
-            assistantMessages.push({ role: 'assistant', content: '✅ Running cross‑server matrix from the last Inspector request.' });
-            return true;
-          }
-        }
-
-        if (hasVerb(runVerbs) && text.includes('scenario')) {
-          const scenarioName = extractName(['run scenario', 'replay scenario', 'run the scenario']);
-          const scenarios = sessionManager.getScenarios();
-          if (!scenarios.length) {
-            assistantMessages.push({ role: 'assistant', content: 'No scenarios saved yet. Record one from Inspector → Scenarios.' });
-            return true;
-          }
-          let target = scenarios[0];
-          if (scenarioName) {
-            const matches = matchByName(scenarios, scenarioName);
-            if (matches.length === 1) {
-              target = matches[0];
-            } else if (matches.length > 1) {
-              assistantMessages.push({
-                role: 'assistant',
-                content: `I found multiple scenarios: ${matches.map(m => `"${m.name}"`).join(', ')}. Please tell me the exact name.`
-              });
-              return true;
-            } else {
-              assistantMessages.push({ role: 'assistant', content: `I couldn't find a scenario named "${scenarioName}". Try another name.` });
-              return true;
-            }
-          }
-          openPanelByName('scenarios');
-          const confirmed = await appConfirm(`Run scenario "${target.name}" now?`, {
-            title: 'Run Scenario',
-            confirmText: 'Run'
-          });
-          if (!confirmed) {
-            assistantMessages.push({ role: 'assistant', content: 'Cancelled. Scenario not run.' });
-            return true;
-          }
-          await replayScenario(target.id);
-          assistantMessages.push({ role: 'assistant', content: `✅ Running scenario "${target.name}".` });
-          return true;
-        }
-
-        if (hasVerb(runVerbs) && text.includes('collection')) {
-          const collectionName = extractName(['run collection', 'run the collection']);
-          let collections = [];
-          try {
-            const res = await fetch('/api/collections');
-            const data = await res.json();
-            collections = data.collections || [];
-          } catch (error) {
-            assistantMessages.push({ role: 'assistant', content: `Could not load collections: ${error.message}` });
-            return true;
-          }
-          if (!collections.length) {
-            assistantMessages.push({ role: 'assistant', content: 'No collections found. Create one in the Collections tab.' });
-            return true;
-          }
-          let target = collections[0];
-          if (collectionName) {
-            const matches = matchByName(collections, collectionName);
-            if (matches.length === 1) {
-              target = matches[0];
-            } else if (matches.length > 1) {
-              assistantMessages.push({
-                role: 'assistant',
-                content: `I found multiple collections: ${matches.map(m => `"${m.name}"`).join(', ')}. Please tell me the exact name.`
-              });
-              return true;
-            } else {
-              assistantMessages.push({ role: 'assistant', content: `I couldn't find a collection named "${collectionName}". Try another name.` });
-              return true;
-            }
-          }
-          openPanelByName('collections');
-          if (typeof runCollection === 'function') {
-            const confirmed = await appConfirm(`Run collection "${target.name}" now?`, {
-              title: 'Run Collection',
-              confirmText: 'Run'
-            });
-            if (!confirmed) {
-              assistantMessages.push({ role: 'assistant', content: 'Cancelled. Collection not run.' });
-              return true;
-            }
-            await runCollection(target.id);
-            assistantMessages.push({ role: 'assistant', content: `✅ Running collection "${target.name}".` });
-          } else {
-            assistantMessages.push({ role: 'assistant', content: 'Collection runner is not available in this view.' });
-          }
-          return true;
-        }
-
-        if (hasVerb(openVerbs) && (text.includes('settings') || text.includes('llm'))) {
-          showSettingsModal();
-          assistantMessages.push({ role: 'assistant', content: '✅ Opened LLM Settings.' });
-          return true;
-        }
-
-        if (text.includes('start recording')) {
-          if (!isRecording) toggleRecording();
-          assistantMessages.push({ role: 'assistant', content: '✅ Recording started. Execute tools in Inspector.' });
-          return true;
-        }
-        if (text.includes('stop recording')) {
-          if (isRecording) toggleRecording();
-          assistantMessages.push({ role: 'assistant', content: '✅ Recording stopped.' });
-          return true;
-        }
-
-        if (text.includes('clear history')) {
-          const cleared = await clearToolHistory();
-          assistantMessages.push({
-            role: 'assistant',
-            content: cleared ? '✅ History cleared.' : 'Cancelled. History not cleared.'
-          });
-          return true;
-        }
-
-        return false;
-      }
-
-      function initStudioAssistant() {
-        const toggleBtn = document.getElementById('assistantToggle');
-        if (toggleBtn) {
-          toggleBtn.addEventListener('click', () => toggleAssistant());
-        }
-        const input = document.getElementById('assistantInput');
-        if (input) {
-          input.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendAssistantMessage();
-            }
-          });
-        }
-        const saved = loadAssistantState();
-        assistantOpen = saved?.open || false;
-        assistantMessages = saved?.messages || [];
-        assistantDock = saved?.dock || 'right';
-        assistantPopout = saved?.popout || false;
-        assistantPopoutPos = saved?.popoutPos || { x: null, y: null };
-        assistantSize = saved?.size || 'default';
-        assistantCustomSize = saved?.customSize || null;
-        assistantRecentCommands = Array.isArray(saved?.recentCommands) ? saved.recentCommands : [];
-        assistantLastTool = saved?.lastTool || null;
-        assistantLLMOverride = localStorage.getItem('mcp_assistant_llm_override') === 'true';
-        assistantLLMReady = true;
-        if (assistantOpen) {
-          document.getElementById('assistantPanel')?.classList.add('open');
-        }
-        renderAssistantMessages();
-        renderAssistantChips();
-        updateAssistantContextLabel();
-        applyAssistantLayout();
-        setInterval(updateAssistantContextLabel, 4000);
-
-        const header = document.querySelector('#assistantPanel .assistant-header');
-        if (header) {
-          header.addEventListener('mousedown', event => {
-            if (!assistantPopout) return;
-            const panel = document.getElementById('assistantPanel');
-            if (!panel) return;
-            const rect = panel.getBoundingClientRect();
-            assistantDragState = {
-              offsetX: event.clientX - rect.left,
-              offsetY: event.clientY - rect.top
-            };
-            event.preventDefault();
-          });
-        }
-
-        const resizeHandle = document.querySelector('#assistantPanel .assistant-resize-handle');
-        if (resizeHandle) {
-          resizeHandle.addEventListener('mousedown', event => startAssistantResize(event));
-        }
-
-        document.addEventListener('mousemove', event => {
-          if (!assistantDragState || !assistantPopout) return;
-          const panel = document.getElementById('assistantPanel');
-          if (!panel) return;
-          const width = panel.offsetWidth || 320;
-          const height = panel.offsetHeight || 320;
-          const maxX = Math.max(8, window.innerWidth - width - 8);
-          const maxY = Math.max(8, window.innerHeight - height - 8);
-          const x = Math.min(maxX, Math.max(8, event.clientX - assistantDragState.offsetX));
-          const y = Math.min(maxY, Math.max(8, event.clientY - assistantDragState.offsetY));
-          assistantPopoutPos = { x, y };
-          panel.style.left = `${x}px`;
-          panel.style.top = `${y}px`;
-          panel.style.bottom = 'auto';
-        });
-
-        document.addEventListener('mouseup', () => {
-          if (assistantDragState) {
-            assistantDragState = null;
-            saveAssistantState();
-          }
-          if (assistantResizeState) {
-            assistantResizeState = null;
-            saveAssistantState();
-          }
-        });
-      }
-
-      async function saveSettings(event) {
-        event.preventDefault();
-
-        const provider = document.getElementById('llmProvider').value;
-        const model = document.getElementById('llmModel').value.trim();
-        const temperature = parseFloat(document.getElementById('llmTemperature').value);
-        const base_url = document.getElementById('llmBaseUrl').value.trim();
-        const api_key = document.getElementById('llmApiKey').value.trim();
-        const clear_api_key = document.getElementById('llmClearApiKey').checked;
-        const auth_type = document.getElementById('llmAuthType').value;
-        const auth_url = document.getElementById('llmAuthUrl').value.trim();
-        const auth_client_id = document.getElementById('llmAuthClientId').value.trim();
-        const auth_client_secret = document.getElementById('llmAuthClientSecret').value.trim();
-        const auth_scope = document.getElementById('llmAuthScope').value.trim();
-        const auth_audience = document.getElementById('llmAuthAudience').value.trim();
-        const clear_auth_secret = document.getElementById('llmClearAuthSecret').checked;
-        const assistantOverride = document.getElementById('assistantLlmOverride')?.checked || false;
-
-        assistantLLMOverride = assistantOverride;
-        localStorage.setItem('mcp_assistant_llm_override', assistantOverride ? 'true' : 'false');
-        updateAssistantContextLabel();
-
-        if (!model) {
-          appendMessage('error', 'Model name is required');
-          return;
-        }
-
-        const payload = { provider, model, temperature };
-        if (base_url) payload.base_url = base_url;
-        if (api_key) payload.api_key = api_key;
-        if (clear_api_key) payload.clear_api_key = true;
-
-        if (provider === 'custom') {
-          payload.auth_type = auth_type;
-          payload.auth_url = auth_url;
-          payload.auth_client_id = auth_client_id;
-          payload.auth_client_secret = auth_client_secret;
-          payload.auth_scope = auth_scope;
-          payload.auth_audience = auth_audience;
-          if (clear_auth_secret) payload.clear_auth_secret = true;
-        }
-
-        try {
-          const response = await fetch('/api/llm/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(payload),
-          });
-
-          const data = await response.json();
-
-          if (data.error) {
-            appendMessage('error', `Failed to save settings: ${data.error}`);
-          } else {
-            appendMessage('system', `✅ LLM settings updated: ${provider} / ${model}`);
-            updateModelBadge(); // Update header badge
-            hideSettingsModal();
-          }
-        } catch (error) {
-          appendMessage('error', `Failed to save settings: ${error.message}`);
-        }
-      }
-
-      // Temperature slider update
-      document.getElementById('llmTemperature')?.addEventListener('input', e => {
-        document.getElementById('tempValue').textContent = e.target.value;
-      });
-
-      document.getElementById('llmModel')?.addEventListener('input', e => {
-        const provider = document.getElementById('llmProvider')?.value;
-        if (provider !== 'ollama') return;
-        const select = document.getElementById('ollamaModelSelect');
-        if (!select) return;
-        const value = e.target.value.trim();
-        select.value = value && Array.from(select.options).some(opt => opt.value === value) ? value : '';
-      });
-
-      // Close modals on Escape key
-      document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          closeWorkspaceMenu();
-          if (document.getElementById('addServerModal').classList.contains('active')) {
-            hideAddServerModal();
-          }
-          if (document.getElementById('settingsModal').classList.contains('active')) {
-            hideSettingsModal();
-          }
-          closeProviderMenu();
-          if (document.getElementById('oauthSettingsModal').classList.contains('active')) {
-            hideOAuthSettingsModal();
-          }
-          if (document.getElementById('confirmDeleteModal').classList.contains('active')) {
-            hideConfirmDeleteModal();
-          }
-          if (document.getElementById('importConfigModal').classList.contains('active')) {
-            hideImportConfigModal();
-          }
-        }
-      });
-
-      document.addEventListener('click', e => {
-        const menu = document.getElementById('workspaceMenu');
-        if (menu && !menu.contains(e.target)) {
-          closeWorkspaceMenu();
-        }
-        const providerMenu = document.getElementById('providerMenu');
-        if (providerMenu && !providerMenu.contains(e.target)) {
-          closeProviderMenu();
-        }
-      });
-
-      // ==========================================
-      // THEME TOGGLE
-      // ==========================================
-
-      function toggleTheme() {
-        const html = document.documentElement;
-        const currentTheme = html.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-
-        html.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-
-        // Update icon
-        document.getElementById('themeIcon').textContent = newTheme === 'light' ? '☀️' : '🌙';
-      }
-
-      // Apply saved theme on load
-      (function initTheme() {
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        const icon = document.getElementById('themeIcon');
-        if (icon) icon.textContent = savedTheme === 'light' ? '☀️' : '🌙';
-      })();
-
-      // ==========================================
-      // LAYOUT TOGGLE (Classic Grid vs Floating Workspace)
-      // ==========================================
-
-      function updateLayoutSwitch() {
-        const isWorkspace = document.body.classList.contains('workspace-mode');
-        const classicBtn = document.getElementById('layoutClassicBtn');
-        const workspaceBtn = document.getElementById('layoutWorkspaceBtn');
-        if (classicBtn && workspaceBtn) {
-          classicBtn.classList.toggle('active', !isWorkspace);
-          workspaceBtn.classList.toggle('active', isWorkspace);
-          classicBtn.setAttribute('aria-pressed', String(!isWorkspace));
-          workspaceBtn.setAttribute('aria-pressed', String(isWorkspace));
-        }
-      }
-
-      function setLayoutMode(mode) {
-        const isWorkspace = document.body.classList.contains('workspace-mode');
-        if (mode === 'workspace' && !isWorkspace) {
-          toggleLayout();
-        } else if (mode === 'classic' && isWorkspace) {
-          toggleLayout();
-        } else {
-          updateLayoutSwitch();
-        }
-      }
-
-      function toggleLayout() {
-        const body = document.body;
-        const isWorkspaceMode = body.classList.contains('workspace-mode');
-
-        if (isWorkspaceMode) {
-          // Switch to Classic Grid layout
-          body.classList.remove('workspace-mode');
-          localStorage.setItem('layout', 'classic');
-
-          // Update button
-          const layoutIcon = document.getElementById('layoutIcon');
-          const layoutText = document.getElementById('layoutText');
-          if (layoutIcon) layoutIcon.textContent = '📋';
-          if (layoutText) layoutText.textContent = 'Classic';
-
-          // Cleanup workspace elements
-          if (typeof floatingWorkspace !== 'undefined') {
-            // Close all panels and restore content to original locations
-            if (typeof floatingWorkspace.closeAllPanels === 'function') {
-              floatingWorkspace.closeAllPanels({ skipSave: true });
-            }
-
-            // Call cleanup method to remove event listeners
-            if (typeof floatingWorkspace.cleanup === 'function') {
-              floatingWorkspace.cleanup();
-            }
-
-            // Remove workspace elements
-            const workspaceCanvas = document.getElementById('workspaceCanvas');
-            if (workspaceCanvas) workspaceCanvas.remove();
-
-            const quickAccessBar = document.getElementById('quickAccessBar');
-            if (quickAccessBar) quickAccessBar.remove();
-
-            const zoomControls = document.getElementById('zoomControls');
-            if (zoomControls) zoomControls.remove();
-
-            const minimap = document.getElementById('workspaceMinimap');
-            if (minimap) minimap.remove();
-
-            const sidebarOverlay = document.getElementById('workspaceSidebarOverlay');
-            if (sidebarOverlay) sidebarOverlay.remove();
-
-            const radialMenu = document.getElementById('radialMenu');
-            if (radialMenu) radialMenu.remove();
-
-            const commandPalette = document.getElementById('commandPalette');
-            if (commandPalette) commandPalette.remove();
-
-            // Mark as not initialized
-            floatingWorkspace.initialized = false;
-          }
-
-          // Show classic layout
-          restoreClassicShell();
-
-          // Restore last active panel in classic view
-          const savedPanel = localStorage.getItem('activeClassicPanel') || 'chatPanel';
-          if (typeof switchClassicPanel === 'function') {
-            switchClassicPanel(savedPanel);
-          } else {
-            const chatPanel = document.getElementById('chatPanel');
-            if (chatPanel) chatPanel.classList.add('active');
-          }
-
-        } else {
-          // Switch to Floating Workspace
-          body.classList.add('workspace-mode');
-          localStorage.setItem('layout', 'workspace');
-          setWorkflowsActive(false);
-
-          // Update button
-          const layoutIcon = document.getElementById('layoutIcon');
-          const layoutText = document.getElementById('layoutText');
-          if (layoutIcon) layoutIcon.textContent = '🎨';
-          if (layoutText) layoutText.textContent = 'Workspace';
-
-          // Initialize floating workspace
-          if (typeof floatingWorkspace !== 'undefined') {
-            if (!floatingWorkspace.initialized) {
-              console.log('Initializing workspace from toggle...');
-              floatingWorkspace.init();
-              floatingWorkspace.initialized = true;
-            } else {
-              console.log('Workspace already initialized');
-            }
-          } else {
-            console.error('floatingWorkspace not defined!');
-          }
-          maybeShowWorkspaceTemplateHint();
-        }
-        updateLayoutSwitch();
-        closeWorkspaceMenu();
-      }
-
-      function setWorkflowsActive(isActive) {
-        document.body.classList.toggle('workflows-active', Boolean(isActive));
-      }
-
-      window.setWorkflowsActive = setWorkflowsActive;
-
-      // Switch between panels in classic view
-      window.switchClassicPanel = function(panelId) {
-        // Hide all panels
-        document.querySelectorAll('.content-panel').forEach(panel => {
-          panel.classList.remove('active');
-          panel.style.display = 'none';
-        });
-
-        // Show selected panel
-        const targetPanel = document.getElementById(panelId);
-        if (targetPanel) {
-          targetPanel.classList.add('active');
-          targetPanel.style.display = 'flex';
-          targetPanel.style.flexDirection = 'column';
-          if (panelId === 'brainPanel' && typeof initBrainView === 'function') {
-            initBrainView();
-          }
-        }
-
-        setWorkflowsActive(panelId === 'workflowsPanel');
-
-        if (panelId !== 'workflowsPanel') {
-          closeAIBuilderIfOpen();
-        }
-
-        if (panelId === 'inspectorPanel' && typeof loadInspectorServers === 'function') {
-          loadInspectorServers();
-        }
-        if (panelId === 'debuggerPanel' && typeof loadDebuggerWorkflows === 'function') {
-          loadDebuggerWorkflows();
-        }
-        if (panelId === 'workflowsPanel' && typeof loadWorkflowsList === 'function') {
-          loadWorkflowsList();
-        }
-
-        // Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
-        const targetBtn = document.querySelector(`[data-panel="${panelId}"]`);
-        if (targetBtn) {
-          targetBtn.classList.add('active');
-        }
-
-        // Save active panel to localStorage
-        localStorage.setItem('activeClassicPanel', panelId);
-      };
-
-      // Apply saved layout on load
-      (function initLayout() {
-        const savedLayout = localStorage.getItem('layout') || 'workspace';
-        const body = document.body;
-        const layoutIcon = document.getElementById('layoutIcon');
-        const layoutText = document.getElementById('layoutText');
-
-        if (savedLayout === 'workspace') {
-          body.classList.add('workspace-mode');
-          if (layoutIcon) layoutIcon.textContent = '🎨';
-          if (layoutText) layoutText.textContent = 'Workspace';
-          setWorkflowsActive(false);
-          maybeShowWorkspaceTemplateHint();
-        } else {
-          body.classList.remove('workspace-mode');
-          if (layoutIcon) layoutIcon.textContent = '📋';
-          if (layoutText) layoutText.textContent = 'Classic';
-          restoreClassicShell();
-
-          // Restore last active panel in classic view
-          const savedPanel = localStorage.getItem('activeClassicPanel') || 'chatPanel';
-          setTimeout(() => switchClassicPanel(savedPanel), 100);
-        }
-        updateLayoutSwitch();
-      })();
-
-      function closeAIBuilderIfOpen() {
-        const aiBuilder = document.getElementById('aiBuilderSidebar');
-        if (!aiBuilder) return;
-        aiBuilder.style.transform = 'translateX(100%)';
-      }
-
-      function restoreClassicShell() {
-        const main = document.querySelector('.main');
-        const sidebar = document.getElementById('sidebar');
-        const tabNav = document.getElementById('tabNav');
-        const chatContainer = document.querySelector('.chat-container');
-
-        if (main) main.style.display = '';
-        if (tabNav) tabNav.style.display = '';
-        if (sidebar) {
-          sidebar.style.display = '';
-          sidebar.style.height = '';
-          sidebar.classList.remove('collapsed');
-          if (main && sidebar.parentElement !== main) {
-            if (chatContainer && chatContainer.parentElement === main) {
-              main.insertBefore(sidebar, chatContainer);
-            } else {
-              main.insertBefore(sidebar, main.firstChild);
-            }
-          }
-        }
-
-        closeAIBuilderIfOpen();
-      }
-
-      // ==========================================
-      // CHAT BRAIN SPLIT VIEW
-      // ==========================================
-
-      function toggleBrainView() {
-        const panel = document.getElementById('chatBrainPanel');
-        const btn = document.getElementById('toggleBrainBtn');
-        if (!panel) return;
-
-        const isOpen = panel.dataset.open === 'true';
-        if (isOpen) {
-          panel.style.width = '0';
-          panel.style.minWidth = '0';
-          panel.dataset.open = 'false';
-          if (btn) btn.setAttribute('aria-pressed', 'false');
-        } else {
-          panel.style.width = '35%';
-          panel.style.minWidth = '280px';
-          panel.dataset.open = 'true';
-          if (btn) btn.setAttribute('aria-pressed', 'true');
-          if (typeof initBrainView === 'function') {
-            initBrainView();
-          }
-        }
-      }
-
-      function refreshBrainView() {
-        if (typeof updateBrainGraph !== 'function') return;
-        const messages = Array.from(document.querySelectorAll('#messages .message'));
-        updateBrainGraph(messages);
-      }
-
-      // ==========================================
-      // MODEL BADGE UPDATE
-      // ==========================================
-
-      async function updateModelBadge() {
-        try {
-          const response = await fetch('/api/llm/config', { credentials: 'include' });
-          const config = await response.json();
-
-          const providerEmojis = {
-            ollama: '🦙',
-            openai: '🤖',
-            anthropic: '🎭',
-            gemini: '💎',
-            azure: '☁️',
-            groq: '⚡',
-            together: '🤝',
-            openrouter: '🌐',
-            custom: '🧩',
-          };
-
-          document.getElementById('modelProvider').textContent =
-            providerEmojis[config.provider] || '🤖';
-          document.getElementById('modelName').textContent = config.model || 'unknown';
-
-          const workflowIconEl = document.getElementById('workflowModelIcon');
-          const workflowNameEl = document.getElementById('workflowModelName');
-          if (workflowIconEl && workflowNameEl) {
-            workflowIconEl.textContent = providerEmojis[config.provider] || '🤖';
-            workflowNameEl.textContent = config.model || 'unknown';
-          }
-        } catch (e) {
-          console.error('Failed to update model badge:', e);
-        }
-      }
-
-      // Update badge on page load
-      updateModelBadge();
-
-      // Update workflow toolbar model badge
-      async function updateWorkflowModelBadge() {
-        try {
-          const response = await fetch('/api/llm/config', { credentials: 'include' });
-          const config = await response.json();
-
-          const providerEmojis = {
-            ollama: '🦙',
-            openai: '🤖',
-            anthropic: '🎭',
-            gemini: '💎',
-            azure: '☁️',
-            groq: '⚡',
-            together: '🤝',
-            openrouter: '🌐',
-            custom: '🧩',
-          };
-
-          const iconEl = document.getElementById('workflowModelIcon');
-          const nameEl = document.getElementById('workflowModelName');
-          
-          if (iconEl && nameEl) {
-            iconEl.textContent = providerEmojis[config.provider] || '🤖';
-            nameEl.textContent = config.model || 'unknown';
-          }
-        } catch (e) {
-          console.error('Failed to update workflow model badge:', e);
-          const iconEl = document.getElementById('workflowModelIcon');
-          const nameEl = document.getElementById('workflowModelName');
-          if (iconEl && nameEl) {
-            iconEl.textContent = '🤖';
-            nameEl.textContent = 'unknown';
-          }
-        }
-      }
 
       // ==========================================
       // TOOL SEARCH FILTER
@@ -7100,6 +5400,7 @@ If asked about Test in Studio or project folders, say the folder must contain se
         formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
         formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         formatted = formatted.replace(/\n/g, '<br>');
+        formatted = sanitizeHtml(formatted);
 
         div.innerHTML = formatted;
         messagesEl.appendChild(div);
@@ -7151,232 +5452,6 @@ If asked about Test in Studio or project folders, say the folder must contain se
         refreshBrainView();
 
         console.log('[Session] Cleared');
-      }
-
-      // Escape HTML
-      function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-      }
-
-      function formatModalMessage(message) {
-        if (!message) return '';
-        return escapeHtml(message).replace(/\n/g, '<br>');
-      }
-
-      function showAppModal(options = {}) {
-        const {
-          title = 'Confirm',
-          message = '',
-          bodyHtml = '',
-          fields = [],
-          confirmText = 'OK',
-          cancelText = 'Cancel',
-          showCancel = true,
-          confirmVariant = 'primary',
-          maxWidth = '520px'
-        } = options;
-
-        return new Promise(resolve => {
-          const overlay = document.createElement('div');
-          overlay.className = 'modal-overlay active';
-          overlay.dataset.appModal = 'true';
-
-          const messageHtml = formatModalMessage(message);
-          const fieldHtml = fields.map((field, index) => {
-            const fieldId = field.id || `field_${index}`;
-            const label = field.label ? `<label class="form-label" for="${fieldId}">${escapeHtml(field.label)}</label>` : '';
-            const hint = field.hint ? `<div class="form-hint">${escapeHtml(field.hint)}</div>` : '';
-            const requiredAttr = field.required ? 'required' : '';
-            const placeholder = field.placeholder ? escapeHtml(field.placeholder) : '';
-            const value = field.value ?? '';
-            const inputStyle = field.monospace ? 'font-family: "JetBrains Mono", monospace;' : '';
-
-            let inputHtml = '';
-            if (field.type === 'textarea') {
-              const rows = field.rows || 5;
-              inputHtml = `<textarea class="form-input" id="${fieldId}" ${requiredAttr} placeholder="${placeholder}" rows="${rows}" style="${inputStyle}">${escapeHtml(String(value))}</textarea>`;
-            } else if (field.type === 'select') {
-              const optionsHtml = (field.options || []).map(opt => {
-                const optValue = opt.value ?? opt;
-                const optLabel = opt.label ?? optValue;
-                const selected = optValue === value ? 'selected' : '';
-                return `<option value="${escapeHtml(String(optValue))}" ${selected}>${escapeHtml(String(optLabel))}</option>`;
-              }).join('');
-              inputHtml = `<select class="form-select" id="${fieldId}" ${requiredAttr}>${optionsHtml}</select>`;
-            } else {
-              const type = field.type || 'text';
-              inputHtml = `<input class="form-input" id="${fieldId}" type="${type}" ${requiredAttr} placeholder="${placeholder}" value="${escapeHtml(String(value))}" style="${inputStyle}" />`;
-            }
-
-            return `
-              <div class="form-group" data-field-group="${fieldId}">
-                ${label}
-                ${inputHtml}
-                <div class="form-error">Required</div>
-                ${hint}
-              </div>
-            `;
-          }).join('');
-
-          const confirmClass = confirmVariant === 'danger' ? 'btn danger' : 'btn primary';
-          overlay.innerHTML = `
-            <div class="modal" style="max-width: ${maxWidth}">
-              <div class="modal-header">
-                <h2 class="modal-title">${escapeHtml(title)}</h2>
-                <button class="modal-close" data-action="cancel" aria-label="Close">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
-              ${messageHtml ? `<div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-secondary)">${messageHtml}</div>` : ''}
-              ${bodyHtml ? `<div style="margin-bottom: 12px">${bodyHtml}</div>` : ''}
-              ${fieldHtml ? `<div>${fieldHtml}</div>` : ''}
-              <div class="modal-actions">
-                ${showCancel ? `<button class="btn" data-action="cancel">${escapeHtml(cancelText)}</button>` : ''}
-                <button class="${confirmClass}" data-action="confirm">${escapeHtml(confirmText)}</button>
-              </div>
-            </div>
-          `;
-
-          document.body.appendChild(overlay);
-
-          const cleanup = (result) => {
-            overlay.remove();
-            document.removeEventListener('keydown', onKeyDown);
-            resolve(result);
-          };
-
-          const onKeyDown = (event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              cleanup({ confirmed: false, values: {} });
-            }
-          };
-
-          const validateFields = () => {
-            let valid = true;
-            const values = {};
-            fields.forEach((field, index) => {
-              const fieldId = field.id || `field_${index}`;
-              const input = overlay.querySelector(`#${fieldId}`);
-              const group = overlay.querySelector(`[data-field-group="${fieldId}"]`);
-              const errorEl = group?.querySelector('.form-error');
-              let value = input?.value ?? '';
-              if (field.type === 'number') {
-                value = value === '' ? '' : Number(value);
-              }
-
-              const isEmpty = value === '' || value === null || value === undefined;
-              if (field.required && isEmpty) {
-                valid = false;
-                if (errorEl) {
-                  errorEl.textContent = 'Required';
-                  errorEl.style.display = 'block';
-                }
-                if (group) group.classList.add('has-error');
-              } else if (field.validate) {
-                const error = field.validate(value);
-                if (error) {
-                  valid = false;
-                  if (errorEl) {
-                    errorEl.textContent = error;
-                    errorEl.style.display = 'block';
-                  }
-                  if (group) group.classList.add('has-error');
-                } else if (group) {
-                  group.classList.remove('has-error');
-                  if (errorEl) errorEl.style.display = 'none';
-                }
-              } else if (group) {
-                group.classList.remove('has-error');
-                if (errorEl) errorEl.style.display = 'none';
-              }
-
-              values[field.name || field.id || `field_${index}`] = value;
-            });
-            return { valid, values };
-          };
-
-          overlay.addEventListener('click', (event) => {
-            if (event.target === overlay) {
-              cleanup({ confirmed: false, values: {} });
-            }
-          });
-
-          overlay.querySelectorAll('[data-action="cancel"]').forEach(btn => {
-            btn.addEventListener('click', () => cleanup({ confirmed: false, values: {} }));
-          });
-
-          const confirmBtn = overlay.querySelector('[data-action="confirm"]');
-          if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-              const { valid, values } = validateFields();
-              if (!valid) return;
-              cleanup({ confirmed: true, values });
-            });
-          }
-
-          document.addEventListener('keydown', onKeyDown);
-
-          const firstInput = overlay.querySelector('input, textarea, select');
-          if (firstInput) {
-            setTimeout(() => firstInput.focus(), 50);
-          }
-        });
-      }
-
-      async function appConfirm(message, options = {}) {
-        const result = await showAppModal({
-          title: options.title || 'Confirm',
-          message,
-          confirmText: options.confirmText || 'Confirm',
-          cancelText: options.cancelText || 'Cancel',
-          confirmVariant: options.confirmVariant || 'primary',
-          showCancel: true
-        });
-        return result.confirmed;
-      }
-
-      async function appAlert(message, options = {}) {
-        await showAppModal({
-          title: options.title || 'Notice',
-          message,
-          bodyHtml: options.bodyHtml || '',
-          confirmText: options.confirmText || 'OK',
-          showCancel: false
-        });
-      }
-
-      async function appPrompt(message, options = {}) {
-        const result = await showAppModal({
-          title: options.title || 'Input',
-          message,
-          confirmText: options.confirmText || 'Save',
-          cancelText: options.cancelText || 'Cancel',
-          fields: [
-            {
-              id: 'value',
-              label: options.label || 'Value',
-              type: options.multiline ? 'textarea' : (options.type || 'text'),
-              value: options.defaultValue ?? '',
-              placeholder: options.placeholder || '',
-              required: options.required || false,
-              rows: options.rows,
-              monospace: options.monospace || false,
-              hint: options.hint
-            }
-          ]
-        });
-        if (!result.confirmed) return null;
-        return result.values.value;
-      }
-
-      async function appFormModal(options = {}) {
-        return showAppModal(options);
       }
 
       // Load MCP status
@@ -7585,234 +5660,67 @@ If asked about Test in Studio or project folders, say the folder must contain se
         const status = window.lastMcpStatus?.servers || window.lastMcpStatus || {};
         const info = status?.[serverName];
         const message = info?.lastError || 'No error details available.';
+        const hint = getServerErrorHint(message);
+        const hintHtml = hint
+          ? `<div class="mcp-error-hint">${escapeHtml(hint)}</div>`
+          : '';
+        const actionsHtml = `
+          <div class="mcp-error-actions">
+            <button class="btn" onclick="retryServerConnectFromError('${escapeHtml(serverName)}')">Retry Connect</button>
+            <button class="btn" onclick="copyServerError('${escapeHtml(serverName)}')">Copy Error</button>
+          </div>
+        `;
         appAlert(message, {
           title: `Connection error: ${serverName}`,
+          bodyHtml: `${hintHtml}${actionsHtml}`,
           confirmText: 'Close'
         });
       }
 
-      // ==========================================
-      // TOOL EXECUTION HISTORY PANEL
-      // ==========================================
+      function getServerErrorHint(message) {
+        if (!message) return '';
+        const lower = message.toLowerCase();
+        if (lower.includes('no module named') && lower.includes('mcp')) {
+          return 'Install the MCP SDK: pip install mcp';
+        }
+        if (lower.includes('module not found') && lower.includes('mcp')) {
+          return 'Install the MCP SDK: pip install mcp';
+        }
+        if (lower.includes('python') && (lower.includes('not found') || lower.includes('enoent'))) {
+          return 'Python was not found. Install Python and ensure it is on your PATH.';
+        }
+        if (lower.includes('node') && (lower.includes('not found') || lower.includes('enoent'))) {
+          return 'Node.js was not found. Install Node.js and ensure it is on your PATH.';
+        }
+        if (lower.includes('no such file') || lower.includes('cwd') || lower.includes('working directory')) {
+          return 'Check the project folder path (cwd) and make sure server.py/server.js exists there.';
+        }
+        if (lower.includes('connection closed')) {
+          return 'The server exited during startup. Try running it manually first and check dependencies.';
+        }
+        if (lower.includes('permission')) {
+          return 'Check file permissions and antivirus blocks on the generated folder.';
+        }
+        return '';
+      }
 
-      // Refresh history panel with current data
-      function refreshHistoryPanel() {
-        const history = getHistoryEntries();
-        const statsEl = document.getElementById('toolHistoryStats');
-        const listEl = document.getElementById('toolHistoryList');
+      function retryServerConnectFromError(serverName) {
+        notifyUser(`Retrying connection to ${serverName}...`, 'info');
+        connectMCP(serverName);
+      }
 
-        if (history.length === 0) {
-          statsEl.textContent = 'No tool executions recorded';
-          listEl.innerHTML = `
-            <div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 20px">
-              Execute tools from the Inspector tab to see history here...
-            </div>
-          `;
+      function copyServerError(serverName) {
+        const status = window.lastMcpStatus?.servers || window.lastMcpStatus || {};
+        const info = status?.[serverName];
+        const message = info?.lastError || '';
+        if (!message) {
+          notifyUser('No error details to copy.', 'warning');
           return;
         }
-
-        // Calculate stats
-        const successCount = history.filter(h => h.success).length;
-        const avgDuration = Math.round(history.reduce((sum, h) => sum + (h.duration || 0), 0) / history.length);
-        statsEl.innerHTML = `
-          <strong>${history.length}</strong> executions •
-          <span style="color: var(--success)">${successCount} ✓</span> /
-          <span style="color: var(--error)">${history.length - successCount} ✗</span> •
-          Avg: ${avgDuration}ms
-        `;
-
-        // Render history entries
-        listEl.innerHTML = history.map((entry, idx) => {
-          const time = new Date(entry.timestamp).toLocaleTimeString();
-          const statusIcon = entry.success ? '✅' : '❌';
-          const statusClass = entry.success ? 'success' : 'error';
-
-          return `
-            <div class="inspector-response" style="margin: 0; cursor: pointer" onclick="toggleHistoryDetail(${idx})">
-              <div style="display: flex; justify-content: space-between; align-items: center">
-                <div>
-                  <strong>${statusIcon} ${escapeHtml(entry.tool)}</strong>
-                  <span style="color: var(--text-muted); font-size: 0.7rem"> @ ${escapeHtml(entry.server)}</span>
-                </div>
-                <div style="font-size: 0.7rem; color: var(--text-muted)">
-                  ${time} • ${entry.duration}ms
-                </div>
-              </div>
-              <div id="historyDetail${idx}" style="display: none; margin-top: 8px; font-size: 0.75rem">
-                <div style="margin-bottom: 4px"><strong>Request:</strong></div>
-                <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 150px">${escapeHtml(JSON.stringify(entry.request, null, 2))}</pre>
-                <div style="margin: 8px 0 4px"><strong>Response:</strong></div>
-                <pre style="background: var(--bg-card); padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 200px">${escapeHtml(JSON.stringify(entry.response, null, 2))}</pre>
-                <div style="margin-top: 8px">
-                  <button class="btn" onclick="event.stopPropagation(); copyHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">📋 Copy</button>
-                  <button class="btn" onclick="event.stopPropagation(); replayHistoryEntry(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔄 Replay in Inspector</button>
-                  <button class="btn" onclick="event.stopPropagation(); rerunHistoryEntryDiff(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🔁 Re-run + Diff</button>
-                  <button class="btn" onclick="event.stopPropagation(); runHistoryEntryMatrix(${idx})" style="font-size: 0.65rem; padding: 2px 6px">🌐 Matrix</button>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // Toggle history entry detail visibility
-      function toggleHistoryDetail(idx) {
-        const detailEl = document.getElementById(`historyDetail${idx}`);
-        if (detailEl) {
-          detailEl.style.display = detailEl.style.display === 'none' ? 'block' : 'none';
-        }
-      }
-
-      // Copy history entry to clipboard
-      function copyHistoryEntry(idx) {
-        const history = getHistoryEntries();
-        const entry = history[idx];
-        if (entry) {
-          navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
-          appendMessage('system', '📋 History entry copied to clipboard');
-        }
-      }
-
-      async function runHistoryEntryMatrix(idx) {
-        const history = getHistoryEntries();
-        const entry = history[idx];
-        if (!entry) return;
-
-        openInspectorPanel();
-        switchInspectorTab('diff');
-        await loadCrossServerOptions();
-
-        const toolSelect = document.getElementById('crossToolSelect');
-        const baselineSelect = document.getElementById('crossBaselineServerSelect');
-        const argsEl = document.getElementById('crossArgs');
-
-        ensureToolOption(toolSelect, entry.tool, 'from History');
-        if (baselineSelect && entry.server) {
-          const hasBaseline = Array.from(baselineSelect.options || [])
-            .some(option => option.value === entry.server);
-          if (hasBaseline) {
-            baselineSelect.value = entry.server;
-          }
-        }
-        if (argsEl) {
-          argsEl.value = JSON.stringify(entry.request || {}, null, 2);
-        }
-
-        if (!toolSelect || !toolSelect.value) {
-          showNotification('This tool is not available on connected servers.', 'error');
-          return;
-        }
-
-        await runCrossServerCompare();
-      }
-
-      // Replay history entry in Inspector
-      function replayHistoryEntry(idx) {
-        const history = getHistoryEntries();
-        const entry = history[idx];
-        if (entry) {
-          // Switch to Inspector and pre-fill
-          openInspectorPanel();
-
-          // Set server and load tools
-          const serverSelect = document.getElementById('inspectorServerSelect');
-          serverSelect.value = entry.server;
-          serverSelect.dispatchEvent(new Event('change'));
-
-          // Pre-fill arguments after a short delay to let tools load
-          setTimeout(() => {
-            const argsInput = document.getElementById('toolArgsInput');
-            if (argsInput) {
-              argsInput.value = JSON.stringify(entry.request, null, 2);
-            }
-          }, 500);
-
-          appendMessage('system', `🔄 Loaded ${entry.tool} request in Inspector - select the tool and execute`);
-        }
-      }
-
-      async function rerunHistoryEntryDiff(idx) {
-        const history = getHistoryEntries();
-        const entry = history[idx];
-        if (!entry) {
-          showNotification('History entry not found.', 'error');
-          return;
-        }
-        if (!entry.server || !entry.tool) {
-          showNotification('History entry is missing server or tool.', 'error');
-          return;
-        }
-
-        const startTime = performance.now();
-        try {
-          const response = await fetch('/api/mcp/call', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              serverName: entry.server,
-              toolName: entry.tool,
-              args: entry.request || {}
-            })
-          });
-
-          const data = await response.json();
-          const duration = Math.round(performance.now() - startTime);
-          const result = data.error || data.result;
-
-          updateToolHistory({
-            timestamp: new Date().toISOString(),
-            server: entry.server,
-            tool: entry.tool,
-            request: entry.request || {},
-            response: result,
-            duration,
-            success: !data.error && data.result?.isError !== true,
-            meta: { source: 'history-diff', baseline: entry.timestamp }
-          });
-          refreshHistoryPanel();
-
-          showDiff(entry.response ?? {}, result ?? {});
-          showNotification('Re-run completed. Showing diff.', data.error ? 'warning' : 'success');
-        } catch (error) {
-          showNotification(`Re-run failed: ${error.message}`, 'error');
-        }
-      }
-
-      // Export tool history as JSON file
-      function exportToolHistory() {
-        const history = getHistoryEntries();
-        if (history.length === 0) {
-          appendMessage('error', 'No history to export');
-          return;
-        }
-
-        const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mcp-tool-history-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        appendMessage('system', `📥 Exported ${history.length} history entries`);
-      }
-
-      // Clear tool history
-      async function clearToolHistory() {
-        const confirmed = await appConfirm('Clear all tool execution history?', {
-          title: 'Clear History',
-          confirmText: 'Clear',
-          confirmVariant: 'danger'
-        });
-        if (!confirmed) return false;
-        const session = sessionManager.load() || {};
-        session.toolHistory = [];
-        sessionManager.save(session);
-        toolExecutionHistory = [];
-        refreshHistoryPanel();
-        appendMessage('system', '🗑️ Tool history cleared');
-        return true;
+        const text = `${serverName}: ${message}`;
+        navigator.clipboard.writeText(text)
+          .then(() => notifyUser('Error copied to clipboard.', 'success'))
+          .catch(() => notifyUser('Failed to copy error.', 'error'));
       }
 
       // ==========================================
@@ -10707,2248 +8615,6 @@ If asked about Test in Studio or project folders, say the folder must contain se
       }
 
       // ==========================================
-      // MCP SERVER GENERATOR
-      // ==========================================
-
-      let openApiSpec = null;
-      let openApiOperations = [];
-      let openApiSelected = new Set();
-      let openApiSource = '';
-      let openApiServers = [];
-      let openApiSecuritySchemes = [];
-      let openApiOnlyWebhooks = false;
-      let generatorRunState = null;
-      let generatorRunOs = 'unix';
-      let generatorTestCwd = '';
-      let generatorTestOs = 'unix';
-      let generatorLastFolderName = localStorage.getItem('mcp_generator_last_folder') || '';
-      let generatorPickedFolderName = '';
-
-      function triggerOpenApiFile() {
-        document.getElementById('openApiFileInput')?.click();
-      }
-
-      async function handleOpenApiFile(event) {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        const text = await file.text();
-        await parseOpenApiText(text, file.name || 'local file');
-        event.target.value = '';
-      }
-
-      async function loadOpenApiFromUrl() {
-        const input = document.getElementById('openApiUrlInput');
-        const url = input?.value?.trim();
-        if (!url) {
-          appendMessage('error', 'Enter an OpenAPI URL');
-          return;
-        }
-        try {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const text = await response.text();
-          await parseOpenApiText(text, url);
-        } catch (error) {
-          appendMessage('error', `Failed to load OpenAPI spec: ${error.message}`);
-        }
-      }
-
-      async function loadOpenApiExample() {
-        const sampleUrl = 'https://petstore3.swagger.io/api/v3/openapi.json';
-        const input = document.getElementById('openApiUrlInput');
-        if (input) input.value = sampleUrl;
-        await loadOpenApiFromUrl();
-      }
-
-      async function parseOpenApiText(text, source) {
-        const sanitized = text.replace(/^\uFEFF/, '').trim();
-        if (!sanitized) {
-          appendMessage('error', 'OpenAPI file is empty.');
-          return;
-        }
-        try {
-          const spec = JSON.parse(sanitized);
-          applyOpenApiSpec(spec, source);
-          return;
-        } catch (error) {
-          // Fall back to server-side YAML parsing
-        }
-
-        try {
-          const response = await fetch('/api/openapi/parse', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ text: sanitized })
-          });
-          const data = await response.json();
-          if (!response.ok || data?.error) {
-            throw new Error(data?.error || response.statusText);
-          }
-          applyOpenApiSpec(data.spec, source);
-        } catch (error) {
-          const summary = document.getElementById('openApiSummary');
-          if (summary) {
-            summary.textContent = `Failed to parse ${source}: ${error.message}`;
-          }
-          appendMessage('error', `OpenAPI parse failed: ${error.message}`);
-        }
-      }
-
-      function applyOpenApiSpec(spec, source) {
-        if (!spec || (!spec.openapi && !spec.swagger)) {
-          const summary = document.getElementById('openApiSummary');
-          if (summary) {
-            summary.textContent = `Invalid OpenAPI spec from ${source}`;
-          }
-          appendMessage('error', 'Not a valid OpenAPI/Swagger document.');
-          return;
-        }
-        openApiSpec = spec;
-        openApiSource = source || '';
-        openApiOperations = buildOpenApiOperations(spec);
-        openApiSelected = new Set();
-        const hasPathOps = openApiOperations.some(op => op.source === 'path');
-        const hasWebhookOps = openApiOperations.some(op => op.source === 'webhook');
-        openApiOnlyWebhooks = hasWebhookOps && !hasPathOps;
-        if (openApiOperations.length && openApiOperations.length <= 20) {
-          openApiOperations.forEach(op => openApiSelected.add(op.id));
-        }
-        openApiServers = getOpenApiServers(spec);
-        openApiSecuritySchemes = getOpenApiSecuritySchemes(spec);
-        const baseUrlInput = document.getElementById('genServerBaseUrl');
-        if (baseUrlInput && !baseUrlInput.value && openApiServers.length) {
-          baseUrlInput.value = openApiServers[0];
-          appendMessage('system', `✅ Base URL set to ${openApiServers[0]}`);
-        }
-        const modeSelect = document.getElementById('genMode');
-        if (modeSelect && modeSelect.value === 'scaffold' && openApiOperations.length) {
-          modeSelect.value = 'openapi';
-          appendMessage('system', '⚡ OpenAPI loaded: switched to OpenAPI Proxy mode');
-        }
-        renderOpenApiFilters();
-        renderOpenApiEndpoints();
-        renderOpenApiServers();
-        renderOpenApiSecuritySummary();
-        renderOpenApiTagChips();
-        updateOpenApiSummary();
-      }
-
-      function getOpenApiServers(spec) {
-        const servers = Array.isArray(spec.servers) ? spec.servers : [];
-        const urls = servers.map(server => server?.url).filter(Boolean);
-        if (urls.length) return urls;
-        if (spec.swagger && spec.host) {
-          const schemes = Array.isArray(spec.schemes) && spec.schemes.length ? spec.schemes : ['https'];
-          const basePath = spec.basePath || '';
-          return schemes.map(scheme => `${scheme}://${spec.host}${basePath}`);
-        }
-        return [];
-      }
-
-      function getOpenApiSecuritySchemes(spec) {
-        const schemes = spec.components?.securitySchemes || spec.securityDefinitions || {};
-        return Object.entries(schemes).map(([name, scheme]) => ({
-          name,
-          type: scheme.type || 'custom',
-          in: scheme.in || null,
-          scheme: scheme.scheme || null,
-          bearerFormat: scheme.bearerFormat || null,
-          openIdConnectUrl: scheme.openIdConnectUrl || null,
-          flows: scheme.flows ? Object.keys(scheme.flows) : []
-        }));
-      }
-
-      function renderOpenApiServers() {
-        const select = document.getElementById('openApiServerSelect');
-        if (!select) return;
-        select.innerHTML = '';
-        if (!openApiServers.length) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.textContent = 'No servers detected';
-          select.appendChild(opt);
-          return;
-        }
-        openApiServers.forEach(url => {
-          const opt = document.createElement('option');
-          opt.value = url;
-          opt.textContent = url;
-          select.appendChild(opt);
-        });
-      }
-
-      function applyOpenApiServer() {
-        const select = document.getElementById('openApiServerSelect');
-        const input = document.getElementById('genServerBaseUrl');
-        if (!select || !input) return;
-        if (!select.value) {
-          appendMessage('error', 'No server URL detected in spec.');
-          return;
-        }
-        input.value = select.value;
-        appendMessage('system', `✅ Base URL set to ${select.value}`);
-      }
-
-      function renderOpenApiSecuritySummary() {
-        const el = document.getElementById('openApiSecuritySummary');
-        if (!el) return;
-        if (!openApiSecuritySchemes.length) {
-          el.textContent = 'No security schemes detected.';
-          return;
-        }
-        const parts = openApiSecuritySchemes.map(scheme => {
-          if (scheme.type === 'apiKey') {
-            return `${scheme.name} (apiKey in ${scheme.in || 'header'})`;
-          }
-          if (scheme.type === 'http') {
-            return `${scheme.name} (http ${scheme.scheme || 'auth'})`;
-          }
-          if (scheme.type === 'oauth2') {
-            const flow = scheme.flows?.length ? ` ${scheme.flows.join('/')}` : '';
-            return `${scheme.name} (oauth2${flow})`;
-          }
-          if (scheme.type === 'openIdConnect') {
-            return `${scheme.name} (oidc)`;
-          }
-          return `${scheme.name} (${scheme.type})`;
-        });
-        el.textContent = `Security: ${parts.join(' • ')}`;
-      }
-
-      function renderOpenApiTagChips() {
-        const wrap = document.getElementById('openApiTagChips');
-        if (!wrap) return;
-        if (!openApiOperations.length) {
-          wrap.innerHTML = '';
-          return;
-        }
-        const tagCounts = new Map();
-        openApiOperations.forEach(op => {
-          (op.tags || ['default']).forEach(tag => {
-            tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-          });
-        });
-        wrap.innerHTML = Array.from(tagCounts.entries()).map(([tag, count]) => {
-          const totalForTag = openApiOperations.filter(op => (op.tags || ['default']).includes(tag));
-          const selectedCount = totalForTag.filter(op => openApiSelected.has(op.id)).length;
-          const active = selectedCount === totalForTag.length && totalForTag.length > 0 ? 'active' : '';
-          return `
-            <button class="generator-tag-chip ${active}" onclick="toggleOpenApiTagSelection('${tag}')">
-              ${escapeHtml(tag)} (${count})
-            </button>
-          `;
-        }).join('');
-      }
-
-      function toggleOpenApiTagSelection(tag) {
-        const ops = openApiOperations.filter(op => (op.tags || ['default']).includes(tag));
-        if (!ops.length) return;
-        const allSelected = ops.every(op => openApiSelected.has(op.id));
-        ops.forEach(op => {
-          if (allSelected) {
-            openApiSelected.delete(op.id);
-          } else {
-            openApiSelected.add(op.id);
-          }
-        });
-        renderOpenApiEndpoints();
-        renderOpenApiTagChips();
-        updateOpenApiSummary();
-      }
-
-      function buildOpenApiOperations(spec) {
-        const ops = [];
-        const paths = spec.paths || {};
-        const webhooks = spec.webhooks || {};
-        const methods = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'];
-        const collectOps = (map, kind) => {
-          Object.entries(map).forEach(([path, pathItem]) => {
-            if (!pathItem || typeof pathItem !== 'object') return;
-            const commonParams = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
-            methods.forEach(method => {
-              const operation = pathItem[method];
-              if (!operation) return;
-              const params = [
-                ...commonParams,
-                ...(Array.isArray(operation.parameters) ? operation.parameters : [])
-              ];
-              const tags = operation.tags?.length ? operation.tags : ['default'];
-              const opId = operation.operationId || '';
-              const summary = operation.summary || operation.description || '';
-              const requestBody = operation.requestBody || null;
-              const opPath = kind === 'webhook' ? `/webhooks/${path}` : path;
-              ops.push({
-                id: `${kind.toUpperCase()} ${method.toUpperCase()} ${opPath}`,
-                method,
-                path: opPath,
-                tags,
-                summary,
-                operationId: opId,
-                parameters: params,
-                requestBody,
-                security: operation.security,
-                responses: operation.responses || {},
-                source: kind
-              });
-            });
-          });
-        };
-        collectOps(paths, 'path');
-        collectOps(webhooks, 'webhook');
-        return ops;
-      }
-
-      function getOpenApiContentSchema(content) {
-        if (!content || typeof content !== 'object') return null;
-        if (content['application/json']?.schema) return content['application/json'].schema;
-        const first = Object.values(content).find(entry => entry?.schema);
-        return first?.schema || null;
-      }
-
-      function getOpenApiRequestBodySchema(requestBody) {
-        if (!requestBody || typeof requestBody !== 'object') return null;
-        return getOpenApiContentSchema(requestBody.content);
-      }
-
-      function getOpenApiResponseSchema(responses) {
-        if (!responses || typeof responses !== 'object') return null;
-        const preferred = ['200', '201', '202', '204'];
-        for (const code of preferred) {
-          if (responses[code]) {
-            const schema = getOpenApiContentSchema(responses[code].content);
-            if (schema) return schema;
-          }
-        }
-        const entry = Object.values(responses).find(resp => resp?.content);
-        return entry ? getOpenApiContentSchema(entry.content) : null;
-      }
-
-      function resolveOpenApiAuthForOperation(spec, op) {
-        const security = op.security !== undefined ? op.security : spec.security;
-        if (!Array.isArray(security) || security.length === 0) return null;
-        const schemes = spec.components?.securitySchemes || {};
-        const found = [];
-        const seen = new Set();
-        let allowAnonymous = false;
-
-        security.forEach(req => {
-          if (!req || typeof req !== 'object') return;
-          const entries = Object.entries(req);
-          if (entries.length === 0) {
-            allowAnonymous = true;
-            return;
-          }
-          entries.forEach(([name, scopes]) => {
-            if (seen.has(name)) return;
-            seen.add(name);
-            const scheme = schemes[name] || {};
-            const meta = {
-              name,
-              type: scheme.type || 'custom',
-              in: scheme.in || null,
-              scheme: scheme.scheme || null,
-              bearerFormat: scheme.bearerFormat || null,
-              openIdConnectUrl: scheme.openIdConnectUrl || null,
-              scopes: Array.isArray(scopes) ? scopes : [],
-              description: scheme.description || ''
-            };
-            if (scheme.type === 'oauth2' && scheme.flows) {
-              meta.flows = Object.keys(scheme.flows);
-            }
-            found.push(meta);
-          });
-        });
-
-        if (!found.length && allowAnonymous) return null;
-        return {
-          required: !allowAnonymous,
-          schemes: found
-        };
-      }
-
-      function formatOpenApiAuthSummary(auth) {
-        if (!auth) return '';
-        if (!auth.schemes?.length) {
-          return auth.required ? 'required' : 'optional';
-        }
-        const parts = auth.schemes.map(scheme => {
-          if (scheme.type === 'apiKey') {
-            return `apiKey(${scheme.in || 'header'}:${scheme.name})`;
-          }
-          if (scheme.type === 'http') {
-            return `http(${scheme.scheme || 'auth'})`;
-          }
-          if (scheme.type === 'oauth2') {
-            const flow = Array.isArray(scheme.flows) && scheme.flows.length ? `:${scheme.flows.join(',')}` : '';
-            return `oauth2${flow}`;
-          }
-          if (scheme.type === 'openIdConnect') {
-            return 'oidc';
-          }
-          return scheme.name;
-        });
-        const label = parts.join(', ');
-        return auth.required ? label : `${label} (optional)`;
-      }
-
-      function renderOpenApiFilters() {
-        const tagSelect = document.getElementById('openApiTagFilter');
-        if (!tagSelect) return;
-        const tags = new Set();
-        openApiOperations.forEach(op => {
-          op.tags?.forEach(tag => tags.add(tag));
-        });
-        const current = tagSelect.value || 'all';
-        tagSelect.innerHTML = '<option value="all">All tags</option>';
-        Array.from(tags).sort().forEach(tag => {
-          const option = document.createElement('option');
-          option.value = tag;
-          option.textContent = tag;
-          tagSelect.appendChild(option);
-        });
-        tagSelect.value = current;
-      }
-
-      function applyOpenApiFilters() {
-        renderOpenApiEndpoints();
-        renderOpenApiTagChips();
-      }
-
-      function getFilteredOpenApiOps() {
-        const tagFilter = document.getElementById('openApiTagFilter')?.value || 'all';
-        const methodFilter = document.getElementById('openApiMethodFilter')?.value || 'all';
-        const search = document.getElementById('openApiSearchFilter')?.value?.trim().toLowerCase() || '';
-        return openApiOperations.filter(op => {
-          if (tagFilter !== 'all' && !op.tags?.includes(tagFilter)) return false;
-          if (methodFilter !== 'all' && op.method !== methodFilter) return false;
-          if (search) {
-            const hay = `${op.method} ${op.path} ${op.operationId} ${op.summary}`.toLowerCase();
-            if (!hay.includes(search)) return false;
-          }
-          return true;
-        });
-      }
-
-      function renderOpenApiEndpoints() {
-        const list = document.getElementById('openApiEndpointsList');
-        if (!list) return;
-        if (!openApiOperations.length) {
-          list.innerHTML = '<div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 12px;">Load a spec to see endpoints.</div>';
-          return;
-        }
-        const ops = getFilteredOpenApiOps();
-        if (!ops.length) {
-          list.innerHTML = '<div style="color: var(--text-muted); font-style: italic; text-align: center; padding: 12px;">No endpoints match your filters.</div>';
-          return;
-        }
-        list.innerHTML = ops.map(op => {
-          const checked = openApiSelected.has(op.id) ? 'checked' : '';
-          const label = op.summary || op.operationId || 'No summary';
-          const tags = op.tags?.length ? op.tags.join(', ') : 'untagged';
-          const sourceTag = op.source === 'webhook' ? '<span style="font-size: 0.55rem; padding: 2px 6px; border-radius: 999px; background: rgba(14, 165, 233, 0.2); border: 1px solid rgba(14, 165, 233, 0.5); color: #7dd3fc;">Webhook</span>' : '';
-          return `
-            <label style="display: flex; gap: 8px; align-items: flex-start; font-size: 0.75rem; color: var(--text-primary); padding: 6px; border-radius: 6px; background: rgba(255,255,255,0.02);">
-              <input type="checkbox" ${checked} onchange="toggleOpenApiSelection('${op.id}', this.checked)" />
-              <div style="display: flex; flex-direction: column; gap: 4px;">
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <span style="font-size: 0.62rem; padding: 2px 6px; border-radius: 6px; background: rgba(99,102,241,0.2); text-transform: uppercase; letter-spacing: 0.04em;">
-                    ${op.method.toUpperCase()}
-                  </span>
-                  ${sourceTag}
-                  <span style="font-family: 'JetBrains Mono', monospace;">${op.path}</span>
-                </div>
-                <span style="color: var(--text-secondary);">${escapeHtml(label)}</span>
-                <span style="color: var(--text-muted); font-size: 0.65rem;">${escapeHtml(tags)}</span>
-              </div>
-            </label>
-          `;
-        }).join('');
-      }
-
-      function toggleOpenApiSelection(id, checked) {
-        if (checked) {
-          openApiSelected.add(id);
-        } else {
-          openApiSelected.delete(id);
-        }
-        updateOpenApiSummary();
-      }
-
-      function updateOpenApiSummary() {
-        if (!openApiSpec) return;
-        const summary = document.getElementById('openApiSummary');
-        if (!summary) return;
-        const title = openApiSpec.info?.title || 'OpenAPI Spec';
-        const sourceText = openApiSource ? ` • ${openApiSource}` : '';
-        const endpointNote = openApiOperations.length ? `${openApiOperations.length} endpoints` : 'No endpoints found';
-        const selectionNote = openApiSelected.size
-          ? `${openApiSelected.size} selected`
-          : 'Select endpoints to import';
-        const webhookNote = openApiOnlyWebhooks ? ' • Webhooks only' : '';
-        summary.textContent = `${title} • ${endpointNote} • ${selectionNote}${webhookNote}${sourceText}`;
-        updateGeneratorAutoRunButtons();
-      }
-
-      function selectAllOpenApi(selectAll) {
-        if (!openApiOperations.length) return;
-        if (selectAll) {
-          getFilteredOpenApiOps().forEach(op => openApiSelected.add(op.id));
-        } else {
-          getFilteredOpenApiOps().forEach(op => openApiSelected.delete(op.id));
-        }
-        renderOpenApiEndpoints();
-        renderOpenApiTagChips();
-        updateOpenApiSummary();
-      }
-
-      function importOpenApiTools(replaceExisting) {
-        if (!openApiOperations.length) {
-          appendMessage('error', 'Load an OpenAPI spec first');
-          return;
-        }
-        if (!openApiSelected.size) {
-          appendMessage('error', 'Select at least one endpoint');
-          return;
-        }
-        if (replaceExisting) {
-          generatorTools = [];
-        }
-        const selectedOps = openApiOperations.filter(op => openApiSelected.has(op.id));
-        selectedOps.forEach(op => {
-          const toolName = buildOpenApiToolName(op);
-          const uniqueName = ensureUniqueGeneratorToolName(toolName);
-          const params = buildOpenApiToolParams(op);
-          const auth = resolveOpenApiAuthForOperation(openApiSpec, op);
-          const bodySchema = getOpenApiRequestBodySchema(op.requestBody);
-          const outputSchema = getOpenApiResponseSchema(op.responses);
-          const inputSchema = buildInputSchemaFromParams(params, bodySchema);
-          generatorTools.push({
-            id: `tool_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-            name: uniqueName,
-            description: op.summary || op.operationId || `${op.method.toUpperCase()} ${op.path}`,
-            params,
-            auth: auth || null,
-            inputSchema,
-            outputSchema,
-            endpoint: {
-              method: op.method,
-              path: op.path,
-              tags: op.tags || [],
-              operationId: op.operationId || '',
-              source: op.source || 'path'
-            }
-          });
-        });
-        renderGeneratorTools();
-        renderOpenApiTagChips();
-        appendMessage('system', `✅ Imported ${selectedOps.length} tools from OpenAPI`);
-      }
-
-      function buildOpenApiToolName(op) {
-        const raw = op.operationId || `${op.method}_${op.path}`;
-        const cleaned = raw
-          .toString()
-          .toLowerCase()
-          .replace(/[{}]/g, '')
-          .replace(/[^\w]+/g, '_')
-          .replace(/^_+|_+$/g, '');
-        return cleaned || `tool_${op.method}`;
-      }
-
-      function ensureUniqueGeneratorToolName(name) {
-        const existing = new Set(generatorTools.map(t => t.name));
-        if (!existing.has(name)) return name;
-        let idx = 2;
-        let candidate = `${name}_${idx}`;
-        while (existing.has(candidate)) {
-          idx += 1;
-          candidate = `${name}_${idx}`;
-        }
-        return candidate;
-      }
-
-      function buildOpenApiToolParams(op) {
-        const params = [];
-        const seen = new Set();
-        (op.parameters || []).forEach(param => {
-          if (!param || !param.name) return;
-          const key = `${param.in || 'query'}:${param.name}`;
-          if (seen.has(key)) return;
-          seen.add(key);
-          const schema = param.schema || {};
-          const type = schema.type === 'integer' ? 'number' : (schema.type || 'string');
-          params.push({
-            name: param.name,
-            type,
-            required: !!param.required,
-            location: param.in || 'query',
-            description: param.description || '',
-            schema
-          });
-        });
-        if (op.requestBody) {
-          params.push({
-            name: 'body',
-            type: 'object',
-            required: !!op.requestBody.required
-          });
-        }
-        return params;
-      }
-
-      function buildInputSchemaFromParams(params, bodySchema) {
-        const schema = { type: 'object', properties: {} };
-        const required = [];
-        (params || []).forEach(param => {
-          const propSchema = param.schema && typeof param.schema === 'object'
-            ? { ...param.schema }
-            : { type: param.type || 'string' };
-          if (param.description) propSchema.description = param.description;
-          schema.properties[param.name] = propSchema;
-          if (param.required) required.push(param.name);
-        });
-        if (bodySchema && typeof bodySchema === 'object') {
-          schema.properties.body = bodySchema;
-        }
-        if (required.length) schema.required = required;
-        return schema;
-      }
-
-      function buildInputSchemaForTool(tool) {
-        if (tool.inputSchema && typeof tool.inputSchema === 'object') {
-          return tool.inputSchema;
-        }
-        return buildInputSchemaFromParams(tool.params || [], null);
-      }
-
-      function buildHttpAnnotations(method) {
-        const m = (method || '').toLowerCase();
-        const readOnly = ['get', 'head', 'options'].includes(m);
-        const idempotent = ['get', 'head', 'options', 'put', 'delete'].includes(m);
-        const destructive = ['post', 'put', 'patch', 'delete'].includes(m);
-        return {
-          readOnlyHint: readOnly,
-          destructiveHint: readOnly ? false : destructive,
-          idempotentHint: idempotent,
-          openWorldHint: true
-        };
-      }
-
-      let generatorTools = [];
-      let generatedCode = '';
-
-      // Add a new tool to the generator
-      function addGeneratorTool() {
-        const toolId = `tool_${Date.now()}`;
-        generatorTools.push({
-          id: toolId,
-          name: '',
-          description: '',
-          params: []
-        });
-        renderGeneratorTools();
-      }
-
-      // Render the tools list
-      function renderGeneratorTools() {
-        const listEl = document.getElementById('generatorToolsList');
-        
-        if (generatorTools.length === 0) {
-          listEl.innerHTML = `
-            <div style="color: var(--text-muted); font-style: italic; padding: 12px; text-align: center;">
-              No tools defined. Click "Add Tool" to start designing.
-            </div>
-          `;
-          updateGeneratorAutoRunButtons();
-          return;
-        }
-
-        listEl.innerHTML = generatorTools.map((tool, idx) => `
-          <div style="background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <strong style="font-size: 0.8rem;">Tool ${idx + 1}</strong>
-              <button class="btn" onclick="removeGeneratorTool('${tool.id}')" style="font-size: 0.6rem; padding: 2px 6px;">🗑️</button>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-              <input type="text" class="form-input" placeholder="Tool name (e.g., get_weather)" 
-                value="${escapeHtml(tool.name)}" 
-                onchange="updateGeneratorTool('${tool.id}', 'name', this.value)"
-                style="font-size: 0.75rem; padding: 4px 8px;">
-              <input type="text" class="form-input" placeholder="Description" 
-                value="${escapeHtml(tool.description)}" 
-                onchange="updateGeneratorTool('${tool.id}', 'description', this.value)"
-                style="font-size: 0.75rem; padding: 4px 8px;">
-              ${tool.endpoint ? `
-                <div style="font-size: 0.65rem; color: var(--text-muted);">
-                  🌐 ${tool.endpoint.source === 'webhook' ? 'Webhook' : 'Endpoint'}: ${escapeHtml(tool.endpoint.method?.toUpperCase() || 'GET')} ${escapeHtml(tool.endpoint.path || '')}
-                </div>
-              ` : ''}
-              ${tool.auth ? `
-                <div style="font-size: 0.65rem; color: var(--text-muted);">
-                  🔐 Auth: ${escapeHtml(formatOpenApiAuthSummary(tool.auth))}
-                </div>
-              ` : ''}
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.7rem; color: var(--text-muted);">Parameters: ${tool.params.length}</span>
-                <button class="btn" onclick="addToolParam('${tool.id}')" style="font-size: 0.6rem; padding: 2px 6px;">➕ Param</button>
-              </div>
-              ${tool.params.map((param, pIdx) => `
-                <div style="display: flex; gap: 4px; align-items: center; padding-left: 8px;">
-                  <input type="text" class="form-input" placeholder="param_name" 
-                    value="${escapeHtml(param.name)}"
-                    onchange="updateToolParam('${tool.id}', ${pIdx}, 'name', this.value)"
-                    style="flex: 1; font-size: 0.7rem; padding: 2px 6px;">
-                  <select class="form-select" 
-                    onchange="updateToolParam('${tool.id}', ${pIdx}, 'type', this.value)"
-                    style="width: 80px; font-size: 0.7rem; padding: 2px 4px;">
-                    <option value="string" ${param.type === 'string' ? 'selected' : ''}>string</option>
-                    <option value="number" ${param.type === 'number' ? 'selected' : ''}>number</option>
-                    <option value="boolean" ${param.type === 'boolean' ? 'selected' : ''}>boolean</option>
-                    <option value="object" ${param.type === 'object' ? 'selected' : ''}>object</option>
-                  </select>
-                  <label style="font-size: 0.65rem; display: flex; align-items: center; gap: 2px;">
-                    <input type="checkbox" ${param.required ? 'checked' : ''}
-                      onchange="updateToolParam('${tool.id}', ${pIdx}, 'required', this.checked)">
-                    Req
-                  </label>
-                  <button onclick="removeToolParam('${tool.id}', ${pIdx})" style="font-size: 0.6rem; padding: 1px 4px; background: none; border: none; cursor: pointer;">❌</button>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `).join('');
-        updateGeneratorAutoRunButtons();
-      }
-
-      // Update a tool property
-      function updateGeneratorTool(toolId, prop, value) {
-        const tool = generatorTools.find(t => t.id === toolId);
-        if (tool) tool[prop] = value;
-      }
-
-      // Remove a tool
-      function removeGeneratorTool(toolId) {
-        generatorTools = generatorTools.filter(t => t.id !== toolId);
-        renderGeneratorTools();
-      }
-
-      // Add parameter to a tool
-      function addToolParam(toolId) {
-        const tool = generatorTools.find(t => t.id === toolId);
-        if (tool) {
-          tool.params.push({ name: '', type: 'string', required: false });
-          renderGeneratorTools();
-        }
-      }
-
-      // Update a parameter
-      function updateToolParam(toolId, paramIdx, prop, value) {
-        const tool = generatorTools.find(t => t.id === toolId);
-        if (tool && tool.params[paramIdx]) {
-          tool.params[paramIdx][prop] = value;
-        }
-      }
-
-      // Remove a parameter
-      function removeToolParam(toolId, paramIdx) {
-        const tool = generatorTools.find(t => t.id === toolId);
-        if (tool) {
-          tool.params.splice(paramIdx, 1);
-          renderGeneratorTools();
-        }
-      }
-
-      // Generate MCP server code
-      function generateMCPCode() {
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-
-        if (generatorTools.length === 0) {
-          appendMessage('error', 'Add at least one tool to generate code');
-          return;
-        }
-
-        if (mode === 'openapi') {
-          const openApiTools = generatorTools.filter(tool => tool.endpoint);
-          if (!openApiTools.length) {
-            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
-            return;
-          }
-          if (language === 'python') {
-            generatedCode = generateOpenApiPythonMCP(serverName, serverDesc, openApiTools);
-          } else {
-            generatedCode = generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
-          }
-        } else if (language === 'python') {
-          generatedCode = generatePythonMCP(serverName, serverDesc);
-        } else {
-          generatedCode = generateNodeMCP(serverName, serverDesc);
-        }
-
-        document.getElementById('generatorPreviewSection').style.display = 'block';
-        document.getElementById('generatorCodePreview').textContent = generatedCode;
-        appendMessage('system', `🚀 Generated ${language} MCP server code (${mode}) with ${generatorTools.length} tools`);
-      }
-
-      // Preview without saving
-      function previewMCPCode() {
-        generateMCPCode();
-      }
-
-      // Generate Python MCP server code
-      function generatePythonMCP(serverName, serverDesc) {
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim();
-        const toolDefs = generatorTools.map(tool => {
-          const params = tool.params.map(p => 
-            `    ${p.name}: ${p.type === 'number' ? 'float' : p.type === 'boolean' ? 'bool' : 'str'}${!p.required ? ' = None' : ''}`
-          ).join(',\n');
-          const authNote = tool.auth ? `\n    Auth: ${formatOpenApiAuthSummary(tool.auth)}` : '';
-          const endpointNote = tool.endpoint ? `\n    Endpoint: ${tool.endpoint.method?.toUpperCase() || 'GET'} ${tool.endpoint.path || ''}` : '';
-          
-          return `
-@mcp.tool()
-async def ${tool.name || 'unnamed_tool'}(${params ? '\n' + params + '\n' : ''}):
-    """${tool.description || 'No description'}${endpointNote}${authNote}"""
-    # TODO: Implement your logic here
-    return {"result": "success", "message": "Tool executed"}
-`;
-        }).join('\n');
-
-        return `#!/usr/bin/env python3
-"""
-${serverDesc}
-Generated by MCP Chat Studio
-"""
-
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-
-# Create server instance
-mcp = Server("${serverName}")
-${baseUrl ? `\n# API base URL (from OpenAPI)\nAPI_BASE_URL = "${baseUrl}"\n` : ''}
-
-${toolDefs}
-
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await mcp.run(read_stream, write_stream)
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-`;
-      }
-
-      // Generate Node.js MCP server code
-      function generateNodeMCP(serverName, serverDesc) {
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim();
-        const toolDefs = generatorTools.map(tool => {
-          const inputSchema = buildInputSchemaForTool(tool);
-          const annotations = tool.endpoint?.method ? buildHttpAnnotations(tool.endpoint.method) : null;
-          const metaObj = {};
-          if (tool.auth) metaObj.auth = tool.auth;
-          if (tool.endpoint) {
-            metaObj.endpoint = {
-              method: tool.endpoint.method,
-              path: tool.endpoint.path,
-              tags: tool.endpoint.tags || [],
-              source: tool.endpoint.source || 'path'
-            };
-          }
-          const configObj = {
-            description: tool.description || 'No description',
-            inputSchema
-          };
-          if (tool.outputSchema) configObj.outputSchema = tool.outputSchema;
-          if (annotations) configObj.annotations = annotations;
-          if (Object.keys(metaObj).length) configObj._meta = metaObj;
-          const configStr = JSON.stringify(configObj, null, 4).replace(/\n/g, '\n    ');
-          
-          return `
-  server.registerTool(
-    "${tool.name || 'unnamed_tool'}",
-    ${configStr},
-    async (params) => {
-      // TODO: Implement your logic here
-      return { result: "success", message: "Tool executed" };
-    }
-  );
-`;
-        }).join('\n');
-
-        return `#!/usr/bin/env node
-/**
- * ${serverDesc}
- * Generated by MCP Chat Studio
- */
-
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-${baseUrl ? `const API_BASE_URL = "${baseUrl}";\n` : ''}
-const server = new Server(
-  { name: "${serverName}", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
-
-${toolDefs}
-
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("${serverName} MCP server running on stdio");
-}
-
-main().catch(console.error);
-`;
-      }
-
-      function generateOpenApiPythonMCP(serverName, serverDesc, tools) {
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const toolDefs = tools.map(tool => ({
-          name: tool.name,
-          description: tool.description || '',
-          method: tool.endpoint?.method || 'get',
-          path: tool.endpoint?.path || '',
-          params: tool.params || [],
-          auth: tool.auth || null
-        }));
-        const toolMap = toolDefs.reduce((acc, tool) => {
-          acc[tool.name] = tool;
-          return acc;
-        }, {});
-        const toolsJson = JSON.stringify(toolMap, null, 2);
-        const toolFns = toolDefs.map(tool => {
-          const params = tool.params || [];
-          const argsSignature = params.map(param => {
-            const type = param.type === 'number' ? 'float' : param.type === 'boolean' ? 'bool' : 'str';
-            return `${param.name}: ${type}${param.required ? '' : ' = None'}`;
-          }).join(', ');
-          const authNote = tool.auth ? `\n    Auth: ${formatOpenApiAuthSummary(tool.auth)}` : '';
-          const endpointNote = tool.path ? `\n    Endpoint: ${tool.method?.toUpperCase() || 'GET'} ${tool.path}` : '';
-          return `
-@mcp.tool()
-async def ${tool.name}(${argsSignature}):
-    """${tool.description || 'No description'}${endpointNote}${authNote}"""
-    args = {${params.map(param => `'${param.name}': ${param.name}`).join(', ')}}
-    return await call_tool("${tool.name}", args)
-`;
-        }).join('\n');
-
-        return `#!/usr/bin/env python3
-"""
-${serverDesc}
-Generated by MCP Chat Studio (OpenAPI Proxy)
-"""
-
-import os
-import json
-import urllib.parse
-import urllib.request
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-
-API_BASE_URL = os.getenv("API_BASE_URL", "${baseUrl}")
-API_KEY = os.getenv("MCP_API_KEY", "")
-API_KEY_NAME = os.getenv("MCP_API_KEY_NAME", "")
-API_KEY_IN = os.getenv("MCP_API_KEY_IN", "header")
-BEARER_TOKEN = os.getenv("MCP_BEARER_TOKEN", "")
-BASIC_USER = os.getenv("MCP_BASIC_USER", "")
-BASIC_PASS = os.getenv("MCP_BASIC_PASS", "")
-OAUTH_TOKEN_URL = os.getenv("MCP_OAUTH_TOKEN_URL", "")
-OAUTH_CLIENT_ID = os.getenv("MCP_OAUTH_CLIENT_ID", "")
-OAUTH_CLIENT_SECRET = os.getenv("MCP_OAUTH_CLIENT_SECRET", "")
-OAUTH_SCOPE = os.getenv("MCP_OAUTH_SCOPE", "")
-OAUTH_AUDIENCE = os.getenv("MCP_OAUTH_AUDIENCE", "")
-
-TOOLS = ${toolsJson}
-_token_cache = {"value": "", "expires_at": 0}
-
-mcp = Server("${serverName}")
-
-def _get_oauth_token():
-  import time
-  if _token_cache["value"] and _token_cache["expires_at"] > time.time() + 30:
-    return _token_cache["value"]
-  if not OAUTH_TOKEN_URL or not OAUTH_CLIENT_ID:
-    return ""
-  data = {
-    "grant_type": "client_credentials",
-    "client_id": OAUTH_CLIENT_ID,
-  }
-  if OAUTH_CLIENT_SECRET:
-    data["client_secret"] = OAUTH_CLIENT_SECRET
-  if OAUTH_SCOPE:
-    data["scope"] = OAUTH_SCOPE
-  if OAUTH_AUDIENCE:
-    data["audience"] = OAUTH_AUDIENCE
-  req = urllib.request.Request(
-    OAUTH_TOKEN_URL,
-    data=urllib.parse.urlencode(data).encode("utf-8"),
-    headers={"Content-Type": "application/x-www-form-urlencoded"},
-    method="POST"
-  )
-  with urllib.request.urlopen(req) as resp:
-    payload = json.loads(resp.read().decode("utf-8"))
-  _token_cache["value"] = payload.get("access_token", "")
-  _token_cache["expires_at"] = time.time() + int(payload.get("expires_in", 3600))
-  return _token_cache["value"]
-
-def _apply_auth(headers, query, auth):
-  if not auth or not auth.get("schemes"):
-    return
-  scheme = auth["schemes"][0]
-  if scheme.get("type") == "apiKey":
-    key_name = API_KEY_NAME or scheme.get("name")
-    if scheme.get("in") == "query" or API_KEY_IN == "query":
-      query[key_name] = API_KEY
-    else:
-      headers[key_name] = API_KEY
-  elif scheme.get("type") == "http":
-    if scheme.get("scheme") == "basic":
-      import base64
-      token = base64.b64encode(f"{BASIC_USER}:{BASIC_PASS}".encode("utf-8")).decode("utf-8")
-      headers["Authorization"] = f"Basic {token}"
-    else:
-      token = BEARER_TOKEN or _get_oauth_token()
-      if token:
-        headers["Authorization"] = f"Bearer {token}"
-  elif scheme.get("type") in ("oauth2", "openIdConnect"):
-    token = _get_oauth_token()
-    if token:
-      headers["Authorization"] = f"Bearer {token}"
-
-def _build_url(tool, args):
-  path = tool["path"]
-  query = {}
-  for param in tool.get("params", []):
-    value = args.get(param["name"]) if args else None
-    if value is None:
-      continue
-    location = param.get("location", "query")
-    if location == "path":
-      path = path.replace("{" + param["name"] + "}", urllib.parse.quote(str(value)))
-    elif location == "query":
-      query[param["name"]] = str(value)
-  url = f"{API_BASE_URL}{path}"
-  if query:
-    url += "?" + urllib.parse.urlencode(query)
-  return url
-
-async def call_tool(tool_name, args):
-  tool_def = TOOLS.get(tool_name)
-  if not tool_def:
-    raise ValueError(f"Unknown tool: {tool_name}")
-  if not API_BASE_URL:
-    raise ValueError("API_BASE_URL is not set")
-  headers = {"Content-Type": "application/json"}
-  query = {}
-  for param in tool_def.get("params", []):
-    value = args.get(param["name"]) if args else None
-    if value is None:
-      continue
-    location = param.get("location")
-    if location == "header":
-      headers[param["name"]] = str(value)
-    elif location == "cookie":
-      existing = headers.get("Cookie", "")
-      cookie = f"{param['name']}={urllib.parse.quote(str(value))}"
-      headers["Cookie"] = f"{existing}; {cookie}" if existing else cookie
-  _apply_auth(headers, query, tool_def.get("auth"))
-  url = _build_url(tool_def, args)
-  if query:
-    url += ("&" if "?" in url else "?") + urllib.parse.urlencode(query)
-  body = args.get("body") if args else None
-  data = json.dumps(body).encode("utf-8") if body is not None else None
-  req = urllib.request.Request(url, data=data, headers=headers, method=tool_def["method"].upper())
-  with urllib.request.urlopen(req) as resp:
-    raw = resp.read().decode("utf-8")
-  try:
-    parsed = json.loads(raw)
-  except Exception:
-    parsed = {"raw": raw}
-  return {"result": parsed}
-
-${toolFns}
-
-async def main():
-  async with stdio_server() as (read_stream, write_stream):
-    await mcp.run(read_stream, write_stream)
-
-if __name__ == "__main__":
-  import asyncio
-  asyncio.run(main())
-`;
-      }
-
-      function generateOpenApiNodeMCP(serverName, serverDesc, tools) {
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const toolDefs = tools.map(tool => ({
-          name: tool.name,
-          description: tool.description || '',
-          method: tool.endpoint?.method || 'get',
-          path: tool.endpoint?.path || '',
-          params: tool.params || [],
-          auth: tool.auth || null,
-          inputSchema: tool.inputSchema || null,
-          outputSchema: tool.outputSchema || null
-        }));
-        const toolsJson = JSON.stringify(toolDefs, null, 2);
-
-        return `#!/usr/bin/env node
-/**
- * ${serverDesc}
- * Generated by MCP Chat Studio (OpenAPI Proxy)
- */
-
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-const API_BASE_URL = process.env.API_BASE_URL || "${baseUrl}";
-const OAUTH_TOKEN_URL = process.env.MCP_OAUTH_TOKEN_URL || "";
-const OAUTH_CLIENT_ID = process.env.MCP_OAUTH_CLIENT_ID || "";
-const OAUTH_CLIENT_SECRET = process.env.MCP_OAUTH_CLIENT_SECRET || "";
-const OAUTH_SCOPE = process.env.MCP_OAUTH_SCOPE || "";
-const OAUTH_AUDIENCE = process.env.MCP_OAUTH_AUDIENCE || "";
-const API_KEY = process.env.MCP_API_KEY || "";
-const API_KEY_NAME = process.env.MCP_API_KEY_NAME || "";
-const API_KEY_IN = process.env.MCP_API_KEY_IN || "header";
-const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN || "";
-const BASIC_USER = process.env.MCP_BASIC_USER || "";
-const BASIC_PASS = process.env.MCP_BASIC_PASS || "";
-
-const TOOLS = ${toolsJson};
-let cachedToken = { value: "", expiresAt: 0 };
-
-const server = new Server(
-  { name: "${serverName}", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
-
-function buildUrl(tool, args) {
-  let path = tool.path;
-  const query = new URLSearchParams();
-  (tool.params || []).forEach(param => {
-    const value = args?.[param.name];
-    if (value === undefined || value === null) return;
-    const location = param.location || 'query';
-    if (location === 'path') {
-      path = path.replace(\`{\${param.name}}\`, encodeURIComponent(String(value)));
-    } else if (location === 'query') {
-      query.append(param.name, String(value));
-    }
-  });
-  const qs = query.toString();
-  return \`\${API_BASE_URL}\${path}\${qs ? \`?\${qs}\` : ""}\`;
-}
-
-async function getOAuthToken() {
-  if (cachedToken.value && cachedToken.expiresAt > Date.now() + 30000) {
-    return cachedToken.value;
-  }
-  if (!OAUTH_TOKEN_URL || !OAUTH_CLIENT_ID) return "";
-  const body = new URLSearchParams();
-  body.set("grant_type", "client_credentials");
-  body.set("client_id", OAUTH_CLIENT_ID);
-  if (OAUTH_CLIENT_SECRET) body.set("client_secret", OAUTH_CLIENT_SECRET);
-  if (OAUTH_SCOPE) body.set("scope", OAUTH_SCOPE);
-  if (OAUTH_AUDIENCE) body.set("audience", OAUTH_AUDIENCE);
-
-  const resp = await fetch(OAUTH_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body
-  });
-  if (!resp.ok) throw new Error(\`OAuth token request failed: \${resp.status}\`);
-  const data = await resp.json();
-  cachedToken.value = data.access_token || "";
-  cachedToken.expiresAt = Date.now() + (data.expires_in ? data.expires_in * 1000 : 3600 * 1000);
-  return cachedToken.value;
-}
-
-async function applyAuth(headers, query, auth) {
-  if (!auth || !auth.schemes?.length) return;
-  const scheme = auth.schemes[0];
-  if (scheme.type === 'apiKey') {
-    const key = API_KEY_NAME || scheme.name;
-    if (API_KEY_IN === 'query' || scheme.in === 'query') {
-      query.set(key, API_KEY);
-    } else {
-      headers.set(key, API_KEY);
-    }
-  } else if (scheme.type === 'http') {
-    if (scheme.scheme === 'basic') {
-      const token = Buffer.from(\`\${BASIC_USER}:\${BASIC_PASS}\`).toString('base64');
-      headers.set('Authorization', \`Basic \${token}\`);
-    } else {
-      const token = BEARER_TOKEN || (await getOAuthToken());
-      if (token) headers.set('Authorization', \`Bearer \${token}\`);
-    }
-  } else if (scheme.type === 'oauth2' || scheme.type === 'openIdConnect') {
-    const token = await getOAuthToken();
-    if (token) headers.set('Authorization', \`Bearer \${token}\`);
-  }
-}
-
-TOOLS.forEach(tool => {
-  const paramsSchema = {};
-  const required = [];
-  (tool.params || []).forEach(param => {
-    paramsSchema[param.name] = { type: param.type || 'string', description: \`\${param.name} parameter\` };
-    if (param.required) required.push(param.name);
-  });
-  const fallbackSchema = { type: 'object', properties: paramsSchema };
-  if (required.length) fallbackSchema.required = required;
-  const inputSchema = tool.inputSchema || fallbackSchema;
-
-  server.registerTool(
-    tool.name,
-    {
-      description: tool.description,
-      inputSchema,
-      annotations: {
-        readOnlyHint: ['get', 'head', 'options'].includes(tool.method),
-        destructiveHint: ['post', 'put', 'patch', 'delete'].includes(tool.method),
-        idempotentHint: ['get', 'head', 'options', 'put', 'delete'].includes(tool.method),
-        openWorldHint: true
-      },
-      ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
-      _meta: { endpoint: { method: tool.method, path: tool.path }, auth: tool.auth || null }
-    },
-    async (args) => {
-      if (!API_BASE_URL) throw new Error("API_BASE_URL is not set");
-      const headers = new Headers();
-      headers.set("Content-Type", "application/json");
-      const query = new URLSearchParams();
-      (tool.params || []).forEach(param => {
-        const value = args?.[param.name];
-        if (value === undefined || value === null) return;
-        if (param.location === 'header') {
-          headers.set(param.name, String(value));
-        } else if (param.location === 'cookie') {
-          const current = headers.get('Cookie') || '';
-          const cookie = \`\${param.name}=\${encodeURIComponent(String(value))}\`;
-          headers.set('Cookie', current ? \`\${current}; \${cookie}\` : cookie);
-        }
-      });
-      await applyAuth(headers, query, tool.auth);
-      let url = buildUrl(tool, args);
-      const queryString = query.toString();
-      if (queryString) {
-        url += url.includes('?') ? \`&\${queryString}\` : \`?\${queryString}\`;
-      }
-      const body = args?.body ? JSON.stringify(args.body) : undefined;
-      const resp = await fetch(url, {
-        method: tool.method.toUpperCase(),
-        headers,
-        body: body && !['get', 'head'].includes(tool.method) ? body : undefined
-      });
-      const text = await resp.text();
-      let parsed;
-      try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
-      if (!resp.ok) {
-        throw new Error(\`\${resp.status} \${resp.statusText}: \${text}\`);
-      }
-      return { result: parsed };
-    }
-  );
-});
-
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("${serverName} MCP OpenAPI proxy running on stdio");
-}
-
-main().catch(console.error);
-`;
-      }
-
-      // Copy generated code
-      function copyGeneratedCode() {
-        if (generatedCode) {
-          navigator.clipboard.writeText(generatedCode);
-          appendMessage('system', '📋 Code copied to clipboard');
-        }
-      }
-
-      // Download generated code
-      function downloadGeneratedCode() {
-        if (!generatedCode) return;
-        
-        const language = document.getElementById('genLanguage').value;
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const ext = language === 'python' ? 'py' : 'ts';
-        const filename = `${serverName}.${ext}`;
-        
-        const blob = new Blob([generatedCode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-        appendMessage('system', `📥 Downloaded ${filename}`);
-      }
-
-      function downloadGeneratorProject() {
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-
-        if (generatorTools.length === 0) {
-          appendMessage('error', 'Add at least one tool to generate a project');
-          return;
-        }
-
-        let code = '';
-        if (mode === 'openapi') {
-          const openApiTools = generatorTools.filter(tool => tool.endpoint);
-          if (!openApiTools.length) {
-            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
-            return;
-          }
-          code = language === 'python'
-            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
-            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
-        } else {
-          code = language === 'python'
-            ? generatePythonMCP(serverName, serverDesc)
-            : generateNodeMCP(serverName, serverDesc);
-        }
-
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const files = buildGeneratorProjectFiles({
-          serverName,
-          serverDesc,
-          language,
-          mode,
-          code,
-          baseUrl
-        });
-
-        const bundle = {
-          format: 'mcp-generator-project',
-          createdAt: new Date().toISOString(),
-          serverName,
-          language,
-          mode,
-          files
-        };
-
-        const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${serverName}-${mode}-${language}-project.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        appendMessage('system', '📦 Project bundle downloaded. Use the README inside to run it.');
-      }
-
-      function downloadGeneratorZip() {
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-
-        if (generatorTools.length === 0) {
-          appendMessage('error', 'Add at least one tool to generate a project');
-          return;
-        }
-
-        let code = '';
-        if (mode === 'openapi') {
-          const openApiTools = generatorTools.filter(tool => tool.endpoint);
-          if (!openApiTools.length) {
-            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
-            return;
-          }
-          code = language === 'python'
-            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
-            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
-        } else {
-          code = language === 'python'
-            ? generatePythonMCP(serverName, serverDesc)
-            : generateNodeMCP(serverName, serverDesc);
-        }
-
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const files = buildGeneratorProjectFiles({
-          serverName,
-          serverDesc,
-          language,
-          mode,
-          code,
-          baseUrl
-        });
-
-        const zipBlob = buildZipFromFiles(files, serverName);
-        const url = URL.createObjectURL(zipBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${serverName}-${mode}-${language}.zip`;
-        a.click();
-        URL.revokeObjectURL(url);
-        appendMessage('system', '📦 ZIP downloaded. Unzip and run the project locally.');
-      }
-
-      function showGeneratorRunModal() {
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-
-        generatorRunState = { serverName, language, mode, baseUrl };
-        generatorRunOs = 'unix';
-
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.id = 'generatorRunModal';
-        modal.style.display = 'flex';
-        modal.innerHTML = `
-          <div class="modal" style="max-width: 640px;">
-            <div class="modal-header">
-              <h2 class="modal-title">🚀 Run ${escapeHtml(serverName)} Locally</h2>
-              <button class="modal-close" onclick="closeGeneratorRunModal()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
-              <div style="font-size: 0.75rem; color: var(--text-muted);">
-                Mode: ${escapeHtml(mode)} • Language: ${escapeHtml(language)}
-              </div>
-              <div class="generator-os-tabs">
-                <button class="generator-os-tab active" id="generatorRunOsUnix" onclick="switchGeneratorRunOs('unix')">macOS / Linux</button>
-                <button class="generator-os-tab" id="generatorRunOsWindows" onclick="switchGeneratorRunOs('windows')">Windows</button>
-              </div>
-              <div>
-                <div style="font-size: 0.75rem; margin-bottom: 6px;">Commands</div>
-                <pre id="generatorRunCommands" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-              </div>
-              <div>
-                <div style="font-size: 0.75rem; margin-bottom: 6px;">Environment (.env)</div>
-                <pre id="generatorRunEnv" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-              </div>
-              <div style="font-size: 0.72rem; color: var(--text-muted);">
-                Tip: In OpenAPI Proxy mode, set API_BASE_URL and auth vars before running.
-              </div>
-            </div>
-            <div class="modal-actions">
-              <button class="btn" onclick="closeGeneratorRunModal()">Close</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(modal);
-        updateGeneratorRunModalContent();
-      }
-
-      function closeGeneratorRunModal() {
-        const modal = document.getElementById('generatorRunModal');
-        if (modal) modal.remove();
-      }
-
-      function switchGeneratorRunOs(os) {
-        generatorRunOs = os;
-        updateGeneratorRunModalContent();
-      }
-
-      function updateGeneratorRunModalContent() {
-        if (!generatorRunState) return;
-        const { language, baseUrl } = generatorRunState;
-        const commandsEl = document.getElementById('generatorRunCommands');
-        const envEl = document.getElementById('generatorRunEnv');
-        const unixBtn = document.getElementById('generatorRunOsUnix');
-        const winBtn = document.getElementById('generatorRunOsWindows');
-        if (!commandsEl || !envEl) return;
-
-        if (unixBtn && winBtn) {
-          unixBtn.classList.toggle('active', generatorRunOs === 'unix');
-          winBtn.classList.toggle('active', generatorRunOs === 'windows');
-        }
-
-        const commands = getGeneratorRunCommands(generatorRunOs, language);
-        const envLines = getGeneratorEnvLines(baseUrl);
-        commandsEl.textContent = commands;
-        envEl.textContent = envLines;
-      }
-
-      function getGeneratorRunCommands(os, language) {
-        if (language === 'python') {
-          if (os === 'windows') {
-            return [
-              'python -m venv .venv',
-              '.venv\\\\Scripts\\\\activate',
-              'pip install -r requirements.txt',
-              'python server.py'
-            ].join('\\n');
-          }
-          return [
-            'python3 -m venv .venv',
-            'source .venv/bin/activate',
-            'pip install -r requirements.txt',
-            'python server.py'
-          ].join('\\n');
-        }
-        return [
-          'npm install',
-          'node server.js'
-        ].join('\\n');
-      }
-
-      function getGeneratorEnvLines(baseUrl) {
-        return [
-          baseUrl ? `API_BASE_URL=${baseUrl}` : 'API_BASE_URL=',
-          'MCP_API_KEY=',
-          'MCP_API_KEY_NAME=',
-          'MCP_API_KEY_IN=header',
-          'MCP_BEARER_TOKEN=',
-          'MCP_BASIC_USER=',
-          'MCP_BASIC_PASS=',
-          'MCP_OAUTH_TOKEN_URL=',
-          'MCP_OAUTH_CLIENT_ID=',
-          'MCP_OAUTH_CLIENT_SECRET=',
-          'MCP_OAUTH_SCOPE=',
-          'MCP_OAUTH_AUDIENCE='
-        ].join('\\n');
-      }
-
-      async function saveGeneratorToFolder() {
-        if (typeof window.showDirectoryPicker !== 'function') {
-          appendMessage('error', 'Folder save is not supported in this browser. Use Download ZIP instead.');
-          return;
-        }
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-
-        if (generatorTools.length === 0) {
-          appendMessage('error', 'Add at least one tool to generate a project');
-          return;
-        }
-
-        let code = '';
-        if (mode === 'openapi') {
-          const openApiTools = generatorTools.filter(tool => tool.endpoint);
-          if (!openApiTools.length) {
-            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
-            return;
-          }
-          code = language === 'python'
-            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
-            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
-        } else {
-          code = language === 'python'
-            ? generatePythonMCP(serverName, serverDesc)
-            : generateNodeMCP(serverName, serverDesc);
-        }
-
-        const files = buildGeneratorProjectFiles({
-          serverName,
-          serverDesc,
-          language,
-          mode,
-          code,
-          baseUrl
-        });
-
-        try {
-          const rootHandle = await window.showDirectoryPicker();
-          const folderName = serverName.toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
-          const projectHandle = await rootHandle.getDirectoryHandle(folderName || 'mcp-server', { create: true });
-          for (const [name, content] of Object.entries(files)) {
-            const fileHandle = await projectHandle.getFileHandle(name, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(content);
-            await writable.close();
-          }
-          generatorLastFolderName = folderName || 'mcp-server';
-          generatorPickedFolderName = generatorLastFolderName;
-          localStorage.setItem('mcp_generator_last_folder', generatorLastFolderName);
-          updateGeneratorProjectStatus();
-          appendMessage('system', `✅ Saved project to folder "${folderName}"`);
-        } catch (error) {
-          appendMessage('error', `Failed to save folder: ${error.message}`);
-        }
-      }
-
-      function showGeneratorTestModal() {
-        const serverName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const language = document.getElementById('genLanguage').value;
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const cmd = language === 'python' ? 'python' : 'node';
-        const args = language === 'python' ? ['server.py'] : ['server.js'];
-        generatorTestCwd = '';
-        generatorTestOs = 'unix';
-        const baseConfig = { serverName, cmd, args, baseUrl };
-
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.id = 'generatorTestModal';
-        modal.style.display = 'flex';
-        modal.innerHTML = `
-          <div class="modal" style="max-width: 720px;">
-            <div class="modal-header">
-              <h2 class="modal-title">🧪 Test in Studio</h2>
-              <button class="modal-close" onclick="closeGeneratorTestModal()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div style="padding: var(--spacing-md); display: flex; flex-direction: column; gap: 12px;">
-              <div style="font-size: 0.75rem; color: var(--text-muted);">
-                Follow these steps to run the server and connect it to Studio.
-              </div>
-              <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 10px;">
-                <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 6px;">Project files</div>
-                <div id="generatorProjectStatus" style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 8px;">
-                  ${generatorLastFolderName ? `Last saved folder: <strong>${escapeHtml(generatorLastFolderName)}</strong>` : 'Not saved yet. Use Download ZIP or Save to Folder first.'}
-                </div>
-                <div class="generator-actions">
-                  <button class="btn" onclick="downloadGeneratorZip()">Download ZIP</button>
-                  <button class="btn" onclick="saveGeneratorToFolder()">Save to Folder</button>
-                </div>
-                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 6px;">
-                  Studio can’t see your filesystem path automatically. You’ll paste the folder path below.
-                </div>
-                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-                  Auto Run & Connect writes a temporary project folder in the Studio backend.
-                </div>
-              </div>
-              <div class="generator-steps">
-                <div class="generator-step">
-                  <span class="generator-step-num">1</span>
-                  <span>Save or download the project (ZIP or folder).</span>
-                </div>
-                <div class="generator-step">
-                  <span class="generator-step-num">2</span>
-                  <span>Run it locally using the commands below.</span>
-                </div>
-                <div class="generator-step">
-                  <span class="generator-step-num">3</span>
-                  <span>Set the project folder so Studio can find the server file.</span>
-                </div>
-                <div class="generator-step">
-                  <span class="generator-step-num">4</span>
-                  <span>Open Add Server and connect.</span>
-                </div>
-              </div>
-              <div>
-                <div class="generator-os-tabs">
-                  <button class="generator-os-tab active" id="generatorTestOsUnix" onclick="switchGeneratorTestOs('unix')">macOS / Linux</button>
-                  <button class="generator-os-tab" id="generatorTestOsWindows" onclick="switchGeneratorTestOs('windows')">Windows</button>
-                </div>
-                <div style="margin-top: 8px;">
-                  <div style="font-size: 0.75rem; margin-bottom: 6px;">Commands</div>
-                  <pre id="generatorTestCommands" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-                </div>
-                <div style="margin-top: 8px;">
-                  <div style="font-size: 0.75rem; margin-bottom: 6px;">Environment (.env)</div>
-                  <pre id="generatorTestEnv" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-                </div>
-              </div>
-              <div>
-                <div style="font-size: 0.75rem; margin-bottom: 6px;">Project Folder (contains server.py / server.js)</div>
-                <div class="generator-row">
-                  <input
-                    type="text"
-                    id="generatorTestCwdInput"
-                    class="form-input"
-                    placeholder="C:\\path\\to\\project or /path/to/project"
-                    oninput="updateGeneratorTestCwd(this.value)"
-                  />
-                  <button class="btn" onclick="pickGeneratorProjectFolder()">Browse…</button>
-                </div>
-                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-                  If you downloaded ZIP, unzip it and paste that folder path. If you saved to a folder, paste the folder you picked + /${escapeHtml(document.getElementById('genServerName').value || 'my-mcp-server')}.
-                </div>
-                <div id="generatorPickedFolderHint" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;"></div>
-                <div id="generatorTestCwdWarning" class="generator-warning" style="display: none; margin-top: 6px;">
-                  Add the project folder to enable connecting from Studio.
-                </div>
-              </div>
-              <details class="generator-collapse">
-                <summary>YAML (config.yaml)</summary>
-                <pre id="generatorTestYaml" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-              </details>
-              <details class="generator-collapse">
-                <summary>JSON (Import YAML/JSON)</summary>
-                <pre id="generatorTestJson" style="background: var(--bg-card); padding: 10px; border-radius: 8px; font-size: 0.7rem; white-space: pre-wrap;"></pre>
-              </details>
-            </div>
-            <div class="modal-actions">
-              <button class="btn" onclick="copyGeneratorTestBlock('generatorTestCommands', 'Commands')">Copy Commands</button>
-              <button class="btn" onclick="copyGeneratorTestBlock('generatorTestEnv', 'Env')">Copy Env</button>
-              <button class="btn" onclick="copyGeneratorTestConfig('yaml')">Copy YAML</button>
-              <button class="btn" onclick="copyGeneratorTestConfig('json')">Copy JSON</button>
-              <button class="btn" id="generatorTestOpenBtn" onclick="openAddServerFromGenerator()">Add to Studio</button>
-              <button class="btn" id="generatorTestConnectBtn" onclick="addGeneratorServerToStudio({ connectAfter: true })">Add & Connect</button>
-              <button class="btn success" data-gen-auto-run="1" onclick="runGeneratorAndConnect()">Run & Connect (Auto)</button>
-              <button class="btn" onclick="closeGeneratorTestModal()">Close</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(modal);
-        updateGeneratorTestModalConfig(baseConfig);
-        updateGeneratorProjectStatus();
-        updateGeneratorAutoRunButtons();
-      }
-
-      function closeGeneratorTestModal() {
-        const modal = document.getElementById('generatorTestModal');
-        if (modal) modal.remove();
-      }
-
-      function updateGeneratorProjectStatus() {
-        const statusEl = document.getElementById('generatorProjectStatus');
-        if (!statusEl) return;
-        if (generatorLastFolderName) {
-          statusEl.innerHTML = `Last saved folder: <strong>${escapeHtml(generatorLastFolderName)}</strong>`;
-        } else {
-          statusEl.textContent = 'Not saved yet. Use Download ZIP or Save to Folder first.';
-        }
-      }
-
-      async function pickGeneratorProjectFolder() {
-        if (typeof window.showDirectoryPicker !== 'function') {
-          appAlert('Your browser does not support folder picking. Paste the full path manually.', {
-            title: 'Folder Picker Unavailable'
-          });
-          return;
-        }
-        try {
-          const handle = await window.showDirectoryPicker();
-          generatorPickedFolderName = handle?.name || '';
-          updateGeneratorTestModalConfig();
-          if (generatorPickedFolderName) {
-            appAlert(`Selected folder: ${generatorPickedFolderName}\nPaste the full path above (browser hides it).`, {
-              title: 'Folder Selected'
-            });
-          }
-        } catch (error) {
-          if (error?.name !== 'AbortError') {
-            appendMessage('error', `Failed to pick folder: ${error.message}`);
-          }
-        }
-      }
-
-      function updateGeneratorTestCwd(value) {
-        generatorTestCwd = value.trim();
-        updateGeneratorTestModalConfig();
-      }
-
-      function switchGeneratorTestOs(os) {
-        generatorTestOs = os;
-        updateGeneratorTestModalConfig();
-      }
-
-      function updateGeneratorTestModalConfig(initial) {
-        const serverName = initial?.serverName || document.getElementById('genServerName').value || 'my-mcp-server';
-        const language = document.getElementById('genLanguage').value;
-        const baseUrl = initial?.baseUrl || document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const cmd = initial?.cmd || (language === 'python' ? 'python' : 'node');
-        const args = initial?.args || (language === 'python' ? ['server.py'] : ['server.js']);
-
-        const yamlLines = [
-          'mcpServers:',
-          `  ${serverName}:`,
-          '    type: stdio',
-          `    command: ${cmd}`,
-          ...(generatorTestCwd ? [`    cwd: ${generatorTestCwd}`] : ['    cwd: /path/to/generated/project']),
-          '    args:',
-          ...args.map(arg => `      - ${arg}`)
-        ];
-        if (baseUrl) {
-          yamlLines.push('    env:', `      API_BASE_URL: "${baseUrl}"`);
-        }
-        const yaml = yamlLines.join('\\n');
-
-        const json = {
-          mcpServers: {
-            [serverName]: {
-              type: 'stdio',
-              command: cmd,
-              args,
-              ...(generatorTestCwd ? { cwd: generatorTestCwd } : {}),
-              ...(baseUrl ? { env: { API_BASE_URL: baseUrl } } : {})
-            }
-          }
-        };
-
-        const yamlEl = document.getElementById('generatorTestYaml');
-        const jsonEl = document.getElementById('generatorTestJson');
-        if (yamlEl) yamlEl.textContent = yaml;
-        if (jsonEl) jsonEl.textContent = JSON.stringify(json, null, 2);
-
-        const commandsEl = document.getElementById('generatorTestCommands');
-        const envEl = document.getElementById('generatorTestEnv');
-        if (commandsEl) commandsEl.textContent = getGeneratorRunCommands(generatorTestOs, language);
-        if (envEl) envEl.textContent = getGeneratorEnvLines(baseUrl);
-        const unixBtn = document.getElementById('generatorTestOsUnix');
-        const winBtn = document.getElementById('generatorTestOsWindows');
-        if (unixBtn && winBtn) {
-          unixBtn.classList.toggle('active', generatorTestOs === 'unix');
-          winBtn.classList.toggle('active', generatorTestOs === 'windows');
-        }
-
-        const warning = document.getElementById('generatorTestCwdWarning');
-        const hasCwd = !!generatorTestCwd;
-        if (warning) warning.style.display = hasCwd ? 'none' : 'block';
-        const cwdInput = document.getElementById('generatorTestCwdInput');
-        if (cwdInput && cwdInput.value !== generatorTestCwd) {
-          cwdInput.value = generatorTestCwd;
-        }
-        const pickedHint = document.getElementById('generatorPickedFolderHint');
-        if (pickedHint) {
-          pickedHint.textContent = generatorPickedFolderName
-            ? `Selected folder: ${generatorPickedFolderName}. Paste the full path above.`
-            : '';
-        }
-        const connectBtn = document.getElementById('generatorTestConnectBtn');
-        if (connectBtn) connectBtn.disabled = !hasCwd;
-      }
-
-      function copyGeneratorTestConfig(format) {
-        const yamlEl = document.getElementById('generatorTestYaml');
-        const jsonEl = document.getElementById('generatorTestJson');
-        const text = format === 'json' ? jsonEl?.textContent : yamlEl?.textContent;
-        if (!text) return;
-        navigator.clipboard.writeText(text)
-          .then(() => appendMessage('system', `📋 ${format.toUpperCase()} copied to clipboard`))
-          .catch(() => appendMessage('error', 'Copy failed'));
-      }
-
-      function copyGeneratorTestBlock(id, label) {
-        const el = document.getElementById(id);
-        const text = el?.textContent;
-        if (!text) return;
-        navigator.clipboard.writeText(text)
-          .then(() => appendMessage('system', `📋 ${label} copied to clipboard`))
-          .catch(() => appendMessage('error', 'Copy failed'));
-      }
-
-      async function ensureGeneratorCwd() {
-        if (generatorTestCwd) return generatorTestCwd;
-        const cwd = await appPrompt('Enter the project folder for this server:', {
-          title: 'Project Folder Required',
-          label: 'Working directory',
-          placeholder: 'C:\\path\\to\\project or /path/to/project',
-          required: true
-        });
-        if (!cwd) return null;
-        generatorTestCwd = cwd.trim();
-        updateGeneratorTestModalConfig();
-        return generatorTestCwd;
-      }
-
-      function buildGeneratorServerPayload(overrideName) {
-        const name = overrideName || document.getElementById('genServerName').value.trim() || 'my-mcp-server';
-        const description = document.getElementById('genServerDesc').value.trim() || `Generated MCP server: ${name}`;
-        const language = document.getElementById('genLanguage').value;
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-        const command = language === 'python' ? 'python' : 'node';
-        const args = language === 'python' ? ['server.py'] : ['server.js'];
-        const payload = {
-          name,
-          type: 'stdio',
-          description,
-          command,
-          args
-        };
-        if (generatorTestCwd) payload.cwd = generatorTestCwd;
-        if (baseUrl) payload.env = { API_BASE_URL: baseUrl };
-        return payload;
-      }
-
-      async function addGeneratorServerToStudio({ connectAfter = false, overrideName = null } = {}) {
-        const cwd = await ensureGeneratorCwd();
-        if (!cwd) return false;
-        const payload = buildGeneratorServerPayload(overrideName);
-
-        try {
-          notifyUser(`Saving server "${payload.name}"...`, 'info');
-          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
-          const status = await statusRes.json();
-          const servers = status.servers || status;
-          const serverExists = payload.name in servers;
-          const endpoint = serverExists ? `/api/mcp/update/${encodeURIComponent(payload.name)}` : '/api/mcp/add';
-          const method = serverExists ? 'PUT' : 'POST';
-
-          const response = await fetch(endpoint, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(payload)
-          });
-          const data = await response.json();
-          if (data.error) {
-            notifyUser(`Failed to ${serverExists ? 'update' : 'add'} server: ${data.error}`, 'error');
-            return false;
-          }
-          notifyUser(`✅ ${serverExists ? 'Updated' : 'Added'} server: ${payload.name}`, 'success');
-          loadMCPStatus();
-          if (connectAfter) {
-            notifyUser(`Connecting to ${payload.name}...`, 'info');
-            await connectMCP(payload.name);
-          }
-          return true;
-        } catch (error) {
-          notifyUser(`Failed to save server: ${error.message}`, 'error');
-          return false;
-        }
-      }
-
-      async function openAddServerFromGenerator() {
-        const cwd = await ensureGeneratorCwd();
-        if (!cwd) return;
-        const payload = buildGeneratorServerPayload();
-        showAddServerModal();
-        document.getElementById('serverName').value = payload.name;
-        document.getElementById('serverType').value = 'stdio';
-        toggleServerTypeFields();
-        document.getElementById('serverCommand').value = payload.command;
-        document.getElementById('serverArgs').value = payload.args.join('\n');
-        const cwdEl = document.getElementById('serverCwd');
-        if (cwdEl && generatorTestCwd) cwdEl.value = generatorTestCwd;
-        clearEnvVars();
-        if (payload.env?.API_BASE_URL) addEnvVarRow('API_BASE_URL', payload.env.API_BASE_URL);
-        updateConfigPreview();
-      }
-
-      function buildZipFromFiles(files, folderName) {
-        const encoder = new TextEncoder();
-        const entries = Object.entries(files);
-        let offset = 0;
-        const fileRecords = [];
-        const chunks = [];
-
-        entries.forEach(([name, content]) => {
-          const fileName = folderName ? `${folderName}/${name}` : name;
-          const fileNameBytes = encoder.encode(fileName);
-          const fileData = encoder.encode(content || '');
-          const crc = crc32(fileData);
-          const localHeader = new Uint8Array(30 + fileNameBytes.length);
-          const view = new DataView(localHeader.buffer);
-          view.setUint32(0, 0x04034b50, true);
-          view.setUint16(4, 20, true);
-          view.setUint16(6, 0, true);
-          view.setUint16(8, 0, true);
-          view.setUint16(10, 0, true);
-          view.setUint16(12, 0, true);
-          view.setUint32(14, crc, true);
-          view.setUint32(18, fileData.length, true);
-          view.setUint32(22, fileData.length, true);
-          view.setUint16(26, fileNameBytes.length, true);
-          view.setUint16(28, 0, true);
-          localHeader.set(fileNameBytes, 30);
-
-          chunks.push(localHeader, fileData);
-          fileRecords.push({
-            fileNameBytes,
-            crc,
-            size: fileData.length,
-            offset
-          });
-          offset += localHeader.length + fileData.length;
-        });
-
-        const centralChunks = [];
-        let centralSize = 0;
-        fileRecords.forEach(record => {
-          const header = new Uint8Array(46 + record.fileNameBytes.length);
-          const view = new DataView(header.buffer);
-          view.setUint32(0, 0x02014b50, true);
-          view.setUint16(4, 20, true);
-          view.setUint16(6, 20, true);
-          view.setUint16(8, 0, true);
-          view.setUint16(10, 0, true);
-          view.setUint16(12, 0, true);
-          view.setUint16(14, 0, true);
-          view.setUint32(16, record.crc, true);
-          view.setUint32(20, record.size, true);
-          view.setUint32(24, record.size, true);
-          view.setUint16(28, record.fileNameBytes.length, true);
-          view.setUint16(30, 0, true);
-          view.setUint16(32, 0, true);
-          view.setUint16(34, 0, true);
-          view.setUint16(36, 0, true);
-          view.setUint32(38, 0, true);
-          view.setUint32(42, record.offset, true);
-          header.set(record.fileNameBytes, 46);
-          centralChunks.push(header);
-          centralSize += header.length;
-        });
-
-        const endRecord = new Uint8Array(22);
-        const endView = new DataView(endRecord.buffer);
-        endView.setUint32(0, 0x06054b50, true);
-        endView.setUint16(4, 0, true);
-        endView.setUint16(6, 0, true);
-        endView.setUint16(8, fileRecords.length, true);
-        endView.setUint16(10, fileRecords.length, true);
-        endView.setUint32(12, centralSize, true);
-        endView.setUint32(16, offset, true);
-        endView.setUint16(20, 0, true);
-
-        return new Blob([...chunks, ...centralChunks, endRecord], { type: 'application/zip' });
-      }
-
-      function crc32(buffer) {
-        let crc = 0xffffffff;
-        for (let i = 0; i < buffer.length; i++) {
-          crc ^= buffer[i];
-          for (let j = 0; j < 8; j++) {
-            const mask = -(crc & 1);
-            crc = (crc >>> 1) ^ (0xedb88320 & mask);
-          }
-        }
-        return (crc ^ 0xffffffff) >>> 0;
-      }
-
-      function buildGeneratorProjectFiles({ serverName, serverDesc, language, mode, code, baseUrl }) {
-        const safeName = serverName.toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
-        const readme = [
-          `# ${serverName}`,
-          '',
-          `${serverDesc}`,
-          '',
-          `Generated by MCP Chat Studio (${mode}).`,
-          '',
-          '## Quick start',
-          language === 'python' ?
-            '```bash\npython -m venv .venv\nsource .venv/bin/activate  # or .venv\\Scripts\\activate\npip install -r requirements.txt\npython server.py\n```' :
-            '```bash\nnpm install\nnode server.js\n```',
-          '',
-          '## Environment',
-          baseUrl ? `- API_BASE_URL=${baseUrl}` : '- API_BASE_URL=',
-          '- MCP_API_KEY=',
-          '- MCP_API_KEY_NAME=',
-          '- MCP_API_KEY_IN=header|query',
-          '- MCP_BEARER_TOKEN=',
-          '- MCP_BASIC_USER=',
-          '- MCP_BASIC_PASS=',
-          '- MCP_OAUTH_TOKEN_URL=',
-          '- MCP_OAUTH_CLIENT_ID=',
-          '- MCP_OAUTH_CLIENT_SECRET=',
-          '- MCP_OAUTH_SCOPE=',
-          '- MCP_OAUTH_AUDIENCE=',
-          ''
-        ].join('\n');
-
-        const envExample = [
-          baseUrl ? `API_BASE_URL=${baseUrl}` : 'API_BASE_URL=',
-          'MCP_API_KEY=',
-          'MCP_API_KEY_NAME=',
-          'MCP_API_KEY_IN=header',
-          'MCP_BEARER_TOKEN=',
-          'MCP_BASIC_USER=',
-          'MCP_BASIC_PASS=',
-          'MCP_OAUTH_TOKEN_URL=',
-          'MCP_OAUTH_CLIENT_ID=',
-          'MCP_OAUTH_CLIENT_SECRET=',
-          'MCP_OAUTH_SCOPE=',
-          'MCP_OAUTH_AUDIENCE=',
-          ''
-        ].join('\n');
-
-        if (language === 'python') {
-          return {
-            'server.py': code,
-            'requirements.txt': 'mcp>=1.0.0\n',
-            '.env.example': envExample,
-            'README.md': readme
-          };
-        }
-
-        const pkg = {
-          name: safeName || 'mcp-openapi-proxy',
-          version: '0.1.0',
-          type: 'module',
-          private: true,
-          description: serverDesc,
-          scripts: {
-            start: 'node server.js'
-          },
-          dependencies: {
-            '@modelcontextprotocol/sdk': '^1.25.1'
-          }
-        };
-
-        return {
-          'server.js': code,
-          'package.json': JSON.stringify(pkg, null, 2),
-          '.env.example': envExample,
-          'README.md': readme
-        };
-      }
-
-      // Clear generator
-      async function clearGenerator() {
-        const confirmed = await appConfirm('Clear all tools and settings?', {
-          title: 'Clear Generator',
-          confirmText: 'Clear',
-          confirmVariant: 'danger'
-        });
-        if (!confirmed) return;
-        generatorTools = [];
-        generatedCode = '';
-        document.getElementById('genServerName').value = '';
-        document.getElementById('genServerDesc').value = '';
-        const baseUrlInput = document.getElementById('genServerBaseUrl');
-        if (baseUrlInput) baseUrlInput.value = '';
-        document.getElementById('generatorPreviewSection').style.display = 'none';
-        renderGeneratorTools();
-        appendMessage('system', '🗑️ Generator cleared');
-      }
-
-      function updateGeneratorAutoRunButtons() {
-        const hasTools = generatorTools.length > 0;
-        const hasSelection = openApiSelected && openApiSelected.size > 0;
-        const canRun = hasTools || hasSelection;
-        document.querySelectorAll('[data-gen-auto-run]').forEach(btn => {
-          btn.disabled = !canRun;
-          btn.title = canRun
-            ? 'Generate a temporary server and connect it automatically.'
-            : 'Import endpoints or add tools before auto-run.';
-        });
-      }
-
-      async function ensureGeneratorToolsForRun() {
-        if (generatorTools.length > 0) return true;
-        if (openApiSelected && openApiSelected.size > 0) {
-          const confirmed = await appConfirm('No tools yet. Import the selected OpenAPI endpoints and continue?', {
-            title: 'Run & Connect (Auto)',
-            confirmText: 'Import & Continue'
-          });
-          if (!confirmed) return false;
-          importOpenApiTools(true);
-          return generatorTools.length > 0;
-        }
-        notifyUser('Add at least one tool or import OpenAPI endpoints first.', 'error');
-        return false;
-      }
-
-      async function resolveAutoRunServerName(desiredName) {
-        try {
-          const statusRes = await fetch('/api/mcp/status', { credentials: 'include' });
-          const status = await statusRes.json();
-          const servers = status.servers || status;
-          if (servers && desiredName in servers) {
-            const suffix = Date.now().toString(36).slice(-4);
-            return `${desiredName}-auto-${suffix}`;
-          }
-        } catch (error) {
-          console.warn('[Generator] Failed to check existing servers:', error.message);
-        }
-        return desiredName;
-      }
-
-      async function runGeneratorAndConnect() {
-        const desiredName = document.getElementById('genServerName').value || 'my-mcp-server';
-        const serverName = await resolveAutoRunServerName(desiredName);
-        const serverDesc = document.getElementById('genServerDesc').value || 'A custom MCP server';
-        const language = document.getElementById('genLanguage').value;
-        const mode = document.getElementById('genMode')?.value || 'scaffold';
-        const baseUrl = document.getElementById('genServerBaseUrl')?.value?.trim() || '';
-
-        const hasTools = await ensureGeneratorToolsForRun();
-        if (!hasTools) return;
-
-        if (serverName !== desiredName) {
-          notifyUser(`Using temporary server name "${serverName}" to avoid overwriting "${desiredName}".`, 'info');
-        }
-
-        if (language === 'python') {
-          const confirmed = await appConfirm('Auto-run uses your local Python and requires the mcp package installed. Continue?', {
-            title: 'Run & Connect (Auto)',
-            confirmText: 'Continue'
-          });
-          if (!confirmed) return;
-        }
-
-        if (mode === 'openapi' && !baseUrl) {
-          const confirmed = await appConfirm('No API Base URL set. Auto-run will start but tool calls may fail until you set API_BASE_URL. Continue?', {
-            title: 'Run & Connect (Auto)',
-            confirmText: 'Continue'
-          });
-          if (!confirmed) return;
-        }
-
-        let code = '';
-        if (mode === 'openapi') {
-          const openApiTools = generatorTools.filter(tool => tool.endpoint);
-          if (!openApiTools.length) {
-            appendMessage('error', 'OpenAPI Proxy mode needs imported endpoints.');
-            return;
-          }
-          code = language === 'python'
-            ? generateOpenApiPythonMCP(serverName, serverDesc, openApiTools)
-            : generateOpenApiNodeMCP(serverName, serverDesc, openApiTools);
-        } else {
-          code = language === 'python'
-            ? generatePythonMCP(serverName, serverDesc)
-            : generateNodeMCP(serverName, serverDesc);
-        }
-
-        const files = buildGeneratorProjectFiles({
-          serverName,
-          serverDesc,
-          language,
-          mode,
-          code,
-          baseUrl
-        });
-
-        try {
-          notifyUser('Preparing temporary project folder...', 'info');
-          const response = await fetch('/api/generator/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              serverName,
-              language,
-              mode,
-              baseUrl,
-              files
-            })
-          });
-          let data = {};
-          try {
-            data = await response.json();
-          } catch (parseError) {
-            data = {};
-          }
-          if (!response.ok || data.error) {
-            notifyUser(`Auto-run failed: ${data.error || response.statusText}`, 'error');
-            showGeneratorTestModal();
-            return;
-          }
-          generatorTestCwd = data.cwd;
-          generatorPickedFolderName = data.cwd ? data.cwd.split(/[\\/]/).pop() : '';
-          updateGeneratorTestModalConfig({ serverName, baseUrl });
-          const connected = await addGeneratorServerToStudio({ connectAfter: true, overrideName: serverName });
-          if (connected) {
-            notifyUser(`🚀 Auto-run ready. ${serverName} is connecting now.`, 'success');
-          }
-        } catch (error) {
-          notifyUser(`Auto-run failed: ${error.message}`, 'error');
-        }
-      }
-
-      // ==========================================
       // CHAT SESSION BRANCHING
       // ==========================================
 
@@ -14021,6 +9687,8 @@ main().catch(console.error);
       let diffToolsCache = [];
       let crossServerToolsCache = [];
       let crossServerServersCache = [];
+      let crossServerSelected = new Set();
+      let crossServerCommonOnly = true;
 
       async function loadDiffServers() {
         const select = document.getElementById('diffServerSelect');
@@ -14053,21 +9721,127 @@ main().catch(console.error);
             .filter(([, info]) => info.connected || info.userConnected)
             .map(([name]) => name);
 
-          baselineSelect.innerHTML = '<option value="">-- Auto baseline --</option>' +
-            crossServerServersCache.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
-
           const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
           const data = await toolsRes.json();
           const tools = data.tools || [];
           crossServerToolsCache = tools.filter(tool =>
             !tool.notConnected && crossServerServersCache.includes(tool.serverName)
           );
-
-          const toolNames = Array.from(new Set(crossServerToolsCache.map(tool => tool.name))).sort();
-          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>' +
-            toolNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+          renderCrossServerServerPicker();
+          updateCrossServerToolOptions();
         } catch (error) {
           console.error('Failed to load cross-server options:', error);
+        }
+      }
+
+      function getCrossServerSelectedServers() {
+        if (!crossServerServersCache.length) return [];
+        if (!crossServerSelected.size) return [...crossServerServersCache];
+        return crossServerServersCache.filter(name => crossServerSelected.has(name));
+      }
+
+      function renderCrossServerServerPicker() {
+        const container = document.getElementById('crossServerPicker');
+        if (!container) return;
+        if (!crossServerServersCache.length) {
+          container.innerHTML = '<span style="font-size: 0.7rem; color: var(--text-muted)">Connect servers to compare.</span>';
+          return;
+        }
+        crossServerSelected = new Set([...crossServerSelected].filter(name => crossServerServersCache.includes(name)));
+        if (!crossServerSelected.size) {
+          crossServerServersCache.forEach(name => crossServerSelected.add(name));
+        }
+        container.innerHTML = crossServerServersCache.map(name => {
+          const checked = crossServerSelected.has(name) ? 'checked' : '';
+          const active = crossServerSelected.has(name) ? 'active' : '';
+          return `
+            <label class="cross-server-pill ${active}" title="Include ${escapeHtml(name)} in comparison">
+              <input type="checkbox" ${checked} onchange="toggleCrossServerSelection('${escapeHtml(name)}', this.checked)" />
+              ${escapeHtml(name)}
+            </label>
+          `;
+        }).join('');
+      }
+
+      function toggleCrossServerSelection(name, checked) {
+        if (checked) {
+          crossServerSelected.add(name);
+        } else {
+          crossServerSelected.delete(name);
+        }
+        updateCrossServerToolOptions();
+      }
+
+      function selectAllCrossServers(selectAll) {
+        if (!crossServerServersCache.length) return;
+        crossServerSelected.clear();
+        if (selectAll) {
+          crossServerServersCache.forEach(name => crossServerSelected.add(name));
+        }
+        renderCrossServerServerPicker();
+        updateCrossServerToolOptions();
+      }
+
+      function updateCrossServerToolOptions() {
+        const toolSelect = document.getElementById('crossToolSelect');
+        const baselineSelect = document.getElementById('crossBaselineServerSelect');
+        const commonToggle = document.getElementById('crossCommonOnly');
+        const hintEl = document.getElementById('crossServerHint');
+        if (!toolSelect || !baselineSelect) return;
+
+        crossServerCommonOnly = commonToggle ? commonToggle.checked : false;
+        const selectedServers = getCrossServerSelectedServers();
+        const previousBaseline = baselineSelect.value;
+        baselineSelect.innerHTML = '<option value="">-- Auto baseline --</option>' +
+          selectedServers.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+
+        if (!selectedServers.length) {
+          toolSelect.innerHTML = '<option value="">-- Select Tool --</option>';
+          if (hintEl) {
+            hintEl.textContent = 'Connect servers to compare. Baseline auto-selects the first server.';
+          }
+          return;
+        }
+
+        if (previousBaseline && selectedServers.includes(previousBaseline)) {
+          baselineSelect.value = previousBaseline;
+        } else if (selectedServers.length) {
+          baselineSelect.value = selectedServers[0];
+        }
+
+        if (hintEl) {
+          const serverNote = selectedServers.length < 2
+            ? 'Connect 2+ servers for meaningful diffs.'
+            : 'Baseline auto-selects the first server.';
+          hintEl.textContent = `Select servers and choose a baseline. Common tools limits to overlaps. ${serverNote}`;
+        }
+
+        const toolMap = new Map();
+        crossServerToolsCache.forEach(tool => {
+          if (!selectedServers.includes(tool.serverName)) return;
+          if (!toolMap.has(tool.serverName)) toolMap.set(tool.serverName, new Set());
+          toolMap.get(tool.serverName).add(tool.name);
+        });
+
+        let toolNames = [];
+        if (crossServerCommonOnly) {
+          const sets = selectedServers.map(name => toolMap.get(name) || new Set());
+          if (sets.length) {
+            const [first, ...rest] = sets;
+            toolNames = Array.from(first).filter(name => rest.every(set => set.has(name)));
+          }
+        } else {
+          const union = new Set();
+          toolMap.forEach(set => set.forEach(name => union.add(name)));
+          toolNames = Array.from(union);
+        }
+
+        toolNames.sort();
+        const previous = toolSelect.value;
+        toolSelect.innerHTML = '<option value="">-- Select Tool --</option>' +
+          toolNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+        if (previous && toolNames.includes(previous)) {
+          toolSelect.value = previous;
         }
       }
 
@@ -14225,13 +9999,19 @@ main().catch(console.error);
           args = applyTemplateVariables(args, variables);
         }
 
+        const selectedServers = getCrossServerSelectedServers();
+        if (!selectedServers.length) {
+          showNotification('Select at least one server to compare.', 'warning');
+          return;
+        }
+
         let serversWithTool = crossServerToolsCache
           .filter(tool => tool.name === toolName)
           .map(tool => tool.serverName);
-        let servers = crossServerServersCache.filter(name => serversWithTool.includes(name));
+        let servers = selectedServers.filter(name => serversWithTool.includes(name));
 
         if (!servers.length) {
-          servers = crossServerServersCache.slice();
+          servers = selectedServers.slice();
           if (!servers.length) {
             showNotification('No connected servers expose this tool.', 'error');
             return;
@@ -14560,6 +10340,8 @@ main().catch(console.error);
 
       // Initialize
       restoreSession();
+      restoreSessionFromServer();
+      checkSharedSessionLink();
       checkAuthStatus();
       loadMCPStatus();
       populateSystemPrompts();
@@ -14629,12 +10411,13 @@ main().catch(console.error);
       window.getToolExecutionHistory = () => toolExecutionHistory;
       window.getLocalScenarios = () => sessionManager.getScenarios();
       window.createScenarioFromHistory = createScenarioFromHistory;
-      window.rerunHistoryEntryDiff = rerunHistoryEntryDiff;
-      window.runHistoryEntryMatrix = runHistoryEntryMatrix;
       window.runScenarioMatrix = runScenarioMatrix;
       window.runScenarioDataset = runScenarioDataset;
       window.showDatasetManager = showDatasetManager;
       window.loadCrossServerOptions = loadCrossServerOptions;
+      window.updateCrossServerToolOptions = updateCrossServerToolOptions;
+      window.toggleCrossServerSelection = toggleCrossServerSelection;
+      window.selectAllCrossServers = selectAllCrossServers;
       window.runCrossServerCompare = runCrossServerCompare;
       window.runInspectorMatrix = runInspectorMatrix;
       window.generateFuzzCases = generateFuzzCases;
@@ -14646,14 +10429,6 @@ main().catch(console.error);
       window.saveOAuthSettings = saveOAuthSettings;
       window.disableOAuthConfig = disableOAuthConfig;
       window.resetProviderVisibility = resetProviderVisibility;
+      window.shareSessionLink = shareSessionLink;
 
-      initStudioAssistant();
-      window.toggleAssistant = toggleAssistant;
-      window.toggleAssistantDock = toggleAssistantDock;
-      window.toggleAssistantPopout = toggleAssistantPopout;
-      window.toggleAssistantSize = toggleAssistantSize;
-      window.startAssistantResize = startAssistantResize;
-      window.clearAssistantChat = clearAssistantChat;
-      window.showAssistantCommands = showAssistantCommands;
-      window.sendAssistantMessage = sendAssistantMessage;
 

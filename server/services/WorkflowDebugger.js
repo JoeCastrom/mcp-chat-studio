@@ -5,7 +5,7 @@
 
 import { getMCPManager } from './MCPManager.js';
 import { createLLMClient } from './LLMClient.js';
-import { VM } from 'vm2';
+import { createSandboxVM } from './SandboxEngine.js';
 
 export class WorkflowDebugger {
   constructor(workflowEngine) {
@@ -267,7 +267,7 @@ export class WorkflowDebugger {
       }
 
       case 'javascript': {
-        const vm = new VM({
+        const vm = createSandboxVM({
           timeout: 5000,
           sandbox: {
             input: context.steps,

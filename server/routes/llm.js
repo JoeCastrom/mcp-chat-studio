@@ -6,6 +6,7 @@
 import express from 'express';
 import { getLLMClient } from '../services/LLMClient.js';
 import { loadPersistedLLMConfig, savePersistedLLMConfig } from '../services/LLMConfigStore.js';
+import { logAudit } from '../services/AuditLogger.js';
 
 const router = express.Router();
 const VALID_PROVIDERS = [
@@ -162,6 +163,13 @@ router.post('/config', async (req, res) => {
       ...llmClient.config,
       provider: llmClient.provider,
       auth: nextAuth
+    });
+    logAudit('llm.config_update', {
+      provider: llmClient.provider,
+      model: llmClient.config.model,
+      base_url: llmClient.config.base_url || llmClient.getBaseUrl(),
+      hasApiKey: !!llmClient.config.api_key,
+      auth_type: nextAuth?.type || 'none'
     });
 
     res.json({

@@ -10,6 +10,7 @@ import {
   loadPersistedOAuthConfig,
   savePersistedOAuthConfig
 } from '../services/OAuthConfigStore.js';
+import { logAudit } from '../services/AuditLogger.js';
 
 const router = Router();
 
@@ -114,6 +115,11 @@ router.post('/config', async (req, res) => {
 
     await savePersistedOAuthConfig(nextConfig);
     oauth?.updateConfig(nextConfig);
+    logAudit('oauth.config_update', {
+      provider: nextConfig.provider,
+      disabled: nextConfig.disabled,
+      use_pkce: nextConfig.use_pkce
+    });
 
     res.json({
       success: true,
@@ -136,6 +142,7 @@ router.delete('/config', async (req, res) => {
     const disabledConfig = { disabled: true };
     await savePersistedOAuthConfig(disabledConfig);
     oauth?.updateConfig(disabledConfig);
+    logAudit('oauth.config_disable', { disabled: true });
     res.json({ success: true, configured: false });
   } catch (error) {
     console.error('[OAuth] Config disable failed:', error.message);
@@ -172,9 +179,11 @@ router.get('/login', (req, res) => {
     });
 
     // Return auth URL (frontend will redirect)
+    logAudit('oauth.login_start', { sessionId });
     res.json({ authUrl, sessionId });
   } catch (error) {
     console.error('[OAuth] Login error:', error.message);
+    logAudit('oauth.login_error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -208,9 +217,11 @@ router.get('/callback', async (req, res) => {
     });
 
     // Redirect to app with success
+    logAudit('oauth.callback_success', { sessionId: result.sessionId });
     res.redirect('/?login=success');
   } catch (error) {
     console.error('[OAuth] Callback error:', error.message);
+    logAudit('oauth.callback_error', { error: error.message });
     res.redirect(`/?error=${encodeURIComponent(error.message)}`);
   }
 });
@@ -229,6 +240,7 @@ router.post('/logout', (req, res) => {
     // Clear cookie
     res.clearCookie('sessionId');
 
+    logAudit('oauth.logout', { sessionId });
     res.json({ logoutUrl });
   } else {
     res.json({ logoutUrl: '/' });

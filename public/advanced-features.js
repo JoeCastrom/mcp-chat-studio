@@ -52,9 +52,9 @@ function renderSnapshotLibraryList() {
         </div>
       </div>
       <div style="display: flex; gap: 6px">
-        <button class="btn" onclick="showSnapshotReport('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">👁️ View</button>
-        <button class="btn" onclick="exportSnapshotById('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">📤 Export</button>
-        <button class="btn" onclick="deleteSnapshot('${snapshot.id}')" style="font-size: 0.65rem; padding: 2px 6px">🗑️</button>
+        <button class="btn" onclick="showSnapshotReport('${escapeAttr(snapshot.id)}')" style="font-size: 0.65rem; padding: 2px 6px">👁️ View</button>
+        <button class="btn" onclick="exportSnapshotById('${escapeAttr(snapshot.id)}')" style="font-size: 0.65rem; padding: 2px 6px">📤 Export</button>
+        <button class="btn" onclick="deleteSnapshot('${escapeAttr(snapshot.id)}')" style="font-size: 0.65rem; padding: 2px 6px">🗑️</button>
       </div>
     </div>
   `).join('');
@@ -496,13 +496,13 @@ function renderCollectionRuns() {
         <span>⏭️ ${run.summary?.skipped || 0}</span>
       </div>
       <div class="collection-actions">
-        <button class="btn-small" onclick="viewCollectionRunReport('${run.id}')">👁️ View</button>
-        <button class="btn-small" onclick="rerunCollectionRun('${run.id}')">↻ Rerun</button>
-        <button class="btn-small" onclick="exportCollectionRunById('${run.id}')">📥 JSON</button>
-        <button class="btn-small" onclick="exportCollectionRunJUnitById('${run.id}')">🧾 JUnit</button>
-        <button class="btn-small" onclick="exportCollectionRunHtmlById('${run.id}')">🧾 HTML</button>
-        <button class="btn-small" onclick="exportCollectionRunBundleById('${run.id}')">📦 Bundle</button>
-        <button class="btn-small" onclick="createMocksFromRunById('${run.id}')">🎭 Mock</button>
+        <button class="btn-small" onclick="viewCollectionRunReport('${escapeAttr(run.id)}')">👁️ View</button>
+        <button class="btn-small" onclick="rerunCollectionRun('${escapeAttr(run.id)}')">↻ Rerun</button>
+        <button class="btn-small" onclick="exportCollectionRunById('${escapeAttr(run.id)}')">📥 JSON</button>
+        <button class="btn-small" onclick="exportCollectionRunJUnitById('${escapeAttr(run.id)}')">🧾 JUnit</button>
+        <button class="btn-small" onclick="exportCollectionRunHtmlById('${escapeAttr(run.id)}')">🧾 HTML</button>
+        <button class="btn-small" onclick="exportCollectionRunBundleById('${escapeAttr(run.id)}')">📦 Bundle</button>
+        <button class="btn-small" onclick="createMocksFromRunById('${escapeAttr(run.id)}')">🎭 Mock</button>
       </div>
     </div>
   `;
@@ -538,21 +538,21 @@ function renderCollectionsList() {
   }
 
   list.innerHTML = collections.map(col => `
-    <div class="collection-card" onclick="selectCollection('${col.id}')">
+    <div class="collection-card" onclick="selectCollection('${escapeAttr(col.id)}')">
       <div class="collection-header">
-        <h3>${col.name}</h3>
+        <h3>${escapeHtml(col.name || 'Untitled')}</h3>
         <span class="badge">${col.scenarioCount || 0} scenarios</span>
       </div>
-      <p class="collection-desc">${col.description || 'No description'}</p>
+      <p class="collection-desc">${escapeHtml(col.description || 'No description')}</p>
       <div class="collection-meta">
         <span>Updated: ${new Date(col.updatedAt).toLocaleDateString()}</span>
       </div>
       <div class="collection-actions">
-        <button class="btn-small" onclick="event.stopPropagation(); addScenarioToCollection('${col.id}')">➕ Add Scenario</button>
-        <button class="btn-small" onclick="event.stopPropagation(); runCollection('${col.id}')">▶️ Run</button>
-        <button class="btn-small" onclick="event.stopPropagation(); editCollectionSettings('${col.id}')">⚙️ Edit</button>
-        <button class="btn-small" onclick="event.stopPropagation(); exportCollection('${col.id}')">📥 Export</button>
-        <button class="btn-small btn-danger" onclick="event.stopPropagation(); deleteCollection('${col.id}')">🗑️</button>
+        <button class="btn-small" onclick="event.stopPropagation(); addScenarioToCollection('${escapeAttr(col.id)}')">➕ Add Scenario</button>
+        <button class="btn-small" onclick="event.stopPropagation(); runCollection('${escapeAttr(col.id)}')">▶️ Run</button>
+        <button class="btn-small" onclick="event.stopPropagation(); editCollectionSettings('${escapeAttr(col.id)}')">⚙️ Edit</button>
+        <button class="btn-small" onclick="event.stopPropagation(); exportCollection('${escapeAttr(col.id)}')">📥 Export</button>
+        <button class="btn-small btn-danger" onclick="event.stopPropagation(); deleteCollection('${escapeAttr(col.id)}')">🗑️</button>
       </div>
     </div>
   `).join('');
@@ -817,6 +817,15 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function escapeXml(text) {
   return String(text || '')
     .replace(/&/g, '&amp;')
@@ -856,6 +865,13 @@ function exportCollectionRunGate(results) {
   }
   downloadTextFile('collection-run-gate.json', JSON.stringify(gate, null, 2), 'application/json');
   showNotification('Gate summary exported.', 'success');
+}
+
+function copyCollectionGateCommand() {
+  const command = 'node scripts/collection-gate.js ./collection-run-gate.json';
+  navigator.clipboard.writeText(command)
+    .then(() => showNotification('Gate command copied to clipboard.', 'success'))
+    .catch(error => showNotification('Failed to copy command: ' + error.message, 'error'));
 }
 
 function exportCollectionRunBundle(results) {
@@ -913,7 +929,7 @@ function exportCollectionRunHtml(results) {
       <tr>
         <td>${escapeHtml(scenario.scenarioName || scenario.name || 'Scenario')}</td>
         <td>${iter}</td>
-        <td>${status}</td>
+        <td>${escapeHtml(status)}</td>
         <td>${duration} ms</td>
       </tr>
     `;
@@ -1164,7 +1180,7 @@ function showCollectionRunReport(results) {
           <div>
             <strong>${escapeHtml(step.server || '')}</strong> · <code>${escapeHtml(step.tool || '')}</code>
             <span style="margin-left: 6px; color: ${step.status === 'passed' ? 'var(--success)' : 'var(--error)'}">
-              ${step.status || ''}
+              ${escapeHtml(step.status || '')}
             </span>
           </div>
           <span style="color: var(--text-muted)">${step.duration || 0}ms</span>
@@ -1184,8 +1200,8 @@ function showCollectionRunReport(results) {
             <span style="font-weight: 600">${escapeHtml(scenario.scenarioName || scenario.name || 'Scenario')}</span>
             <span style="font-size: 0.7rem; color: var(--text-muted)">Iteration ${scenario.iteration || 1}</span>
           </div>
-          <span style="font-size: 0.75rem; color: ${statusColor}">
-            ${scenario.status || 'unknown'} · ${scenario.duration || 0}ms
+            <span style="font-size: 0.75rem; color: ${statusColor}">
+            ${escapeHtml(scenario.status || 'unknown')} · ${scenario.duration || 0}ms
           </span>
         </summary>
         <div style="margin-top: 8px">
@@ -1224,14 +1240,17 @@ function showCollectionRunReport(results) {
           const statusColor = gate.status === 'fail' ? 'var(--error)' : 'var(--success)';
           const reasons = gate.reasons.length ? gate.reasons.join(', ') : 'No regressions detected';
           const label = gate.baselineType === 'golden' ? 'Golden Gate' : 'Snapshot Gate';
+          const safeLabel = escapeHtml(label);
+          const safeStatus = escapeHtml(gate.status.toUpperCase());
+          const safeReasons = escapeHtml(reasons);
           return `
             <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface); font-size: 0.75rem">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
-                <strong>🚦 ${label}</strong>
-                <span style="font-weight: 600; color: ${statusColor}">${gate.status.toUpperCase()}</span>
+                <strong>🚦 ${safeLabel}</strong>
+                <span style="font-weight: 600; color: ${statusColor}">${safeStatus}</span>
               </div>
               <div style="color: var(--text-muted)">
-                Baseline: ${new Date(gate.baselineTimestamp).toLocaleString()} · ${reasons}
+                Baseline: ${new Date(gate.baselineTimestamp).toLocaleString()} · ${safeReasons}
               </div>
             </div>
           `;
@@ -1296,12 +1315,13 @@ function showCollectionRunReport(results) {
         <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
         <button class="btn" onclick="saveRunSnapshot(window.lastCollectionRunReport)">📸 Save Snapshot</button>
         ${snapshotEntry ? `
-          <button class="btn" onclick="showSnapshotReport('${snapshotEntry.id}')">🎬 Replay Snapshot</button>
-          <button class="btn" onclick="exportSnapshotById('${snapshotEntry.id}')">📤 Export Snapshot</button>
+          <button class="btn" onclick="showSnapshotReport('${escapeAttr(snapshotEntry.id)}')">🎬 Replay Snapshot</button>
+          <button class="btn" onclick="exportSnapshotById('${escapeAttr(snapshotEntry.id)}')">📤 Export Snapshot</button>
           <button class="btn" onclick="driftCheckSnapshot(window.lastCollectionRunReport)">🔍 Drift Check</button>
           <button class="btn" onclick="clearRunSnapshot(window.lastCollectionRunReport)">🧹 Clear Snapshot</button>
         ` : ''}
         <button class="btn" onclick="exportCollectionRunGate(window.lastCollectionRunReport)">🚦 Export Gate</button>
+        <button class="btn" onclick="copyCollectionGateCommand()">📋 Copy Gate Command</button>
         ${goldenEntry ? `
           <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Update Golden</button>
           <button class="btn" onclick="clearGoldenFromReport(window.lastCollectionRunReport)">🧹 Clear Golden</button>
@@ -1388,8 +1408,8 @@ function renderMonitorsList() {
     return `
       <div class="monitor-card">
         <div class="monitor-header">
-          <h3>${statusIcon} ${mon.name}</h3>
-          <span class="badge">${mon.schedule}</span>
+          <h3>${statusIcon} ${escapeHtml(mon.name || 'Monitor')}</h3>
+          <span class="badge">${escapeHtml(mon.schedule || '')}</span>
         </div>
         <div class="monitor-stats">
           <div class="stat">
@@ -1398,7 +1418,7 @@ function renderMonitorsList() {
           </div>
           <div class="stat">
             <span class="stat-label">Status:</span>
-            <span class="stat-value">${lastStatus} ${mon.lastStatus || 'N/A'}</span>
+            <span class="stat-value">${lastStatus} ${escapeHtml(mon.lastStatus || 'N/A')}</span>
           </div>
           <div class="stat">
             <span class="stat-label">Run Count:</span>
@@ -1406,11 +1426,11 @@ function renderMonitorsList() {
           </div>
         </div>
         <div class="monitor-actions">
-          <button class="btn-small" onclick="runMonitorNow('${mon.id}')">▶️ Run Now</button>
-          <button class="btn-small" onclick="toggleMonitor('${mon.id}', ${!mon.enabled})">
+          <button class="btn-small" onclick="runMonitorNow('${escapeAttr(mon.id)}')">▶️ Run Now</button>
+          <button class="btn-small" onclick="toggleMonitor('${escapeAttr(mon.id)}', ${!mon.enabled})">
             ${mon.enabled ? '⏸️ Stop' : '▶️ Start'}
           </button>
-          <button class="btn-small btn-danger" onclick="deleteMonitor('${mon.id}')">🗑️</button>
+          <button class="btn-small btn-danger" onclick="deleteMonitor('${escapeAttr(mon.id)}')">🗑️</button>
         </div>
       </div>
     `;
@@ -1688,8 +1708,8 @@ function renderLeaderboard(data) {
         ${rows.map((tool, idx) => `
           <tr>
             <td>${idx + 1}</td>
-            <td>${tool.server}</td>
-            <td><code>${tool.name}</code></td>
+            <td>${escapeHtml(tool.server)}</td>
+            <td><code>${escapeHtml(tool.name)}</code></td>
             <td>${tool.calls}</td>
             <td>${tool.successRate.toFixed(1)}%</td>
             <td>${tool.avgLatency}ms</td>
@@ -1742,7 +1762,7 @@ function renderHealthDashboard(health) {
           <ul>
             ${problematic.map(t => `
               <li>
-                <strong>${t.server}.${t.tool}</strong>:
+                <strong>${escapeHtml(t.server)}.${escapeHtml(t.tool)}</strong>:
                 ${t.successRate?.toFixed(1) ?? 0}% success
               </li>
             `).join('')}
@@ -1755,7 +1775,7 @@ function renderHealthDashboard(health) {
           <ul>
             ${slowTools.map(t => `
               <li>
-                <strong>${t.server}.${t.tool}</strong>:
+                <strong>${escapeHtml(t.server)}.${escapeHtml(t.tool)}</strong>:
                 p95 ${t.p95Duration}ms
               </li>
             `).join('')}
@@ -2124,20 +2144,20 @@ function renderMockServersList() {
   list.innerHTML = mockServers.map(mock => `
     <div class="mock-card">
       <div class="mock-header">
-        <h3>${mock.name}</h3>
+        <h3>${escapeHtml(mock.name || 'Mock')}</h3>
         <span class="badge">${mock.tools?.length || 0} tools</span>
       </div>
-      <p class="mock-desc">${mock.description || 'No description'}</p>
+      <p class="mock-desc">${escapeHtml(mock.description || 'No description')}</p>
       <div class="mock-stats">
         <span>📞 ${mock.callCount || 0} calls</span>
         <span>⏱️ ${mock.delay || 0}ms delay</span>
         <span>⚠️ ${(mock.errorRate * 100 || 0)}% error rate</span>
       </div>
       <div class="mock-actions">
-        <button class="btn-small" onclick="connectMockServer('${mock.id}')">🔌 Connect</button>
-        <button class="btn-small" onclick="viewMockDetails('${mock.id}')">👁️ View</button>
-        <button class="btn-small" onclick="resetMockStats('${mock.id}')">🔄 Reset</button>
-        <button class="btn-small btn-danger" onclick="deleteMock('${mock.id}')">🗑️</button>
+        <button class="btn-small" onclick="connectMockServer('${escapeAttr(mock.id)}')">🔌 Connect</button>
+        <button class="btn-small" onclick="viewMockDetails('${escapeAttr(mock.id)}')">👁️ View</button>
+        <button class="btn-small" onclick="resetMockStats('${escapeAttr(mock.id)}')">🔄 Reset</button>
+        <button class="btn-small btn-danger" onclick="deleteMock('${escapeAttr(mock.id)}')">🗑️</button>
       </div>
     </div>
   `).join('');
@@ -2544,18 +2564,18 @@ function renderScriptsList() {
     return `
       <div class="script-card">
         <div class="script-header">
-          <h3>${typeIcon} ${script.name}</h3>
-          <span class="badge">${script.type}-request</span>
+          <h3>${typeIcon} ${escapeHtml(script.name || 'Script')}</h3>
+          <span class="badge">${escapeHtml(script.type || 'script')}-request</span>
           <span class="badge">${enabledIcon}</span>
         </div>
-        <p class="script-desc">${script.description || 'No description'}</p>
+        <p class="script-desc">${escapeHtml(script.description || 'No description')}</p>
         <div class="script-actions">
-          <button class="btn-small" onclick="editScript('${script.id}')">✏️ Edit</button>
-          <button class="btn-small" onclick="testScript('${script.id}')">▶️ Test</button>
-          <button class="btn-small" onclick="toggleScript('${script.id}', ${!script.enabled})">
+          <button class="btn-small" onclick="editScript('${escapeAttr(script.id)}')">✏️ Edit</button>
+          <button class="btn-small" onclick="testScript('${escapeAttr(script.id)}')">▶️ Test</button>
+          <button class="btn-small" onclick="toggleScript('${escapeAttr(script.id)}', ${!script.enabled})">
             ${script.enabled ? '⏸️ Disable' : '▶️ Enable'}
           </button>
-          <button class="btn-small btn-danger" onclick="deleteScript('${script.id}')">🗑️</button>
+          <button class="btn-small btn-danger" onclick="deleteScript('${escapeAttr(script.id)}')">🗑️</button>
         </div>
       </div>
     `;
@@ -3288,8 +3308,8 @@ function renderContractsList() {
   list.innerHTML = contracts.map(contract => {
     const statusIcon = contract.lastValidation?.valid ? '✅' : contract.lastValidation ? '❌' : '⏸️';
     const breakingChanges = contract.breakingChanges?.length || 0;
-    const toolLabel = contract.toolName || contract.name || 'Unknown tool';
-    const serverLabel = contract.server || 'unknown';
+    const toolLabel = escapeHtml(contract.toolName || contract.name || 'Unknown tool');
+    const serverLabel = escapeHtml(contract.server || 'unknown');
 
     return `
       <div class="contract-card">
@@ -3299,7 +3319,7 @@ function renderContractsList() {
           ${breakingChanges > 0 ? `<span class="badge badge-danger">${breakingChanges} breaking changes</span>` : ''}
         </div>
         <p class="contract-desc">
-          Schema version: ${contract.version || '1.0.0'}
+          Schema version: ${escapeHtml(contract.version || '1.0.0')}
           ${contract.lastValidation ? ` | Last validated: ${new Date(contract.lastValidation.timestamp).toLocaleString()}` : ''}
         </p>
         <div class="contract-stats">
@@ -3308,10 +3328,10 @@ function renderContractsList() {
           <span>❌ ${contract.failureCount || 0} failed</span>
         </div>
         <div class="contract-actions">
-          <button class="btn-small" onclick="viewContract('${contract.id}')">👁️ View Schema</button>
-          <button class="btn-small" onclick="validateContract('${contract.id}')">▶️ Validate</button>
-          <button class="btn-small" onclick="detectBreakingChanges('${contract.id}')">🔍 Check Changes</button>
-          <button class="btn-small btn-danger" onclick="deleteContract('${contract.id}')">🗑️</button>
+          <button class="btn-small" onclick="viewContract('${escapeAttr(contract.id)}')">👁️ View Schema</button>
+          <button class="btn-small" onclick="validateContract('${escapeAttr(contract.id)}')">▶️ Validate</button>
+          <button class="btn-small" onclick="detectBreakingChanges('${escapeAttr(contract.id)}')">🔍 Check Changes</button>
+          <button class="btn-small btn-danger" onclick="deleteContract('${escapeAttr(contract.id)}')">🗑️</button>
         </div>
       </div>
     `;
@@ -3548,7 +3568,7 @@ async function showServerSelectionModal(action = 'generate') {
   `;
 
   const serverOptions = servers.map(s =>
-    `<option value="${s.name}">${s.name} (${s.transport || 'stdio'})</option>`
+    `<option value="${escapeAttr(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.transport || 'stdio')})</option>`
   ).join('');
 
   modal.innerHTML = `
@@ -3730,7 +3750,7 @@ function renderPerformanceMetrics(data) {
     data.slowestTools.slice(0, 5).forEach(tool => {
       slowestToolsEl.innerHTML += `
         <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--bg-card); border-radius: 4px">
-          <span>${tool.name}</span>
+          <span>${escapeHtml(tool.name)}</span>
           <span style="color: ${tool.avgTime > 1000 ? 'var(--error)' : 'var(--text-secondary)'}">${tool.avgTime.toFixed(0)}ms</span>
         </div>
       `;
@@ -3764,7 +3784,7 @@ async function loadDebuggerWorkflows() {
     }
 
     select.innerHTML = workflows.map(workflow => `
-      <option value="${escapeHtml(workflow.id)}">${escapeHtml(workflow.name || workflow.id)}</option>
+      <option value="${escapeAttr(workflow.id)}">${escapeHtml(workflow.name || workflow.id)}</option>
     `).join('');
 
     if (typeof workflowState !== 'undefined' && workflowState.currentId) {

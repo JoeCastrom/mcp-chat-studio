@@ -15,6 +15,7 @@ import {
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { getMockServerManager } from './MockServerManager.js';
+import { logAudit } from './AuditLogger.js';
 
 console.log('[MCP] Loading MCPManager with raw transport tool calls (bypasses SDK validation)');
 
@@ -37,6 +38,7 @@ class MCPConnection {
    */
   async connect(userToken = null) {
     try {
+      const startedAt = Date.now();
       console.log(`[MCP][${this.serverName}] Connecting...`);
 
       // Create client
@@ -92,6 +94,12 @@ class MCPConnection {
 
       this.connected = true;
       console.log(`[MCP][${this.serverName}] Connected successfully`);
+      logAudit('mcp.connect', {
+        server: this.serverName,
+        transport: this.config.type || (this.config.command ? 'stdio' : 'unknown'),
+        status: 'success',
+        durationMs: Date.now() - startedAt
+      });
 
       // Fetch available tools
       await this.refreshTools();
@@ -100,6 +108,12 @@ class MCPConnection {
     } catch (error) {
       console.error(`[MCP][${this.serverName}] Connection failed:`, error.message);
       this.connected = false;
+      logAudit('mcp.connect', {
+        server: this.serverName,
+        transport: this.config.type || (this.config.command ? 'stdio' : 'unknown'),
+        status: 'error',
+        error: error.message
+      });
       throw error;
     }
   }
@@ -202,6 +216,7 @@ class MCPConnection {
     }
 
     console.log(`[MCP][${this.serverName}] Calling tool: ${toolName}`);
+    const startedAt = Date.now();
 
     try {
       // Use raw transport messaging to bypass SDK validation
@@ -212,9 +227,24 @@ class MCPConnection {
       );
 
       console.log(`[MCP][${this.serverName}] Tool call successful`);
+      logAudit('mcp.tool_call', {
+        server: this.serverName,
+        tool: toolName,
+        status: 'success',
+        durationMs: Date.now() - startedAt,
+        argKeys: Object.keys(args || {})
+      });
       return result;
     } catch (error) {
       console.error(`[MCP][${this.serverName}] Tool call failed:`, error.message);
+      logAudit('mcp.tool_call', {
+        server: this.serverName,
+        tool: toolName,
+        status: 'error',
+        durationMs: Date.now() - startedAt,
+        error: error.message,
+        argKeys: Object.keys(args || {})
+      });
       throw error;
     }
   }
@@ -299,6 +329,10 @@ class MCPConnection {
     this.transport = null;
     this._pendingRequests.clear();
     console.log(`[MCP][${this.serverName}] Disconnected`);
+    logAudit('mcp.disconnect', {
+      server: this.serverName,
+      transport: this.config.type || (this.config.command ? 'stdio' : 'unknown')
+    });
   }
 
   isConnected() {
@@ -327,6 +361,7 @@ class MockConnection {
     this.connected = true;
     await this.refreshTools();
     console.log(`[MCP][${this.serverName}] Connected to mock ${this.mockId}`);
+    logAudit('mock.connect', { server: this.serverName, mockId: this.mockId });
     return true;
   }
 
@@ -341,7 +376,30 @@ class MockConnection {
     if (!this.connected) {
       throw new Error(`Not connected to ${this.serverName}`);
     }
-    return this.mockManager.callTool(this.mockId, toolName, args);
+    const startedAt = Date.now();
+    try {
+      const response = await this.mockManager.callTool(this.mockId, toolName, args);
+      logAudit('mock.tool_call', {
+        server: this.serverName,
+        mockId: this.mockId,
+        tool: toolName,
+        status: 'success',
+        durationMs: Date.now() - startedAt,
+        argKeys: Object.keys(args || {})
+      });
+      return response;
+    } catch (error) {
+      logAudit('mock.tool_call', {
+        server: this.serverName,
+        mockId: this.mockId,
+        tool: toolName,
+        status: 'error',
+        durationMs: Date.now() - startedAt,
+        error: error.message,
+        argKeys: Object.keys(args || {})
+      });
+      throw error;
+    }
   }
 
   async listResources() {
@@ -374,6 +432,7 @@ class MockConnection {
     this.connected = false;
     this.tools = [];
     console.log(`[MCP][${this.serverName}] Disconnected`);
+    logAudit('mock.disconnect', { server: this.serverName, mockId: this.mockId });
   }
 
   isConnected() {

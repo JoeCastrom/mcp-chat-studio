@@ -13,10 +13,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import yaml from 'js-yaml';
+import crypto from 'crypto';
 
 import { getMCPManager } from './services/MCPManager.js';
 import { createLLMClient } from './services/LLMClient.js';
@@ -42,6 +43,8 @@ import documentationRoutes from './routes/documentation.js';
 import workspacesRoutes from './routes/workspaces.js';
 import openapiRoutes from './routes/openapi.js';
 import generatorRoutes from './routes/generator.js';
+import sessionRoutes from './routes/session.js';
+import sessionShareRoutes from './routes/sessionShare.js';
 import rateLimit from 'express-rate-limit';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -107,6 +110,18 @@ function getCorsOrigins() {
 
 const allowedOrigins = getCorsOrigins();
 const corsMode = process.env.CORS_ORIGINS ? 'custom' : 'localhost-only';
+const CSRF_COOKIE_NAME = 'csrf_token';
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
+    return true;
+  }
+  if (process.env.NODE_ENV !== 'production' && origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+    return true;
+  }
+  return false;
+}
 
 // Middleware
 app.use(cors({
@@ -138,7 +153,52 @@ if (corsMode === 'custom') {
   console.log('[CORS] Origins: localhost only (set CORS_ORIGINS to allow external origins)');
 }
 app.use(cookieParser());
+app.use((req, res, next) => {
+  if (!req.cookies?.sessionId) {
+    const sessionId = crypto.randomUUID();
+    res.cookie('sessionId', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+    req.cookies.sessionId = sessionId;
+  }
+  next();
+});
+app.use((req, res, next) => {
+  if (!req.cookies?.[CSRF_COOKIE_NAME]) {
+    const token = crypto.randomBytes(24).toString('hex');
+    res.cookie(CSRF_COOKIE_NAME, token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+    req.cookies[CSRF_COOKIE_NAME] = token;
+  }
+  next();
+});
 app.use(express.json());
+app.use('/api', (req, res, next) => {
+  const method = req.method.toUpperCase();
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    return next();
+  }
+  const origin = req.headers.origin;
+  if (!origin) {
+    return next();
+  }
+  if (!isAllowedOrigin(origin)) {
+    return res.status(403).json({ error: 'CSRF origin blocked' });
+  }
+  const token = req.cookies?.[CSRF_COOKIE_NAME];
+  const header = req.headers['x-csrf-token'];
+  if (!token || !header || token !== header) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+  return next();
+});
 
 // Rate limiting - different limits for different endpoints
 const chatLimiter = rateLimit({
@@ -169,6 +229,10 @@ const generalLimiter = rateLimit({
 app.use('/api', generalLimiter);
 
 app.use(express.static(join(__dirname, '../public')));
+const dompurifyPath = join(__dirname, '../node_modules/dompurify/dist');
+if (existsSync(dompurifyPath)) {
+  app.use('/vendor/dompurify', express.static(dompurifyPath));
+}
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -281,6 +345,8 @@ app.use('/api/workspaces', generalLimiter, workspacesRoutes);
 app.use('/api/openapi', generalLimiter, openapiRoutes);
 app.use('/api/generator', generalLimiter, generatorRoutes);
 app.use('/api/oauth', oauthRoutes);
+app.use('/api/session', generalLimiter, sessionRoutes);
+app.use('/api/session/share', generalLimiter, sessionShareRoutes);
 app.use('/api/llm', llmRoutes);
 
 /**

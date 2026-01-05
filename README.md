@@ -114,6 +114,7 @@ Three powerful new testing tools:
 - **📚 Failure Datasets** - Store bulk-test failures as dataset rows for data runs
 - **🔀 Diff** - Side-by-side comparison with similarity scoring
 - **🌐 Cross-Server Snapshot** - Run one tool across servers and diff output
+- **🧭 Matrix wizard** - Pick servers + common-tool filter before running diffs
 - **🌐 One-click Matrix** - Run a tool across servers from the Inspector response
 - **🕘 History → Matrix** - Launch a cross-server compare directly from past runs
 - **🧪 Schema Fuzzing** - Generate edge-case inputs from tool schemas
@@ -134,6 +135,7 @@ Real-time usage statistics and performance metrics:
 - **Usage tracking** - Calls, success rates, latency per tool
 - **Performance metrics** - p50/p95/p99 latency tracking
 - **Error monitoring** - Recent errors per tool
+- **Server health badges** - Connected/Failed/Not connected with details + retry
 - **Leaderboards** - Most-used tools across servers
 - **Health dashboard** - System-wide health overview
 - **Flake radar** - Highlights tools with rising failure or latency jitter
@@ -174,6 +176,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - ✅ **Guided Test flow** - step-by-step run commands + required working directory
 - 🚀 **Run & Connect (Auto)** - Studio writes a temporary project folder and connects it for you (Python auto-run requires `mcp` installed)
   - Prompts to import selected OpenAPI endpoints if no tools are in the designer yet
+  - Auto-suffixes the server name to avoid clobbering existing configs (e.g. `my-mcp-server-auto-7f3a`)
 - 📂 **Save to Folder** - write the project files directly to a local folder (supported browsers)
 - 🔐 **Auth mapping** - OpenAPI security schemes flow into MCP tool metadata
 - 🌐 **HTTP hints** - Imported endpoints carry read-only/destructive hints via tool annotations
@@ -201,7 +204,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🔧 9 LLM Providers + Custom** - Ollama, OpenAI, Claude, Gemini, Azure, Groq, Together AI, OpenRouter + Custom
 - **🧠 Ollama model picker** - UI dropdown of locally installed models (auto-detected)
 - **🔄 Provider Switcher** - Swap LLMs from the model badge and manage visible providers in one place
-- **🧭 Studio Assistant** - Floating help chat aware of your current panel/layout, with dock + pop‑out modes, quick actions, and FAQ fallback
+- **🧭 Studio Assistant** - Floating help chat aware of your current panel/layout, with dock + pop‑out modes, quick actions, FAQ fallback, and drag‑and‑drop OpenAPI import
   - Commands list + recent command chips + safe confirmations + workspace builder (add/close/resize/arrange panels, sessions, export/import)
   - Paste OpenAPI URLs/JSON or upload specs to auto-import into the Generator
   - Auto action button to **Generate + Test** immediately after import
@@ -218,7 +221,7 @@ Create production-ready MCP servers without writing boilerplate code!
 - **🌐 Cross-Server Snapshots** - Compare live tool outputs across servers
 - **⚡ Flake Radar** - Spot flaky tools using live failure + jitter signals
 - **🚨 Flake Alerts** - Detect regressions against a saved reliability baseline
-- **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit
+- **📚 Collections & Run Reports** - Batch scenarios, run iterations, export JSON/JUnit + CI gate
 - **⭐ Golden Baselines** - Mark trusted runs and diff against them
 - **📸 Run Snapshots** - Deterministic replay + drift checks on collections (export/import)
 - **🚦 Drift Gate** - Export pass/fail gate summary for CI
@@ -628,6 +631,7 @@ curl http://localhost:3082/api/health
 MCP Chat Studio supports **9 LLM providers + Custom**. Configure in `config.yaml` or from the UI (⚙️):
 
 UI changes are saved locally in `data/llm-config.json` (including optional auth settings).
+API keys can be entered directly in the UI (they are persisted in the same file). `.env` is still supported for headless/CI setups.
 
 #### Provider Visibility (optional)
 
@@ -1185,6 +1189,7 @@ OAUTH_CLIENT_ID=your-client-id
 OAUTH_CLIENT_SECRET=your-secret
 OAUTH_AUTHORIZE_URL=https://...  # For custom providers
 OAUTH_TOKEN_URL=https://...
+MCP_SANDBOX_ENGINE=vm2           # Optional: set to isolated-vm if installed
 ```
 
 Click **Login** to authenticate.
@@ -1198,7 +1203,14 @@ Click **Login** to authenticate.
 - ⚠️ **Never commit `.env` file** - Contains API keys and secrets
 - ⚠️ **Use environment variables** - All secrets should be in `.env` or environment
 - ⚠️ **SSL verification enabled** - Disabled only for dev with self-signed certs
-- ⚠️ **OAuth tokens in memory** - Production: use Redis for persistence
+- 🔐 **OAuth token storage** - Set `OAUTH_TOKEN_KEY` to persist tokens encrypted in `data/oauth-tokens.json` (memory-only if unset). Use Redis/DB for multi-user production.
+- ⚠️ **Sandbox engine** - Defaults to `isolated-vm` when installed (falls back to vm2). Set `MCP_SANDBOX_ENGINE` to override; NodeVM scripts still fall back to vm2.
+- 🔑 **LLM API keys (UI)** - Saved server-side in `data/llm-config.json` when entered in ⚙️ LLM Settings (not localStorage). Use `.env` for headless/CI.
+- 🔒 **CSRF protection** - Browser requests require `X-CSRF-Token` (UI adds it automatically). CLI requests without an `Origin` header are allowed.
+- 📝 **Audit logging** - Security-relevant events are written to `data/audit.log`.
+- 💾 **Server-side sessions** - Chat sessions/tool history sync to `data/sessions.json` (tied to `sessionId` cookie).
+- 🧼 **HTML sanitization** - DOMPurify is used when installed (fallback allowlist sanitizer).
+- 🔗 **Session share links** - Share the current session via Settings → “Share” (one-time link to import a session snapshot).
 
 ### For Development
 

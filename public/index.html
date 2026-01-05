@@ -159,70 +159,82 @@
 
     <!-- Tab Navigation for Classic View (outside main) -->
     <nav class="tab-nav" id="tabNav" role="navigation" aria-label="Main navigation">
-        <button class="tab-btn active" data-panel="chatPanel" onclick="switchClassicPanel('chatPanel')">
-          <span class="tab-icon">💬</span>
-          <span class="tab-label">Chat</span>
-        </button>
-        <button class="tab-btn" data-panel="inspectorPanel" onclick="switchClassicPanel('inspectorPanel')">
-          <span class="tab-icon">🔧</span>
-          <span class="tab-label">Inspector</span>
-        </button>
-        <button class="tab-btn" data-panel="workflowsPanel" onclick="switchClassicPanel('workflowsPanel')">
-          <span class="tab-icon">⛓️</span>
-          <span class="tab-label">Workflows</span>
-        </button>
-        <button class="tab-btn" data-panel="scenariosPanel" onclick="switchClassicPanel('scenariosPanel')">
-          <span class="tab-icon">🧪</span>
-          <span class="tab-label">Scenarios</span>
-        </button>
-        <button class="tab-btn" data-panel="historyPanel" onclick="switchClassicPanel('historyPanel')">
-          <span class="tab-icon">📜</span>
-          <span class="tab-label">History</span>
-        </button>
-        <button class="tab-btn" data-panel="collectionsPanel" onclick="switchClassicPanel('collectionsPanel')">
-          <span class="tab-icon">📚</span>
-          <span class="tab-label">Collections</span>
-        </button>
-        <button class="tab-btn" data-panel="monitorsPanel" onclick="switchClassicPanel('monitorsPanel')">
-          <span class="tab-icon">⏰</span>
-          <span class="tab-label">Monitors</span>
-        </button>
-        <button class="tab-btn" data-panel="toolexplorerPanel" onclick="switchClassicPanel('toolexplorerPanel')">
-          <span class="tab-icon">📊</span>
-          <span class="tab-label">Analytics</span>
-        </button>
-        <button class="tab-btn" data-panel="generatorPanel" onclick="switchClassicPanel('generatorPanel')">
-          <span class="tab-icon">⚙️</span>
-          <span class="tab-label">Generator</span>
-        </button>
-        <button class="tab-btn" data-panel="mocksPanel" onclick="switchClassicPanel('mocksPanel')">
-          <span class="tab-icon">🎭</span>
-          <span class="tab-label">Mocks</span>
-        </button>
-        <button class="tab-btn" data-panel="scriptsPanel" onclick="switchClassicPanel('scriptsPanel')">
-          <span class="tab-icon">📝</span>
-          <span class="tab-label">Scripts</span>
-        </button>
-        <button class="tab-btn" data-panel="docsPanel" onclick="switchClassicPanel('docsPanel')">
-          <span class="tab-icon">📖</span>
-          <span class="tab-label">Docs</span>
-        </button>
-        <button class="tab-btn" data-panel="contractsPanel" onclick="switchClassicPanel('contractsPanel')">
-          <span class="tab-icon">📋</span>
-          <span class="tab-label">Contracts</span>
-        </button>
-        <button class="tab-btn" data-panel="performancePanel" onclick="switchClassicPanel('performancePanel')">
-          <span class="tab-icon">⚡</span>
-          <span class="tab-label">Performance</span>
-        </button>
-        <button class="tab-btn" data-panel="debuggerPanel" onclick="switchClassicPanel('debuggerPanel')">
-          <span class="tab-icon">🐛</span>
-          <span class="tab-label">Debugger</span>
-        </button>
-        <button class="tab-btn" data-panel="brainPanel" onclick="switchClassicPanel('brainPanel')">
-          <span class="tab-icon">🧠</span>
-          <span class="tab-label">Brain</span>
-        </button>
+        <div class="tab-group">
+          <span class="tab-group-label">Chat</span>
+          <button class="tab-btn active" data-panel="chatPanel" onclick="switchClassicPanel('chatPanel')">
+            <span class="tab-icon">💬</span>
+            <span class="tab-label">Chat</span>
+          </button>
+        </div>
+        <div class="tab-group">
+          <span class="tab-group-label">Testing</span>
+          <button class="tab-btn" data-panel="inspectorPanel" onclick="switchClassicPanel('inspectorPanel')">
+            <span class="tab-icon">🔧</span>
+            <span class="tab-label">Inspector</span>
+          </button>
+          <button class="tab-btn" data-panel="scenariosPanel" onclick="switchClassicPanel('scenariosPanel')">
+            <span class="tab-icon">🧪</span>
+            <span class="tab-label">Scenarios</span>
+          </button>
+          <button class="tab-btn" data-panel="collectionsPanel" onclick="switchClassicPanel('collectionsPanel')">
+            <span class="tab-icon">📚</span>
+            <span class="tab-label">Collections</span>
+          </button>
+          <button class="tab-btn" data-panel="historyPanel" onclick="switchClassicPanel('historyPanel')">
+            <span class="tab-icon">📜</span>
+            <span class="tab-label">History</span>
+          </button>
+          <button class="tab-btn" data-panel="contractsPanel" onclick="switchClassicPanel('contractsPanel')">
+            <span class="tab-icon">📋</span>
+            <span class="tab-label">Contracts</span>
+          </button>
+          <button class="tab-btn" data-panel="performancePanel" onclick="switchClassicPanel('performancePanel')">
+            <span class="tab-icon">⚡</span>
+            <span class="tab-label">Performance</span>
+          </button>
+        </div>
+        <div class="tab-group">
+          <span class="tab-group-label">Development</span>
+          <button class="tab-btn" data-panel="workflowsPanel" onclick="switchClassicPanel('workflowsPanel')">
+            <span class="tab-icon">⛓️</span>
+            <span class="tab-label">Workflows</span>
+          </button>
+          <button class="tab-btn" data-panel="generatorPanel" onclick="switchClassicPanel('generatorPanel')">
+            <span class="tab-icon">⚙️</span>
+            <span class="tab-label">Generator</span>
+          </button>
+          <button class="tab-btn" data-panel="mocksPanel" onclick="switchClassicPanel('mocksPanel')">
+            <span class="tab-icon">🎭</span>
+            <span class="tab-label">Mocks</span>
+          </button>
+          <button class="tab-btn" data-panel="scriptsPanel" onclick="switchClassicPanel('scriptsPanel')">
+            <span class="tab-icon">📝</span>
+            <span class="tab-label">Scripts</span>
+          </button>
+          <button class="tab-btn" data-panel="docsPanel" onclick="switchClassicPanel('docsPanel')">
+            <span class="tab-icon">📖</span>
+            <span class="tab-label">Docs</span>
+          </button>
+        </div>
+        <div class="tab-group">
+          <span class="tab-group-label">Monitoring</span>
+          <button class="tab-btn" data-panel="toolexplorerPanel" onclick="switchClassicPanel('toolexplorerPanel')">
+            <span class="tab-icon">📊</span>
+            <span class="tab-label">Analytics</span>
+          </button>
+          <button class="tab-btn" data-panel="monitorsPanel" onclick="switchClassicPanel('monitorsPanel')">
+            <span class="tab-icon">⏰</span>
+            <span class="tab-label">Monitors</span>
+          </button>
+          <button class="tab-btn" data-panel="debuggerPanel" onclick="switchClassicPanel('debuggerPanel')">
+            <span class="tab-icon">🐛</span>
+            <span class="tab-label">Debugger</span>
+          </button>
+          <button class="tab-btn" data-panel="brainPanel" onclick="switchClassicPanel('brainPanel')">
+            <span class="tab-icon">🧠</span>
+            <span class="tab-label">Brain</span>
+          </button>
+        </div>
       </nav>
 
     <main class="main" id="main-content" role="main">
@@ -1126,11 +1138,34 @@
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px">
                   Run the same tool across all connected servers and diff against a baseline.
                 </p>
+                <div class="cross-server-scope">
+                  <div class="cross-server-header">
+                    <span>Servers</span>
+                    <div class="cross-server-actions">
+                      <button class="btn" onclick="selectAllCrossServers(true)" title="Select every connected server">All</button>
+                      <button class="btn" onclick="selectAllCrossServers(false)" title="Clear all selections">None</button>
+                    </div>
+                  </div>
+                  <div id="crossServerPicker" class="cross-server-picker"></div>
+                  <label class="toggle" style="font-size: 0.75rem">
+                    <input
+                      type="checkbox"
+                      id="crossCommonOnly"
+                      checked
+                      onchange="updateCrossServerToolOptions()"
+                    />
+                    <span class="switch"></span>
+                    <span title="Show only tools shared by every selected server.">Common tools only</span>
+                  </label>
+                  <div class="cross-server-hint" id="crossServerHint">
+                    Select servers and choose a baseline. Common tools limits to overlaps.
+                  </div>
+                </div>
                 <div class="inspector-toolbar" style="margin-bottom: 12px">
                   <select class="form-select" id="crossToolSelect">
                     <option value="">-- Select Tool --</option>
                   </select>
-                  <select class="form-select" id="crossBaselineServerSelect">
+                  <select class="form-select" id="crossBaselineServerSelect" title="Baseline server for diffs">
                     <option value="">-- Auto baseline --</option>
                   </select>
                 </div>
@@ -1146,7 +1181,7 @@
                     style="font-family: 'Courier New', monospace; font-size: 0.75rem"
                   ></textarea>
                 </div>
-                <button class="btn primary" onclick="runCrossServerCompare()" id="crossRunBtn">
+                <button class="btn primary" onclick="runCrossServerCompare()" id="crossRunBtn" title="Requires 2+ servers for meaningful diffs">
                   🌐 Run Across Servers
                 </button>
               </div>
@@ -1457,6 +1492,9 @@
                   style="margin-left: 8px"
                 >
                   📤 Export Code
+                </button>
+                <button class="btn" onclick="showWorkflowHistory()" title="Workflow history">
+                  🕘 History
                 </button>
 
                 <!-- LLM Model Indicator -->
@@ -1984,7 +2022,7 @@
               <div style="display: flex; flex-wrap: wrap; gap: 8px">
                 <button class="btn" onclick="exportSchemaSnapshot()">📥 Export Snapshot</button>
                 <button class="btn" onclick="compareSchemaSnapshot()">🔍 Compare Snapshot</button>
-                <button class="btn" onclick="copySchemaDiffCommand()">📋 Copy CI Command</button>
+                <button class="btn" onclick="copySchemaDiffCommand()">📋 Copy Gate Command</button>
                 <button class="btn" onclick="exportSchemaGatePack()">🚦 Export Gate</button>
               </div>
               <p id="schemaDiffSummaryText" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px">
@@ -2668,7 +2706,7 @@ env:
               <input type="checkbox" id="llmClearApiKey" />
               Clear stored API key
             </label>
-            <div class="form-hint">Stored locally when saved from the UI</div>
+            <div class="form-hint">Stored server-side in data/llm-config.json when saved from the UI</div>
           </div>
 
           <div class="form-group" id="llmAuthSection" style="display: none">
@@ -2718,6 +2756,7 @@ env:
                 style="font-family: 'JetBrains Mono', monospace"
               />
               <button type="button" class="btn" onclick="copySessionToken()">📋 Copy</button>
+              <button type="button" class="btn" onclick="shareSessionLink()">🔗 Share</button>
             </div>
             <div class="form-hint">
               Use this in the CLI as <code>x-session-id</code> or <code>MCP_SESSION_TOKEN</code> to access protected MCP servers.
@@ -2929,6 +2968,9 @@ env:
           </div>
         </div>
         <div class="assistant-body" id="assistantMessages"></div>
+        <div class="assistant-dropzone" id="assistantDropzone">
+          Drop OpenAPI JSON/YAML here
+        </div>
         <div class="assistant-chips" id="assistantChips"></div>
         <div class="assistant-input">
           <button class="assistant-upload-btn" onclick="triggerAssistantFileUpload()" title="Import OpenAPI JSON/YAML">
@@ -2951,7 +2993,12 @@ env:
       onchange="handleAssistantFileUpload(event)"
     />
 
+    <script src="vendor/dompurify/purify.min.js"></script>
+    <script src="app/modals.js"></script>
     <script src="app.js"></script>
+    <script src="app/history.js"></script>
+    <script src="app/generator.js"></script>
+    <script src="app/assistant.js"></script>
     <script src="workflow.js"></script>
     <script src="brain.js"></script>
     <script src="advanced-features.js"></script>

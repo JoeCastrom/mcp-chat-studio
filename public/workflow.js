@@ -16,6 +16,139 @@ const workflowState = {
 };
 
 const toolSchemaCache = {};
+const WORKFLOW_HISTORY_KEY = 'mcp_workflow_history';
+const WORKFLOW_HISTORY_LIMIT = 20;
+let workflowHistoryCache = [];
+
+function loadWorkflowHistoryStore() {
+  try {
+    return JSON.parse(localStorage.getItem(WORKFLOW_HISTORY_KEY) || '{}');
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveWorkflowHistoryStore(store) {
+  localStorage.setItem(WORKFLOW_HISTORY_KEY, JSON.stringify(store));
+}
+
+function workflowSnapshotHash(snapshot) {
+  return JSON.stringify({
+    name: snapshot.name,
+    nodes: snapshot.nodes,
+    edges: snapshot.edges
+  });
+}
+
+function recordWorkflowVersion(snapshot) {
+  if (!snapshot?.id) return;
+  const store = loadWorkflowHistoryStore();
+  const entries = Array.isArray(store[snapshot.id]) ? store[snapshot.id] : [];
+  const hash = workflowSnapshotHash(snapshot);
+  if (entries[0]?.hash === hash) return;
+  const entry = {
+    id: snapshot.id,
+    name: snapshot.name || 'Untitled',
+    nodes: snapshot.nodes || [],
+    edges: snapshot.edges || [],
+    hash,
+    timestamp: new Date().toISOString()
+  };
+  store[snapshot.id] = [entry, ...entries].slice(0, WORKFLOW_HISTORY_LIMIT);
+  saveWorkflowHistoryStore(store);
+}
+
+function showWorkflowHistory() {
+  if (!workflowState.currentId) {
+    showToast('Save the workflow first to enable history.', 'info');
+    return;
+  }
+  const store = loadWorkflowHistoryStore();
+  const entries = Array.isArray(store[workflowState.currentId]) ? store[workflowState.currentId] : [];
+  if (!entries.length) {
+    showToast('No history yet for this workflow.', 'info');
+    return;
+  }
+  workflowHistoryCache = entries;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay active';
+  modal.innerHTML = `
+    <div class="modal" style="max-width: 720px">
+      <div class="modal-header">
+        <h2 class="modal-title">🕘 Workflow History</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div style="padding: var(--spacing-md); max-height: 60vh; overflow-y: auto">
+        ${entries.map((entry, index) => `
+          <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; background: var(--bg-surface)">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 600">${escapeHtml(entry.name || 'Untitled')}</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted)">
+                  ${new Date(entry.timestamp).toLocaleString()} · ${entry.nodes.length} nodes · ${entry.edges.length} edges
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px">
+                <button class="btn" onclick="restoreWorkflowVersion(${index})">Restore</button>
+                <button class="btn" onclick="viewWorkflowVersion(${index})">View JSON</button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="clearWorkflowHistory()">Clear History</button>
+        <button class="btn primary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function restoreWorkflowVersion(index) {
+  const entry = workflowHistoryCache[index];
+  if (!entry) return;
+  workflowState.currentId = entry.id;
+  workflowState.nodes = entry.nodes || [];
+  workflowState.edges = entry.edges || [];
+  const nameInput = document.getElementById('workflowName');
+  if (nameInput) nameInput.value = entry.name || 'Untitled';
+  normalizeWorkflowState();
+  renderWorkflow();
+  centerWorkflowView();
+  showToast('Workflow version restored.', 'success');
+}
+
+function viewWorkflowVersion(index) {
+  const entry = workflowHistoryCache[index];
+  if (!entry) return;
+  const pretty = JSON.stringify({
+    name: entry.name,
+    nodes: entry.nodes,
+    edges: entry.edges
+  }, null, 2);
+  showAppModal({
+    title: 'Workflow Snapshot',
+    bodyHtml: `<pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; font-size: 0.75rem">${escapeHtml(pretty)}</pre>`,
+    confirmText: 'Close',
+    showCancel: false
+  });
+}
+
+function clearWorkflowHistory() {
+  const store = loadWorkflowHistoryStore();
+  delete store[workflowState.currentId];
+  saveWorkflowHistoryStore(store);
+  workflowHistoryCache = [];
+  showToast('Workflow history cleared.', 'success');
+  document.querySelectorAll('.modal-overlay.active').forEach(el => el.remove());
+}
 
 // Custom toast notification that matches app styling
 function showToast(message, type = 'success') {
@@ -766,6 +899,15 @@ async function saveWorkflow() {
   }
   
   try {
+    if (workflowState.currentId) {
+      recordWorkflowVersion({
+        id: workflowState.currentId,
+        name,
+        nodes: workflowState.nodes,
+        edges: workflowState.edges
+      });
+    }
+
     const res = await fetch('/api/workflows', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

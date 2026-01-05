@@ -3,7 +3,7 @@
  * Execute pre-request and post-response scripts (like Postman scripts)
  */
 
-import { NodeVM } from 'vm2';
+import { createSandboxNodeVM } from './SandboxEngine.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -379,7 +379,7 @@ export class ScriptRunner {
 
     try {
       // Create VM with sandbox
-      const vm = new NodeVM({
+      const vm = createSandboxNodeVM({
         console: 'redirect',
         sandbox,
         timeout: 5000, // 5 second timeout
@@ -419,7 +419,7 @@ export class ScriptRunner {
    */
   validateScript(code) {
     try {
-      const vm = new NodeVM({
+      const vm = createSandboxNodeVM({
         console: 'off',
         sandbox: {},
         timeout: 100,

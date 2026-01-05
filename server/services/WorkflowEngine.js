@@ -4,7 +4,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { VM } from 'vm2';
+import { createSandboxVM } from './SandboxEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -297,9 +297,9 @@ export class WorkflowEngine {
         return content !== undefined ? content : response;
 
       case 'javascript':
-        // Execute JavaScript in sandboxed VM2 environment
+        // Execute JavaScript in sandboxed environment
         try {
-          const vm = new VM({
+          const vm = createSandboxVM({
             timeout: 5000, // 5 second timeout
             sandbox: {
               input: context.steps,
