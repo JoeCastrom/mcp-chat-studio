@@ -11,7 +11,7 @@ describe('modals helpers', () => {
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
-      "'": '&#39;'
+      "'": '&#39;',
     };
     return String(text ?? '').replace(/[&<>"']/g, m => escapeMap[m]);
   }

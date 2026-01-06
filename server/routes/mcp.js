@@ -13,7 +13,7 @@ import {
   upsertPersistedServer,
   removePersistedServer,
   clearPersistedServers,
-  consumePersistedServersNotice
+  consumePersistedServersNotice,
 } from '../services/MCPConfigStore.js';
 
 const router = Router();
@@ -278,7 +278,8 @@ router.post('/disconnect/:serverName', async (req, res) => {
  */
 router.post('/add', async (req, res) => {
   try {
-    const { name, type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } = req.body;
+    const { name, type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } =
+      req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Server name is required' });
@@ -345,7 +346,8 @@ router.post('/add', async (req, res) => {
 router.put('/update/:serverName', async (req, res) => {
   try {
     const { serverName } = req.params;
-    const { type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } = req.body;
+    const { type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } =
+      req.body;
 
     const mcpManager = getMCPManager();
     const _existingConfig = mcpManager.configs.get(serverName);
@@ -379,11 +381,14 @@ router.put('/update/:serverName', async (req, res) => {
       config.url = url;
     }
 
-    console.log(`[MCP/Update] Updating server "${serverName}" with config:`, JSON.stringify(config, null, 2));
+    console.log(
+      `[MCP/Update] Updating server "${serverName}" with config:`,
+      JSON.stringify(config, null, 2)
+    );
 
     // Disconnect if connected
     await mcpManager.disconnectServer(serverName);
-    
+
     // Remove and re-add (effectively update)
     mcpManager.configs.delete(serverName);
     const serverConfig = mcpManager.addServerConfig(serverName, config);
@@ -646,11 +651,11 @@ router.post('/validate', async (req, res) => {
     }
 
     const validation = ContractValidator.validateInput(args, tool.inputSchema);
-    
+
     res.json({
       tool: toolName,
       server: serverName,
-      validation
+      validation,
     });
   } catch (error) {
     console.error(`[MCP/Validate] Error:`, error.message);
@@ -681,13 +686,13 @@ router.post('/call-with-validation', async (req, res) => {
 
     // Validate input
     const inputValidation = ContractValidator.validateInput(args, tool.inputSchema);
-    
+
     if (!inputValidation.valid) {
       return res.json({
         success: false,
         phase: 'input_validation',
         inputValidation,
-        result: null
+        result: null,
       });
     }
 
@@ -707,7 +712,7 @@ router.post('/call-with-validation', async (req, res) => {
       result,
       duration,
       inputValidation,
-      outputValidation
+      outputValidation,
     });
   } catch (error) {
     console.error(`[MCP/CallWithValidation] Error:`, error.message);
@@ -728,10 +733,10 @@ router.post('/contract/generate', (req, res) => {
     }
 
     const contract = ContractValidator.createContractFromResponse(response);
-    
+
     res.json({
       contract,
-      message: 'Contract generated from response. Save this to use as your output contract.'
+      message: 'Contract generated from response. Save this to use as your output contract.',
     });
   } catch (error) {
     console.error(`[MCP/ContractGenerate] Error:`, error.message);
@@ -789,7 +794,7 @@ router.post('/compliance/check', async (req, res) => {
 
     res.json({
       server: serverName,
-      compliance: results
+      compliance: results,
     });
   } catch (error) {
     console.error(`[MCP/Compliance] Error:`, error.message);
@@ -820,4 +825,3 @@ router.post('/compliance/validate-message', (req, res) => {
 });
 
 export default router;
-

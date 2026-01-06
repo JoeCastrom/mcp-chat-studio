@@ -12,9 +12,7 @@
         "type": "number"
       }
     },
-    "required": [
-      "success"
-    ]
+    "required": ["success"]
   },
   "sampleArgs": {
     "duration": 1

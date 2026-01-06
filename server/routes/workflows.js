@@ -133,10 +133,10 @@ router.post('/:id/execute', async (req, res) => {
     }
     const { input, llmConfig } = req.body;
     const engine = getWorkflowEngine();
-    
+
     // Use provided config or fallback to file-based load
     const configToUse = llmConfig || loadLLMConfig();
-    
+
     const sessionId = getSessionId(req);
     const result = await engine.executeWorkflow(req.params.id, input, configToUse, sessionId);
     res.json(result);
@@ -155,12 +155,12 @@ router.get('/:id/export', async (req, res) => {
     const { format = 'python' } = req.query;
     const engine = getWorkflowEngine();
     const exporter = getWorkflowExporter();
-    
+
     const workflow = engine.getWorkflow(req.params.id);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
-    
+
     const code = await exporter.exportWorkflow(workflow, format);
-    
+
     // Return as text/plain
     res.setHeader('Content-Type', 'text/plain');
     res.send(code);
@@ -186,7 +186,7 @@ router.post('/:id/debug/start', async (req, res) => {
     const session = await workflowDebugger.startDebugSession(req.params.id, input || {}, {
       breakpoints: breakpoints || [],
       stepMode: stepMode || false,
-      llmConfig: llmConfig || loadLLMConfig()
+      llmConfig: llmConfig || loadLLMConfig(),
     });
 
     res.json(session);

@@ -3,9 +3,8 @@
   const HISTORY_PAGE_SIZE = 150;
   let historyPage = 1;
 
-  const getHistoryEntries = () => (typeof window.getHistoryEntries === 'function'
-    ? window.getHistoryEntries()
-    : []);
+  const getHistoryEntries = () =>
+    typeof window.getHistoryEntries === 'function' ? window.getHistoryEntries() : [];
 
   function refreshHistoryPanel() {
     const history = getHistoryEntries();
@@ -25,7 +24,9 @@
     }
 
     const successCount = history.filter(h => h.success).length;
-    const avgDuration = Math.round(history.reduce((sum, h) => sum + (h.duration || 0), 0) / history.length);
+    const avgDuration = Math.round(
+      history.reduce((sum, h) => sum + (h.duration || 0), 0) / history.length
+    );
     statsEl.innerHTML = `
       <strong>${history.length}</strong> executions •
       <span style="color: var(--success)">${successCount} ✓</span> /
@@ -36,10 +37,11 @@
     const limit = Math.min(history.length, historyPage * HISTORY_PAGE_SIZE);
     const visible = history.slice(0, limit);
 
-    const entriesHtml = visible.map((entry, idx) => {
-      const time = new Date(entry.timestamp).toLocaleTimeString();
-      const statusIcon = entry.success ? '✅' : '❌';
-      return `
+    const entriesHtml = visible
+      .map((entry, idx) => {
+        const time = new Date(entry.timestamp).toLocaleTimeString();
+        const statusIcon = entry.success ? '✅' : '❌';
+        return `
         <div class="inspector-response" style="margin: 0; cursor: pointer" onclick="toggleHistoryDetail(${idx})">
           <div style="display: flex; justify-content: space-between; align-items: center">
             <div>
@@ -64,13 +66,15 @@
           </div>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
 
-    const loadMore = history.length > limit
-      ? `<div style="padding: 12px; text-align: center">
+    const loadMore =
+      history.length > limit
+        ? `<div style="padding: 12px; text-align: center">
           <button class="btn" onclick="loadMoreHistory()">Load ${Math.min(history.length - limit, HISTORY_PAGE_SIZE)} more</button>
         </div>`
-      : '';
+        : '';
 
     listEl.innerHTML = `${entriesHtml}${loadMore}`;
   }
@@ -91,7 +95,8 @@
     const history = getHistoryEntries();
     const entry = history[idx];
     if (!entry) return;
-    navigator.clipboard.writeText(JSON.stringify(entry, null, 2))
+    navigator.clipboard
+      .writeText(JSON.stringify(entry, null, 2))
       .then(() => window.appendMessage?.('system', '📋 History entry copied to clipboard'))
       .catch(() => window.showNotification?.('Failed to copy history entry.', 'error'));
   }
@@ -111,8 +116,9 @@
 
     window.ensureToolOption?.(toolSelect, entry.tool, 'from History');
     if (baselineSelect && entry.server) {
-      const hasBaseline = Array.from(baselineSelect.options || [])
-        .some(option => option.value === entry.server);
+      const hasBaseline = Array.from(baselineSelect.options || []).some(
+        option => option.value === entry.server
+      );
       if (hasBaseline) {
         baselineSelect.value = entry.server;
       }
@@ -147,7 +153,10 @@
       }
     }, 500);
 
-    window.appendMessage?.('system', `🔄 Loaded ${entry.tool} request in Inspector - select the tool and execute`);
+    window.appendMessage?.(
+      'system',
+      `🔄 Loaded ${entry.tool} request in Inspector - select the tool and execute`
+    );
   }
 
   async function rerunHistoryEntryDiff(idx) {
@@ -171,8 +180,8 @@
         body: JSON.stringify({
           serverName: entry.server,
           toolName: entry.tool,
-          args: entry.request || {}
-        })
+          args: entry.request || {},
+        }),
       });
 
       const data = await response.json();
@@ -187,12 +196,15 @@
         response: result,
         duration,
         success: !data.error && data.result?.isError !== true,
-        meta: { source: 'history-diff', baseline: entry.timestamp }
+        meta: { source: 'history-diff', baseline: entry.timestamp },
       });
       refreshHistoryPanel();
 
       window.showDiff?.(entry.response ?? {}, result ?? {});
-      window.showNotification?.('Re-run completed. Showing diff.', data.error ? 'warning' : 'success');
+      window.showNotification?.(
+        'Re-run completed. Showing diff.',
+        data.error ? 'warning' : 'success'
+      );
     } catch (error) {
       window.showNotification?.(`Re-run failed: ${error.message}`, 'error');
     }
@@ -220,7 +232,7 @@
     const confirmed = await window.appConfirm?.('Clear all tool execution history?', {
       title: 'Clear History',
       confirmText: 'Clear',
-      confirmVariant: 'danger'
+      confirmVariant: 'danger',
     });
     if (!confirmed) return false;
     const session = window.sessionManager?.load?.() || {};

@@ -12,7 +12,7 @@ const workflowState = {
   isConnecting: false,
   connectStartNode: null,
   connectStartPort: null, // 'in' or 'out'
-  tempMousePos: { x: 0, y: 0 }
+  tempMousePos: { x: 0, y: 0 },
 };
 
 const toolSchemaCache = {};
@@ -36,7 +36,7 @@ function workflowSnapshotHash(snapshot) {
   return JSON.stringify({
     name: snapshot.name,
     nodes: snapshot.nodes,
-    edges: snapshot.edges
+    edges: snapshot.edges,
   });
 }
 
@@ -52,7 +52,7 @@ function recordWorkflowVersion(snapshot) {
     nodes: snapshot.nodes || [],
     edges: snapshot.edges || [],
     hash,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
   store[snapshot.id] = [entry, ...entries].slice(0, WORKFLOW_HISTORY_LIMIT);
   saveWorkflowHistoryStore(store);
@@ -64,7 +64,9 @@ function showWorkflowHistory() {
     return;
   }
   const store = loadWorkflowHistoryStore();
-  const entries = Array.isArray(store[workflowState.currentId]) ? store[workflowState.currentId] : [];
+  const entries = Array.isArray(store[workflowState.currentId])
+    ? store[workflowState.currentId]
+    : [];
   if (!entries.length) {
     showToast('No history yet for this workflow.', 'info');
     return;
@@ -85,7 +87,9 @@ function showWorkflowHistory() {
         </button>
       </div>
       <div style="padding: var(--spacing-md); max-height: 60vh; overflow-y: auto">
-        ${entries.map((entry, index) => `
+        ${entries
+          .map(
+            (entry, index) => `
           <div style="padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; background: var(--bg-surface)">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
@@ -100,7 +104,9 @@ function showWorkflowHistory() {
               </div>
             </div>
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
       <div class="modal-actions">
         <button class="btn" onclick="clearWorkflowHistory()">Clear History</button>
@@ -128,16 +134,20 @@ function restoreWorkflowVersion(index) {
 function viewWorkflowVersion(index) {
   const entry = workflowHistoryCache[index];
   if (!entry) return;
-  const pretty = JSON.stringify({
-    name: entry.name,
-    nodes: entry.nodes,
-    edges: entry.edges
-  }, null, 2);
+  const pretty = JSON.stringify(
+    {
+      name: entry.name,
+      nodes: entry.nodes,
+      edges: entry.edges,
+    },
+    null,
+    2
+  );
   showAppModal({
     title: 'Workflow Snapshot',
     bodyHtml: `<pre style="background: var(--bg-card); padding: 12px; border-radius: 8px; max-height: 400px; overflow: auto; font-size: 0.75rem">${escapeHtml(pretty)}</pre>`,
     confirmText: 'Close',
-    showCancel: false
+    showCancel: false,
   });
 }
 
@@ -155,20 +165,36 @@ function showToast(message, type = 'success') {
   // Remove any existing toasts
   const existingToasts = document.querySelectorAll('.workflow-toast');
   existingToasts.forEach(t => t.remove());
-  
+
   const toast = document.createElement('div');
   toast.className = 'workflow-toast';
-  
+
   // Styling based on type
   const colors = {
-    success: { bg: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.95))', icon: '✅', border: 'rgba(34, 197, 94, 0.5)' },
-    error: { bg: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))', icon: '❌', border: 'rgba(239, 68, 68, 0.5)' },
-    info: { bg: 'linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.95))', icon: '💡', border: 'rgba(124, 58, 237, 0.5)' },
-    warning: { bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.95))', icon: '⚠️', border: 'rgba(245, 158, 11, 0.5)' }
+    success: {
+      bg: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.95))',
+      icon: '✅',
+      border: 'rgba(34, 197, 94, 0.5)',
+    },
+    error: {
+      bg: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))',
+      icon: '❌',
+      border: 'rgba(239, 68, 68, 0.5)',
+    },
+    info: {
+      bg: 'linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 0.95))',
+      icon: '💡',
+      border: 'rgba(124, 58, 237, 0.5)',
+    },
+    warning: {
+      bg: 'linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.95))',
+      icon: '⚠️',
+      border: 'rgba(245, 158, 11, 0.5)',
+    },
   };
-  
+
   const config = colors[type] || colors.info;
-  
+
   toast.style.cssText = `
     position: fixed;
     top: 20px;
@@ -189,7 +215,7 @@ function showToast(message, type = 'success') {
     animation: toastSlideIn 0.3s ease-out;
     backdrop-filter: blur(10px);
   `;
-  
+
   // Add animation keyframes if not exists
   if (!document.getElementById('toast-animations')) {
     const style = document.createElement('style');
@@ -206,10 +232,10 @@ function showToast(message, type = 'success') {
     `;
     document.head.appendChild(style);
   }
-  
+
   toast.innerHTML = `<span style="font-size: 16px;">${config.icon}</span> ${message}`;
   document.body.appendChild(toast);
-  
+
   // Auto-remove after 3 seconds with fade out
   setTimeout(() => {
     toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
@@ -228,11 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function updateAIBuilderModelBadge() {
   const badge = document.getElementById('aiModelBadge');
   if (!badge) return;
-  
+
   try {
     const res = await fetch('/api/llm/config');
     const config = await res.json();
-    
+
     const providerEmojis = {
       ollama: '🦙',
       openai: '🤖',
@@ -243,7 +269,7 @@ async function updateAIBuilderModelBadge() {
       together: '🤝',
       openrouter: '🌐',
     };
-    
+
     const emoji = providerEmojis[config.provider] || '🤖';
     badge.textContent = `${emoji} ${config.model}`;
   } catch (e) {
@@ -258,7 +284,7 @@ async function updateAIBuilderModelBadge() {
 function setupCanvasInteractions() {
   const canvas = document.getElementById('workflowCanvas');
   if (!canvas) return;
-  
+
   // Dragging Nodes
   canvas.addEventListener('mousedown', e => {
     if (e.target.closest('.workflow-node-header')) {
@@ -289,28 +315,28 @@ function setupCanvasInteractions() {
 function startDragNode(e, nodeId) {
   workflowState.isDragging = true;
   workflowState.dragNodeId = nodeId;
-  
+
   const node = workflowState.nodes.find(n => n.id === nodeId);
   const canvas = document.getElementById('workflowCanvas');
   const rect = canvas.getBoundingClientRect();
-  
+
   // Disable transitions during drag for smooth movement
   const nodeEl = document.querySelector(`.workflow-node[data-id="${nodeId}"]`);
   if (nodeEl) nodeEl.classList.add('dragging');
-  
+
   workflowState.dragOffset = {
     x: e.clientX - rect.left - node.position.x,
-    y: e.clientY - rect.top - node.position.y
+    y: e.clientY - rect.top - node.position.y,
   };
 }
 
 function dragNode(e) {
   const canvas = document.getElementById('workflowCanvas');
   const rect = canvas.getBoundingClientRect();
-  
+
   const x = e.clientX - rect.left - workflowState.dragOffset.x;
   const y = e.clientY - rect.top - workflowState.dragOffset.y;
-  
+
   const node = workflowState.nodes.find(n => n.id === workflowState.dragNodeId);
   if (node) {
     node.position = { x, y };
@@ -323,7 +349,7 @@ function stopDragNode() {
   // Re-enable transitions after drag
   const nodeEl = document.querySelector(`.workflow-node[data-id="${workflowState.dragNodeId}"]`);
   if (nodeEl) nodeEl.classList.remove('dragging');
-  
+
   workflowState.isDragging = false;
   workflowState.dragNodeId = null;
 }
@@ -333,11 +359,11 @@ function startConnection(e) {
   const nodeEl = port.closest('.workflow-node');
   const nodeId = nodeEl.dataset.id;
   const type = port.classList.contains('port-out') ? 'out' : 'in';
-  
+
   workflowState.isConnecting = true;
   workflowState.connectStartNode = nodeId;
   workflowState.connectStartPort = type;
-  
+
   // Prevent selecting text while dragging
   e.preventDefault();
 }
@@ -347,7 +373,7 @@ function dragConnection(e) {
   const rect = canvas.getBoundingClientRect();
   workflowState.tempMousePos = {
     x: e.clientX - rect.left,
-    y: e.clientY - rect.top
+    y: e.clientY - rect.top,
   };
   renderEdges(); // Will render the temp line
 }
@@ -358,19 +384,24 @@ function finishConnection(e) {
     const endNodeEl = endPort.closest('.workflow-node');
     const endNodeId = endNodeEl.dataset.id;
     const endType = endPort.classList.contains('port-out') ? 'out' : 'in';
-    
+
     // Validate connection: must be Out -> In, different nodes
-    if (workflowState.connectStartPort !== endType && workflowState.connectStartNode !== endNodeId) {
-      const from = workflowState.connectStartPort === 'out' ? workflowState.connectStartNode : endNodeId;
-      const to = workflowState.connectStartPort === 'out' ? endNodeId : workflowState.connectStartNode;
-      
+    if (
+      workflowState.connectStartPort !== endType &&
+      workflowState.connectStartNode !== endNodeId
+    ) {
+      const from =
+        workflowState.connectStartPort === 'out' ? workflowState.connectStartNode : endNodeId;
+      const to =
+        workflowState.connectStartPort === 'out' ? endNodeId : workflowState.connectStartNode;
+
       // Check if duplicate
       if (!workflowState.edges.some(edge => edge.from === from && edge.to === to)) {
         workflowState.edges.push({ from, to });
       }
     }
   }
-  
+
   workflowState.isConnecting = false;
   workflowState.connectStartNode = null;
   renderEdges();
@@ -386,13 +417,13 @@ function renderWorkflow() {
   const svg = document.getElementById('workflowConnections');
   canvas.innerHTML = '';
   canvas.appendChild(svg);
-  
+
   workflowState.nodes.forEach(node => {
     const el = createNodeElement(node);
     canvas.appendChild(el);
     renderNodePosition(node);
   });
-  
+
   renderEdges();
 }
 
@@ -444,18 +475,23 @@ async function populateServerSelect(nodeId, selectedServer = null) {
       const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
       const toolsData = await toolsRes.json();
       const tools = toolsData.tools || [];
-      serverNames = Array.from(new Set(
-        tools
-          .filter(tool => !tool.notConnected)
-          .map(tool => tool.serverName)
-          .filter(Boolean)
-      ));
+      serverNames = Array.from(
+        new Set(
+          tools
+            .filter(tool => !tool.notConnected)
+            .map(tool => tool.serverName)
+            .filter(Boolean)
+        )
+      );
     }
-    
+
     const select = document.getElementById(`server_select_${nodeId}`);
     if (select) {
-      select.innerHTML = '<option value="">Select Server</option>' + 
-        serverNames.map(s => `<option value="${s}" ${s === selectedServer ? 'selected' : ''}>${s}</option>`).join('');
+      select.innerHTML =
+        '<option value="">Select Server</option>' +
+        serverNames
+          .map(s => `<option value="${s}" ${s === selectedServer ? 'selected' : ''}>${s}</option>`)
+          .join('');
     }
   } catch (e) {
     console.error('Failed to load servers', e);
@@ -467,19 +503,19 @@ function createNodeElement(node) {
   el.className = 'workflow-node';
   el.dataset.id = node.id;
   el.dataset.type = node.type; // For CSS styling by type
-  
+
   // Icons per type
   const icons = {
     trigger: '▶️',
     tool: '🛠️',
     llm: '🤖',
     javascript: '📜',
-    assert: '✓'
+    assert: '✓',
   };
   const icon = icons[node.type] || '📦';
 
   let contentHtml = '';
-  
+
   if (node.type === 'trigger') {
     contentHtml = `<div class="workflow-node-content">
       <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
@@ -508,7 +544,7 @@ function createNodeElement(node) {
           <label>Arguments (JSON)</label>
           <textarea class="form-input" placeholder='{"arg": "{{prev.output}}"}' 
             oninput="updateNodeData('${node.id}', 'args', this.value)"
-            style="height: 60px;" id="args_input_${node.id}">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : (node.data.args || '')}</textarea>
+            style="height: 60px;" id="args_input_${node.id}">${typeof node.data.args === 'object' ? JSON.stringify(node.data.args, null, 2) : node.data.args || ''}</textarea>
         </div>
         <div id="tool_hint_${node.id}" class="tool-schema-hint">Select a tool to see required args.</div>
       </div>
@@ -597,13 +633,17 @@ function getPromptOptions() {
   try {
     const prompts = JSON.parse(localStorage.getItem('mcp_chat_studio_prompts') || '{}');
     const defaults = {
-        'default': { name: 'Default Assistant' },
-        'strict-coder': { name: 'Strict Coder' },
-        'json-validator': { name: 'JSON Validator' }
+      default: { name: 'Default Assistant' },
+      'strict-coder': { name: 'Strict Coder' },
+      'json-validator': { name: 'JSON Validator' },
     };
     const all = { ...defaults, ...prompts };
-    return Object.entries(all).map(([k, v]) => `<option value="${k}">${escapeHtml(v.name)}</option>`).join('');
-  } catch (e) { return ''; }
+    return Object.entries(all)
+      .map(([k, v]) => `<option value="${k}">${escapeHtml(v.name)}</option>`)
+      .join('');
+  } catch (e) {
+    return '';
+  }
 }
 
 function loadPromptTemplate(nodeId, promptId) {
@@ -611,19 +651,19 @@ function loadPromptTemplate(nodeId, promptId) {
   // We need to fetch the actual text. In app.js it's in sessionManager.
   // We'll quick-fetch from localStorage again or defaults.
   // Simplified logic:
-  let promptText = "";
+  let promptText = '';
   if (promptId === 'default') promptText = 'You are a helpful AI assistant.';
   else if (promptId === 'strict-coder') promptText = 'You are a strict coding assistant.';
   else {
-      try {
-        const prompts = JSON.parse(localStorage.getItem('mcp_chat_studio_prompts') || '{}');
-        if (prompts[promptId]) promptText = prompts[promptId].prompt;
-      } catch(e) {}
+    try {
+      const prompts = JSON.parse(localStorage.getItem('mcp_chat_studio_prompts') || '{}');
+      if (prompts[promptId]) promptText = prompts[promptId].prompt;
+    } catch (e) {}
   }
-  
+
   if (promptText) {
-      document.getElementById(`prompt_text_${nodeId}`).value = promptText;
-      updateNodeData(nodeId, 'systemPrompt', promptText);
+    document.getElementById(`prompt_text_${nodeId}`).value = promptText;
+    updateNodeData(nodeId, 'systemPrompt', promptText);
   }
 }
 
@@ -638,30 +678,30 @@ function renderNodePosition(node) {
 function renderEdges() {
   const svg = document.getElementById('workflowConnections');
   svg.innerHTML = '';
-  
+
   // Render existing edges
   workflowState.edges.forEach(edge => {
     const fromNode = workflowState.nodes.find(n => n.id === edge.from);
     const toNode = workflowState.nodes.find(n => n.id === edge.to);
     if (!fromNode || !toNode) return;
-    
+
     // Calculate port positions
     // Out port is right-middle of fromNode
     // In port is left-middle of toNode
     // Assuming node width 240px (updated in createNodeElement)
-    const startX = fromNode.position.x + 240; 
+    const startX = fromNode.position.x + 240;
     const startY = fromNode.position.y + 45; // Approx middle of header + content
     const endX = toNode.position.x;
     const endY = toNode.position.y + 45;
-    
+
     drawCurve(svg, startX, startY, endX, endY);
   });
-  
+
   // Render temp connection line
   if (workflowState.isConnecting && workflowState.connectStartNode) {
     const startNode = workflowState.nodes.find(n => n.id === workflowState.connectStartNode);
     let startX, startY;
-    
+
     if (workflowState.connectStartPort === 'out') {
       startX = startNode.position.x + 240;
       startY = startNode.position.y + 45;
@@ -669,42 +709,56 @@ function renderEdges() {
       startX = startNode.position.x;
       startY = startNode.position.y + 45;
     }
-    
+
     // Draw directly to mouse pos
     // If dragging 'in' port, we are drawing TO the start node
     if (workflowState.connectStartPort === 'in') {
-      drawCurve(svg, workflowState.tempMousePos.x, workflowState.tempMousePos.y, startX, startY, true);
+      drawCurve(
+        svg,
+        workflowState.tempMousePos.x,
+        workflowState.tempMousePos.y,
+        startX,
+        startY,
+        true
+      );
     } else {
-      drawCurve(svg, startX, startY, workflowState.tempMousePos.x, workflowState.tempMousePos.y, true);
+      drawCurve(
+        svg,
+        startX,
+        startY,
+        workflowState.tempMousePos.x,
+        workflowState.tempMousePos.y,
+        true
+      );
     }
   }
 }
 
 function drawCurve(svg, x1, y1, x2, y2, isTemp = false) {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  
+
   // Clean S-curve bezier - straighter for close nodes
   const dx = x2 - x1;
   const dy = y2 - y1;
-  
+
   // For horizontal connections, use minimal curve
   // For diagonal, add slight curve for visual clarity
   const curvature = Math.min(Math.abs(dx) * 0.3, 80);
-  
+
   const cp1x = x1 + curvature;
   const cp1y = y1;
   const cp2x = x2 - curvature;
   const cp2y = y2;
-  
+
   const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
-  
+
   path.setAttribute('d', d);
   path.setAttribute('stroke', isTemp ? 'var(--text-muted)' : 'var(--accent-primary)');
   path.setAttribute('stroke-width', isTemp ? '2' : '2');
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke-linecap', 'round');
   if (isTemp) path.setAttribute('stroke-dasharray', '5,5');
-  
+
   svg.appendChild(path);
 }
 
@@ -715,8 +769,8 @@ function drawCurve(svg, x1, y1, x2, y2, isTemp = false) {
 function addNode(type) {
   const id = `${type}_${Date.now()}`;
   // Center roughly in current view (could use scroll position)
-  const x = 50 + (workflowState.nodes.length * 20);
-  const y = 50 + (workflowState.nodes.length * 20);
+  const x = 50 + workflowState.nodes.length * 20;
+  const y = 50 + workflowState.nodes.length * 20;
   const data = {};
   if (type === 'llm') {
     data.systemPrompt = 'Analyze the tool output and summarize the result.';
@@ -731,9 +785,9 @@ function addNode(type) {
     id,
     type,
     position: { x, y },
-    data
+    data,
   };
-  
+
   workflowState.nodes.push(node);
   renderWorkflow();
 }
@@ -777,14 +831,17 @@ function normalizeWorkflowState() {
     const x = Number(rawX);
     const y = Number(rawY);
     normalized.position = {
-      x: Number.isFinite(x) ? x : 50 + (index * 300),
-      y: Number.isFinite(y) ? y : 50
+      x: Number.isFinite(x) ? x : 50 + index * 300,
+      y: Number.isFinite(y) ? y : 50,
     };
     if (normalized.data && typeof normalized.data.args === 'object') {
       normalized.data.args = JSON.stringify(normalized.data.args, null, 2);
     }
     if (normalized.type === 'llm') {
-      if (!normalized.data.systemPrompt || String(normalized.data.systemPrompt).trim().length === 0) {
+      if (
+        !normalized.data.systemPrompt ||
+        String(normalized.data.systemPrompt).trim().length === 0
+      ) {
         normalized.data.systemPrompt = 'Analyze the tool output and summarize the result.';
       }
       if (!normalized.data.prompt || String(normalized.data.prompt).trim().length === 0) {
@@ -813,15 +870,18 @@ async function loadWorkflowsList() {
     }
     const res = await fetch('/api/workflows');
     const workflows = await res.json();
-    
+
     const listEl = document.getElementById('workflowList');
     if (!listEl) return;
     if (workflows.length === 0) {
-      listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem; padding: 4px;">No workflows found</div>';
+      listEl.innerHTML =
+        '<div style="color: var(--text-muted); font-size: 0.75rem; padding: 4px;">No workflows found</div>';
       return;
     }
-    
-    listEl.innerHTML = workflows.map(w => `
+
+    listEl.innerHTML = workflows
+      .map(
+        w => `
       <div class="workflow-list-item" style="padding: 8px; cursor: pointer; border-radius: 6px; margin-bottom: 4px; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
         <div onclick="loadWorkflow('${w.id}')" style="flex: 1;">
           <div style="font-weight: 500; font-size: 0.8rem;">${escapeHtml(w.name || 'Untitled')}</div>
@@ -831,12 +891,15 @@ async function loadWorkflowsList() {
           style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 0.8rem;"
           title="Delete workflow">🗑️</button>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   } catch (error) {
     console.error('Failed to load workflows:', error);
     const listEl = document.getElementById('workflowList');
     if (listEl) {
-      listEl.innerHTML = '<div style="color: var(--error); font-size: 0.75rem; padding: 4px;">Failed to load workflows</div>';
+      listEl.innerHTML =
+        '<div style="color: var(--error); font-size: 0.75rem; padding: 4px;">Failed to load workflows</div>';
     }
   }
 }
@@ -845,14 +908,14 @@ async function deleteWorkflow(id) {
   const confirmed = await appConfirm('Delete this workflow?', {
     title: 'Delete Workflow',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
-  
+
   try {
     const res = await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
     const result = await res.json();
-    
+
     if (result.success) {
       // Clear current if we deleted the active one
       if (workflowState.currentId === id) {
@@ -870,13 +933,13 @@ async function loadWorkflow(id) {
   try {
     const res = await fetch(`/api/workflows/${id}`);
     const workflow = await res.json();
-    
+
     workflowState.currentId = workflow.id;
     normalizeWorkflowId();
     workflowState.nodes = workflow.nodes || [];
     workflowState.edges = workflow.edges || [];
     document.getElementById('workflowName').value = workflow.name || 'Untitled';
-    
+
     normalizeWorkflowState();
     renderWorkflow();
     centerWorkflowView();
@@ -892,29 +955,29 @@ async function saveWorkflow() {
   const workflow = {
     name,
     nodes: workflowState.nodes,
-    edges: workflowState.edges
+    edges: workflowState.edges,
   };
   if (workflowState.currentId) {
     workflow.id = workflowState.currentId;
   }
-  
+
   try {
     if (workflowState.currentId) {
       recordWorkflowVersion({
         id: workflowState.currentId,
         name,
         nodes: workflowState.nodes,
-        edges: workflowState.edges
+        edges: workflowState.edges,
       });
     }
 
     const res = await fetch('/api/workflows', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(workflow)
+      body: JSON.stringify(workflow),
     });
     const result = await res.json().catch(() => ({}));
-    
+
     if (result.success) {
       workflowState.currentId = result.id;
       loadWorkflowsList();
@@ -1000,11 +1063,19 @@ async function validateWorkflowBeforeRun() {
       const server = node.data?.server;
       const tool = node.data?.tool;
       if (!server) {
-        issues.push({ nodeId: node.id, field: 'server', message: 'Select a server for this tool node.' });
+        issues.push({
+          nodeId: node.id,
+          field: 'server',
+          message: 'Select a server for this tool node.',
+        });
         continue;
       }
       if (!tool) {
-        issues.push({ nodeId: node.id, field: 'tool', message: 'Select a tool for this tool node.' });
+        issues.push({
+          nodeId: node.id,
+          field: 'tool',
+          message: 'Select a tool for this tool node.',
+        });
         continue;
       }
 
@@ -1019,7 +1090,9 @@ async function validateWorkflowBeforeRun() {
         continue;
       }
       const properties = toolDef.inputSchema.properties || {};
-      const required = Array.isArray(toolDef.inputSchema.required) ? toolDef.inputSchema.required : [];
+      const required = Array.isArray(toolDef.inputSchema.required)
+        ? toolDef.inputSchema.required
+        : [];
       const additionalProps = toolDef.inputSchema.additionalProperties;
 
       const missing = required.filter(key => !(key in parsed.value));
@@ -1027,7 +1100,7 @@ async function validateWorkflowBeforeRun() {
         issues.push({
           nodeId: node.id,
           field: 'args',
-          message: `Missing required args: ${missing.join(', ')}`
+          message: `Missing required args: ${missing.join(', ')}`,
         });
       }
 
@@ -1037,7 +1110,7 @@ async function validateWorkflowBeforeRun() {
           issues.push({
             nodeId: node.id,
             field: 'args',
-            message: `Unexpected args: ${unknown.join(', ')}`
+            message: `Unexpected args: ${unknown.join(', ')}`,
           });
         }
       }
@@ -1050,7 +1123,7 @@ async function validateWorkflowBeforeRun() {
         issues.push({
           nodeId: node.id,
           field: 'prompt',
-          message: 'LLM node needs a prompt or an incoming node output.'
+          message: 'LLM node needs a prompt or an incoming node output.',
         });
       }
     }
@@ -1067,7 +1140,7 @@ async function runWorkflow() {
     if (!saved) return;
   }
   if (!workflowState.currentId) return;
-  
+
   const logsPanel = document.getElementById('workflowLogs');
   const logContent = document.getElementById('workflowLogContent');
   logsPanel.style.display = 'flex';
@@ -1094,21 +1167,21 @@ async function runWorkflow() {
     showToast(`Workflow blocked: ${issues.length} issue(s) to fix.`, 'warning');
     return;
   }
-  
+
   // Set all nodes to pending status
   clearNodeStatuses();
   clearNodeValidationErrors();
   workflowState.nodes.forEach(node => {
     setNodeStatus(node.id, 'pending');
   });
-  
+
   // Fetch current LLM config from API to ensure we use what's in the header/settings
   let llmConfig = {};
   try {
     const configRes = await fetch('/api/llm/config', { credentials: 'include' });
     llmConfig = await configRes.json();
   } catch (e) {
-    console.warn("Using default LLM config");
+    console.warn('Using default LLM config');
   }
 
   try {
@@ -1117,15 +1190,15 @@ async function runWorkflow() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         input: { timestamp: Date.now() },
-        llmConfig: llmConfig 
-      })
+        llmConfig: llmConfig,
+      }),
     });
-    
+
     const result = await res.json();
-    
+
     // Render logs and update node statuses
     logContent.innerHTML = '';
-    
+
     if (result.logs) {
       let focusedError = false;
       result.logs.forEach((log, index) => {
@@ -1139,24 +1212,26 @@ async function runWorkflow() {
             focusedError = true;
           }
         }
-        
+
         // Check if this is an assertion result
         const isAssertion = log.output && log.output.assertion;
         const assertPassed = isAssertion ? log.output.passed : null;
-        
+
         const color = log.status === 'success' ? 'var(--success)' : 'var(--error)';
         const icon = log.status === 'success' ? '✅' : '❌';
         const div = document.createElement('div');
         div.style.marginBottom = '8px';
         div.style.borderRadius = '0 6px 6px 0';
         div.style.padding = '8px 10px';
-        
+
         // Special display for assertions
         if (isAssertion) {
           const assertIcon = assertPassed ? '✅ PASS' : '❌ FAIL';
           const assertColor = assertPassed ? 'var(--success)' : 'var(--error)';
           div.style.borderLeft = `3px solid ${assertColor}`;
-          div.style.background = assertPassed ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+          div.style.background = assertPassed
+            ? 'rgba(34, 197, 94, 0.15)'
+            : 'rgba(239, 68, 68, 0.15)';
           div.innerHTML = `
             <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 1rem;">${assertIcon}</span>
@@ -1167,7 +1242,8 @@ async function runWorkflow() {
           `;
         } else {
           div.style.borderLeft = `3px solid ${color}`;
-          div.style.background = log.status === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+          div.style.background =
+            log.status === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
           div.innerHTML = `
             <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
               <span>${icon}</span>
@@ -1180,7 +1256,7 @@ async function runWorkflow() {
         }
         logContent.appendChild(div);
       });
-      
+
       // Add test summary for assertions
       const assertions = result.logs.filter(l => l.output && l.output.assertion);
       if (assertions.length > 0) {
@@ -1198,13 +1274,12 @@ async function runWorkflow() {
         `;
       }
     }
-    
+
     if (result.status === 'error') {
       logContent.innerHTML += `<div style="color: var(--error); font-weight: bold; margin-top: 12px; padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">❌ Execution Failed: ${escapeHtml(result.error)}</div>`;
     } else {
       logContent.innerHTML += `<div style="color: var(--success); font-weight: bold; margin-top: 12px; padding: 8px; background: rgba(34, 197, 94, 0.1); border-radius: 6px;">✅ Execution Completed</div>`;
     }
-    
   } catch (error) {
     logContent.innerHTML = `<div style="color: var(--error); padding: 8px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">❌ Error: ${escapeHtml(error.message)}</div>`;
   }
@@ -1228,14 +1303,16 @@ function setNodeFieldError(nodeId, field, message) {
     server: `server_select_${nodeId}`,
     tool: `tool_select_${nodeId}`,
     args: `args_input_${nodeId}`,
-    prompt: `prompt_user_${nodeId}`
+    prompt: `prompt_user_${nodeId}`,
   };
   const fieldId = fieldMap[field];
   if (!fieldId) return;
   const el = document.getElementById(fieldId);
   if (!el) return;
   el.classList.add('workflow-node-field-error');
-  const existing = el.parentElement?.querySelector(`.workflow-node-field-error-text[data-field="${fieldId}"]`);
+  const existing = el.parentElement?.querySelector(
+    `.workflow-node-field-error-text[data-field="${fieldId}"]`
+  );
   if (existing) {
     existing.textContent = message;
     return;
@@ -1293,25 +1370,30 @@ function clearNodeStatuses() {
   });
 }
 
-
 // ==========================================
 // HELPERS
 // ==========================================
 
 async function populateToolSelect(nodeId, serverName, selectedTool = null) {
   if (!serverName) return;
-  
+
   try {
     // We can reuse the API for tools
     const res = await fetch('/api/mcp/tools', { credentials: 'include' });
     const data = await res.json();
     const tools = data.tools.filter(t => t.serverName === serverName);
     toolSchemaCache[serverName] = tools;
-    
+
     const select = document.getElementById(`tool_select_${nodeId}`);
     if (select) {
-      select.innerHTML = '<option value="">Select Tool</option>' + 
-        tools.map(t => `<option value="${t.name}" ${t.name === selectedTool ? 'selected' : ''}>${t.name}</option>`).join('');
+      select.innerHTML =
+        '<option value="">Select Tool</option>' +
+        tools
+          .map(
+            t =>
+              `<option value="${t.name}" ${t.name === selectedTool ? 'selected' : ''}>${t.name}</option>`
+          )
+          .join('');
     }
     if (selectedTool) {
       updateToolSchemaHint(nodeId, selectedTool);
@@ -1750,7 +1832,7 @@ async function toggleAIBuilder() {
       switchClassicPanel('workflowsPanel');
     }
   }
-  
+
   document.body.classList.add('ai-builder-open');
   requestAnimationFrame(() => positionAIBuilder());
   bindAIBuilderPositioning();
@@ -1758,7 +1840,7 @@ async function toggleAIBuilder() {
   if (promptEl) {
     setTimeout(() => promptEl.focus(), 120);
   }
-  
+
   // Refresh the model badge when opening
   updateAIBuilderModelBadge();
 }
@@ -1852,7 +1934,7 @@ function startAIBuilderDrag(event) {
     offsetY,
     nextLeft: rect.left,
     nextTop: rect.top,
-    rafId: null
+    rafId: null,
   };
 
   const applyDragPosition = () => {
@@ -1863,7 +1945,7 @@ function startAIBuilderDrag(event) {
     aiBuilderDragState.rafId = null;
   };
 
-  const onMove = (moveEvent) => {
+  const onMove = moveEvent => {
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
     const panelWidth = sidebar.offsetWidth || rect.width;
@@ -1899,15 +1981,15 @@ function startAIBuilderDrag(event) {
 async function generateWorkflow() {
   const prompt = document.getElementById('aiBuilderPrompt').value.trim();
   if (!prompt) return;
-  
+
   const statusEl = document.getElementById('aiBuilderStatus');
   statusEl.textContent = '🤔 Analyzing your request and available tools...';
-  
+
   try {
     // 1. Fetch available tools to give context to the LLM
     const toolsRes = await fetch('/api/mcp/tools', { credentials: 'include' });
     const toolsData = await toolsRes.json();
-    
+
     // Format tools with clear server and tool separation
     const toolsByServer = {};
     toolsData.tools.forEach(t => {
@@ -1915,7 +1997,7 @@ async function generateWorkflow() {
       toolsByServer[t.serverName].push({
         name: t.name,
         description: t.description || 'No description',
-        inputSchema: t.inputSchema || null
+        inputSchema: t.inputSchema || null,
       });
     });
 
@@ -1934,7 +2016,7 @@ async function generateWorkflow() {
         }
       });
     }
-    
+
     // 2. Construct System Prompt
     const systemPrompt = `You are an expert MCP Workflow Architect. 
 Build a workflow using the connected MCP tools.
@@ -1967,9 +2049,9 @@ NODE TYPES:
 - llm: AI analysis/assertions
 - javascript: Custom code (use: context.steps.nodeId.output)
 `;
-    
+
     statusEl.textContent = '🤖 Generating workflow design...';
-    
+
     // 3. Call LLM with useTools: false to prevent recursive execution
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -1977,38 +2059,43 @@ NODE TYPES:
       body: JSON.stringify({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
+          { role: 'user', content: prompt },
         ],
         stream: false,
-        useTools: false // CRITICAL: Don't let the LLM try to run tools during generation
-      })
+        useTools: false, // CRITICAL: Don't let the LLM try to run tools during generation
+      }),
     });
-    
+
     const data = await response.json();
-    
+
     if (data.error) {
-        throw new Error(data.error);
+      throw new Error(data.error);
     }
-    
+
     if (!data.choices || !data.choices[0]) {
-        throw new Error('Invalid response from LLM');
+      throw new Error('Invalid response from LLM');
     }
 
     let content = data.choices[0].message.content;
-    
+
     // Clean up markdown code blocks if present
-    content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
-    
+    content = content
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
     // Try to extract JSON object from response (LLMs sometimes add prose around it)
     let jsonMatch = content.match(/\{[\s\S]*\}/); // Find first { to last }
     if (!jsonMatch) {
-      throw new Error('No JSON object found in response. The LLM may not have followed the format.');
+      throw new Error(
+        'No JSON object found in response. The LLM may not have followed the format.'
+      );
     }
     content = jsonMatch[0];
-    
+
     try {
       const workflow = JSON.parse(content);
-      
+
       // Normalize node data - ensure args is a string
       if (workflow.nodes) {
         workflow.nodes.forEach(node => {
@@ -2017,30 +2104,29 @@ NODE TYPES:
           }
         });
       }
-      
+
       // Load into canvas
       workflowState.currentId = null; // New unsaved workflow
       workflowState.nodes = workflow.nodes || [];
       workflowState.edges = workflow.edges || [];
-      
+
       // Simple auto-layout if positions are missing (fallback)
       if (workflowState.nodes.length > 0 && !workflowState.nodes[0].position) {
-         workflowState.nodes.forEach((n, i) => {
-             n.position = { x: 50 + (i * 300), y: 50 };
-         });
+        workflowState.nodes.forEach((n, i) => {
+          n.position = { x: 50 + i * 300, y: 50 };
+        });
       }
       normalizeWorkflowState();
-      
+
       renderWorkflow();
       centerWorkflowView();
-      statusEl.innerHTML = '<span style="color: var(--success)">✨ Done! Workflow generated.</span>';
-      
+      statusEl.innerHTML =
+        '<span style="color: var(--success)">✨ Done! Workflow generated.</span>';
     } catch (parseError) {
       console.error('JSON Parse Error:', parseError);
       console.error('Content was:', content);
       statusEl.innerHTML = `<span style="color: var(--error)">❌ Failed to parse: ${parseError.message}</span>`;
     }
-    
   } catch (error) {
     statusEl.innerHTML = `<span style="color: var(--error)">❌ Error: ${error.message}</span>`;
   }
@@ -2062,20 +2148,20 @@ function hideExportModal() {
 async function generateExportCode() {
   const format = document.getElementById('exportFormat').value;
   const textarea = document.getElementById('exportCodePreview');
-  textarea.value = "Generating...";
-  
+  textarea.value = 'Generating...';
+
   if (!workflowState.currentId) {
     // Save first to get an ID (or just save state)
     // Actually for export we might need backend to process it.
     // Let's ensure it's saved.
     await saveWorkflow();
   }
-  
+
   try {
     const res = await fetch(`/api/workflows/${workflowState.currentId}/export?format=${format}`);
     const code = await res.text();
     textarea.value = code;
-  } catch(e) {
+  } catch (e) {
     textarea.value = `Error generating code: ${e.message}`;
   }
 }
@@ -2092,7 +2178,7 @@ function downloadExportCode() {
   const code = document.getElementById('exportCodePreview').value;
   const ext = format === 'python' ? 'py' : 'js';
   const filename = `workflow_${workflowState.currentId || 'export'}.${ext}`;
-  
+
   const blob = new Blob([code], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

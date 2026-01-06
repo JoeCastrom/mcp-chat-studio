@@ -276,7 +276,7 @@ router.post('/:id/run', async (req, res) => {
     const sessionId = getSessionId(req);
     const results = await manager.runCollection(req.params.id, {
       ...req.body,
-      sessionId
+      sessionId,
     });
 
     res.json(results);

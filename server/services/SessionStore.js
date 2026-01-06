@@ -42,7 +42,7 @@ export function saveSession(sessionId, payload) {
     ...existing,
     ...payload,
     updatedAt: new Date().toISOString(),
-    createdAt: existing.createdAt || new Date().toISOString()
+    createdAt: existing.createdAt || new Date().toISOString(),
   };
   saveAllSessions(sessions);
 }

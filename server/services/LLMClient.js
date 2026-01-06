@@ -7,7 +7,7 @@ import axios from 'axios';
 
 export class LLMClient {
   constructor(config) {
-    const normalized = (config && config.llm) ? config.llm : (config || {});
+    const normalized = config && config.llm ? config.llm : config || {};
     this.applyConfig(normalized);
 
     // Generic API keys (provider-specific take priority)
@@ -39,7 +39,7 @@ export class LLMClient {
   }
 
   updateConfig(config) {
-    const normalized = (config && config.llm) ? config.llm : (config || {});
+    const normalized = config && config.llm ? config.llm : config || {};
     this.applyConfig(normalized);
     if (this.config.api_key) {
       this.apiKey = this.config.api_key;
@@ -183,14 +183,14 @@ export class LLMClient {
     const params = new URLSearchParams({
       grant_type: 'client_credentials',
       client_id: auth.client_id || '',
-      client_secret: auth.client_secret || ''
+      client_secret: auth.client_secret || '',
     });
     if (auth.scope) params.append('scope', auth.scope);
     if (auth.audience) params.append('audience', auth.audience);
 
     const response = await axios.post(auth.auth_url, params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 10000
+      timeout: 10000,
     });
 
     const token = response.data?.access_token;
@@ -214,7 +214,7 @@ export class LLMClient {
     const apiKey = this.getApiKey();
     const auth = this.config.auth || {};
     const extraHeader = auth.extra_header || {};
-    const formatBearer = (value) => {
+    const formatBearer = value => {
       if (!value) return value;
       return /^bearer\s+/i.test(value) ? value : `Bearer ${value}`;
     };

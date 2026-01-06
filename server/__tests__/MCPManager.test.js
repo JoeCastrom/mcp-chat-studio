@@ -26,16 +26,16 @@ class MockClient {
 }
 
 jest.unstable_mockModule('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: jest.fn(() => new MockClient())
+  Client: jest.fn(() => new MockClient()),
 }));
 
 jest.unstable_mockModule('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: jest.fn(),
-  getDefaultEnvironment: jest.fn(() => ({}))
+  getDefaultEnvironment: jest.fn(() => ({})),
 }));
 
 jest.unstable_mockModule('@modelcontextprotocol/sdk/client/sse.js', () => ({
-  SSEClientTransport: jest.fn()
+  SSEClientTransport: jest.fn(),
 }));
 
 // Import after mocking
@@ -61,7 +61,7 @@ describe('MCPManager', () => {
         type: 'stdio',
         command: 'python',
         args: ['-m', 'test_server'],
-        env: { API_KEY: 'test' }
+        env: { API_KEY: 'test' },
       };
 
       manager.addServerConfig('test-server', config);
@@ -74,7 +74,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       manager.addServerConfig('test-server', config);
@@ -86,7 +86,7 @@ describe('MCPManager', () => {
     test('should auto-detect type from command field', () => {
       const config = {
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       manager.addServerConfig('auto-stdio', config);
@@ -96,7 +96,7 @@ describe('MCPManager', () => {
 
     test('should auto-detect type from url field', () => {
       const config = {
-        url: 'http://localhost:8080/sse'
+        url: 'http://localhost:8080/sse',
       };
 
       manager.addServerConfig('auto-sse', config);
@@ -118,7 +118,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       mockConnect.mockResolvedValue(true);
@@ -135,7 +135,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       mockConnect.mockResolvedValue(true);
@@ -154,7 +154,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'invalid-command',
-        args: []
+        args: [],
       };
 
       mockConnect.mockRejectedValue(new Error('Connection failed'));
@@ -170,7 +170,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       mockConnect.mockResolvedValue(true);
@@ -182,11 +182,11 @@ describe('MCPManager', () => {
             inputSchema: {
               type: 'object',
               properties: {
-                param: { type: 'string' }
-              }
-            }
-          }
-        ]
+                param: { type: 'string' },
+              },
+            },
+          },
+        ],
       });
 
       manager.addServerConfig('test-server', config);
@@ -203,9 +203,7 @@ describe('MCPManager', () => {
 
     test('should throw when calling tool on unconnected server', async () => {
       // This tests the manager's validation before reaching connection
-      await expect(
-        manager.callTool('nonexistent-server', 'test_tool', {})
-      ).rejects.toThrow();
+      await expect(manager.callTool('nonexistent-server', 'test_tool', {})).rejects.toThrow();
     });
 
     // Note: Direct tool call tests require transport mocking which is complex
@@ -224,7 +222,7 @@ describe('MCPManager', () => {
       const config = {
         type: 'stdio',
         command: 'python',
-        args: ['-m', 'test_server']
+        args: ['-m', 'test_server'],
       };
 
       mockConnect.mockResolvedValue(true);
@@ -244,7 +242,7 @@ describe('MCPManager', () => {
         type: 'stdio',
         command: 'python',
         args: ['-m', 'test_server'],
-        requiresAuth: true
+        requiresAuth: true,
       };
 
       mockConnect.mockResolvedValue(true);
@@ -263,7 +261,7 @@ describe('MCPManager', () => {
         type: 'stdio',
         command: 'python',
         args: ['-m', 'test_server'],
-        requiresAuth: true
+        requiresAuth: true,
       };
 
       mockConnect.mockResolvedValue(true);
@@ -283,9 +281,7 @@ describe('MCPManager', () => {
 
   describe('Error Handling', () => {
     test('should handle calling tool on disconnected server', async () => {
-      await expect(
-        manager.callTool('nonexistent-server', 'test_tool', {})
-      ).rejects.toThrow();
+      await expect(manager.callTool('nonexistent-server', 'test_tool', {})).rejects.toThrow();
     });
   });
 });

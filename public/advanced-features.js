@@ -43,7 +43,9 @@ function renderSnapshotLibraryList() {
     return;
   }
 
-  listEl.innerHTML = snapshots.map(snapshot => `
+  listEl.innerHTML = snapshots
+    .map(
+      snapshot => `
     <div class="snapshot-card">
       <div>
         <strong>${escapeHtml(snapshot.collectionName || 'Collection')}</strong>
@@ -57,7 +59,9 @@ function renderSnapshotLibraryList() {
         <button class="btn" onclick="deleteSnapshot('${escapeAttr(snapshot.id)}')" style="font-size: 0.65rem; padding: 2px 6px">🗑️</button>
       </div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 function showSnapshotLibrary() {
@@ -119,7 +123,9 @@ function matchSnapshotCollection(snapshot, collectionId, collectionName) {
 
 function getLatestSnapshotForCollection(collectionId, collectionName) {
   const snapshots = getCollectionSnapshots();
-  const filtered = snapshots.filter(snapshot => matchSnapshotCollection(snapshot, collectionId, collectionName));
+  const filtered = snapshots.filter(snapshot =>
+    matchSnapshotCollection(snapshot, collectionId, collectionName)
+  );
   if (!filtered.length) return null;
   filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   return filtered[0];
@@ -137,7 +143,9 @@ function exportSnapshotById(snapshotId) {
     return;
   }
   const timestamp = (snapshot.timestamp || new Date().toISOString()).replace(/[:.]/g, '-');
-  const name = snapshot.collectionName ? snapshot.collectionName.replace(/[^a-z0-9]/gi, '_') : 'collection';
+  const name = snapshot.collectionName
+    ? snapshot.collectionName.replace(/[^a-z0-9]/gi, '_')
+    : 'collection';
   downloadJsonFile(`snapshot-${name}-${timestamp}.json`, snapshot);
   showNotification('Snapshot exported.', 'success');
 }
@@ -155,17 +163,21 @@ async function fetchSnapshotResource(url) {
 async function saveRunSnapshot(results) {
   if (!results) return;
   const snapshots = getCollectionSnapshots();
-  const filtered = snapshots.filter(snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName));
+  const filtered = snapshots.filter(
+    snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName)
+  );
 
   const [tools, status, mocks, scripts] = await Promise.all([
     fetchSnapshotResource('/api/mcp/tools'),
     fetchSnapshotResource('/api/mcp/status'),
     fetchSnapshotResource('/api/mocks'),
-    fetchSnapshotResource('/api/scripts')
+    fetchSnapshotResource('/api/scripts'),
   ]);
 
-  const globals = typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
-  const envVars = typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
+  const globals =
+    typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
+  const envVars =
+    typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
 
   const snapshot = {
     id: `snapshot_${Date.now()}`,
@@ -178,12 +190,12 @@ async function saveRunSnapshot(results) {
     environment: {
       globals,
       envVars,
-      runEnv: results.runConfig?.environment || {}
+      runEnv: results.runConfig?.environment || {},
     },
     servers: status?.servers || status || {},
     tools: tools?.tools || [],
     mocks: mocks?.mocks || [],
-    scripts: scripts?.scripts || []
+    scripts: scripts?.scripts || [],
   };
 
   filtered.unshift(snapshot);
@@ -194,7 +206,9 @@ async function saveRunSnapshot(results) {
 
 function clearRunSnapshot(results) {
   const snapshots = getCollectionSnapshots();
-  const filtered = snapshots.filter(snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName));
+  const filtered = snapshots.filter(
+    snapshot => !matchSnapshotCollection(snapshot, results.collectionId, results.collectionName)
+  );
   saveCollectionSnapshots(filtered);
   showNotification('Snapshot cleared.', 'success');
 }
@@ -209,7 +223,7 @@ function importCollectionSnapshot() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const snapshot = parsed?.results ? parsed : (Array.isArray(parsed) ? parsed[0] : null);
+      const snapshot = parsed?.results ? parsed : Array.isArray(parsed) ? parsed[0] : null;
       if (!snapshot || !snapshot.results) {
         showNotification('Invalid snapshot file.', 'error');
         return;
@@ -221,7 +235,10 @@ function importCollectionSnapshot() {
       snapshot.collectionName = snapshot.collectionName || snapshot.results?.collectionName;
 
       const snapshots = getCollectionSnapshots();
-      const filtered = snapshots.filter(existing => !matchSnapshotCollection(existing, snapshot.collectionId, snapshot.collectionName));
+      const filtered = snapshots.filter(
+        existing =>
+          !matchSnapshotCollection(existing, snapshot.collectionId, snapshot.collectionName)
+      );
       filtered.unshift(snapshot);
       saveCollectionSnapshots(filtered.slice(0, 20));
       renderSnapshotLibraryList();
@@ -245,7 +262,7 @@ function showSnapshotReport(snapshotOrId) {
   }
   const snapshotResults = {
     ...snapshot.results,
-    snapshotMeta: snapshot
+    snapshotMeta: snapshot,
   };
   showCollectionRunReport(snapshotResults);
 }
@@ -256,8 +273,12 @@ async function driftCheckSnapshot(results) {
     showNotification('No snapshot available for drift check.', 'warning');
     return;
   }
-  const runConfig = snapshot.runConfig || results?.runConfig || { environment: {}, iterations: 1, iterationData: [] };
-  const fresh = await runCollectionWithConfig(snapshot.collectionId || results.collectionId, runConfig);
+  const runConfig = snapshot.runConfig ||
+    results?.runConfig || { environment: {}, iterations: 1, iterationData: [] };
+  const fresh = await runCollectionWithConfig(
+    snapshot.collectionId || results.collectionId,
+    runConfig
+  );
   recordCollectionRun(fresh);
   renderCollectionRuns();
   showCollectionRunReport(fresh);
@@ -301,7 +322,7 @@ function setGoldenBaseline(results) {
     collectionId: results.collectionId,
     collectionName: results.collectionName,
     timestamp: results.endTime || new Date().toISOString(),
-    results
+    results,
   };
   saveGoldenBaselines(baselines);
 }
@@ -341,7 +362,7 @@ function computeRunDelta(currentResults, previousEntry) {
     skipped: currentResults.skipped - (previousResults.skipped || 0),
     duration: (currentResults.duration || 0) - (previousResults.duration || 0),
     newFailures: [],
-    recovered: []
+    recovered: [],
   };
 
   const prevMap = new Map();
@@ -373,13 +394,16 @@ function computeGateSummary(results) {
 
   const delta = computeRunDelta(results, {
     timestamp: baselineEntry.timestamp,
-    results: baselineEntry.results
+    results: baselineEntry.results,
   });
   if (!delta) return null;
 
   const reasons = [];
   if (delta.failed > 0) reasons.push(`Failed +${delta.failed}`);
-  if (delta.newFailures.length > 0) reasons.push(`${delta.newFailures.length} new failure${delta.newFailures.length !== 1 ? 's' : ''}`);
+  if (delta.newFailures.length > 0)
+    reasons.push(
+      `${delta.newFailures.length} new failure${delta.newFailures.length !== 1 ? 's' : ''}`
+    );
 
   const status = reasons.length > 0 ? 'fail' : 'pass';
   return {
@@ -387,18 +411,24 @@ function computeGateSummary(results) {
     baselineType: golden ? 'golden' : 'snapshot',
     baselineTimestamp: baselineEntry.timestamp,
     delta,
-    reasons
+    reasons,
   };
 }
 
 function renderDeltaBlock(delta, title, badgeText) {
   if (!delta) return '';
-  const formatDelta = (value) => {
+  const formatDelta = value => {
     const sign = value > 0 ? '+' : '';
     return `${sign}${value}`;
   };
-  const newFailures = delta.newFailures.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
-  const recovered = delta.recovered.slice(0, 3).map(name => `<span class="pill">${escapeHtml(name)}</span>`).join('');
+  const newFailures = delta.newFailures
+    .slice(0, 3)
+    .map(name => `<span class="pill">${escapeHtml(name)}</span>`)
+    .join('');
+  const recovered = delta.recovered
+    .slice(0, 3)
+    .map(name => `<span class="pill">${escapeHtml(name)}</span>`)
+    .join('');
   const moreNew = delta.newFailures.length > 3 ? `+${delta.newFailures.length - 3} more` : '';
   const moreRecovered = delta.recovered.length > 3 ? `+${delta.recovered.length - 3} more` : '';
 
@@ -414,16 +444,24 @@ function renderDeltaBlock(delta, title, badgeText) {
         <span>Skipped: ${formatDelta(delta.skipped)}</span>
         <span>Duration: ${formatDelta(delta.duration)}ms</span>
       </div>
-      ${delta.newFailures.length > 0 ? `
+      ${
+        delta.newFailures.length > 0
+          ? `
         <div style="margin-top: 8px; font-size: 0.75rem; color: var(--error); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
           <span>New failures:</span> ${newFailures} ${moreNew ? `<span class="pill">${moreNew}</span>` : ''}
         </div>
-      ` : ''}
-      ${delta.recovered.length > 0 ? `
+      `
+          : ''
+      }
+      ${
+        delta.recovered.length > 0
+          ? `
         <div style="margin-top: 6px; font-size: 0.75rem; color: var(--success); display: flex; gap: 6px; flex-wrap: wrap; align-items: center">
           <span>Recovered:</span> ${recovered} ${moreRecovered ? `<span class="pill">${moreRecovered}</span>` : ''}
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }
@@ -448,9 +486,9 @@ function recordCollectionRun(results) {
       passed: results.passed,
       failed: results.failed,
       skipped: results.skipped,
-      total: results.total
+      total: results.total,
     },
-    results
+    results,
   };
   results.runId = entry.id;
   runs.unshift(entry);
@@ -469,15 +507,19 @@ function renderCollectionRuns() {
   const runs = getCollectionRuns();
 
   if (runs.length === 0) {
-    list.innerHTML = '<div class="empty-state">No runs yet. Execute a collection to see reports here.</div>';
+    list.innerHTML =
+      '<div class="empty-state">No runs yet. Execute a collection to see reports here.</div>';
     return;
   }
 
-  list.innerHTML = runs.map(run => {
-    const golden = getGoldenBaselineForCollection(run.collectionId, run.collectionName);
-    const isGolden = golden && golden.runId === run.id;
-    const goldenBadge = isGolden ? '<span class="pill" style="border-color: var(--accent); color: var(--accent)">⭐ Golden</span>' : '';
-    return `
+  list.innerHTML = runs
+    .map(run => {
+      const golden = getGoldenBaselineForCollection(run.collectionId, run.collectionName);
+      const isGolden = golden && golden.runId === run.id;
+      const goldenBadge = isGolden
+        ? '<span class="pill" style="border-color: var(--accent); color: var(--accent)">⭐ Golden</span>'
+        : '';
+      return `
     <div class="collection-card" style="padding: 10px">
       <div class="collection-header">
         <h3>${escapeHtml(run.collectionName || 'Collection')}</h3>
@@ -506,7 +548,8 @@ function renderCollectionRuns() {
       </div>
     </div>
   `;
-  }).join('');
+    })
+    .join('');
 }
 
 function selectCollection(id) {
@@ -533,11 +576,14 @@ function renderCollectionsList() {
   if (!list) return;
 
   if (collections.length === 0) {
-    list.innerHTML = '<div class="empty-state">No collections yet. Create your first collection!</div>';
+    list.innerHTML =
+      '<div class="empty-state">No collections yet. Create your first collection!</div>';
     return;
   }
 
-  list.innerHTML = collections.map(col => `
+  list.innerHTML = collections
+    .map(
+      col => `
     <div class="collection-card" onclick="selectCollection('${escapeAttr(col.id)}')">
       <div class="collection-header">
         <h3>${escapeHtml(col.name || 'Untitled')}</h3>
@@ -555,7 +601,9 @@ function renderCollectionsList() {
         <button class="btn-small btn-danger" onclick="event.stopPropagation(); deleteCollection('${escapeAttr(col.id)}')">🗑️</button>
       </div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 async function createCollectionModal() {
@@ -565,10 +613,18 @@ async function createCollectionModal() {
     fields: [
       { id: 'name', label: 'Collection name', required: true, placeholder: 'Smoke Tests' },
       { id: 'description', label: 'Description', placeholder: 'Optional' },
-      { id: 'variables', label: 'Environment variables (JSON)', type: 'textarea', value: '{}', rows: 4, monospace: true, hint: 'Overrides global + environment variables for this collection.' },
+      {
+        id: 'variables',
+        label: 'Environment variables (JSON)',
+        type: 'textarea',
+        value: '{}',
+        rows: 4,
+        monospace: true,
+        hint: 'Overrides global + environment variables for this collection.',
+      },
       { id: 'preScripts', label: 'Pre-script IDs (comma-separated)', placeholder: 'auth, setup' },
-      { id: 'postScripts', label: 'Post-script IDs (comma-separated)', placeholder: 'cleanup' }
-    ]
+      { id: 'postScripts', label: 'Post-script IDs (comma-separated)', placeholder: 'cleanup' },
+    ],
   });
   if (!result.confirmed) return;
 
@@ -589,14 +645,31 @@ async function createCollectionModal() {
 
   const preScriptsInput = result.values.preScripts || '';
   const postScriptsInput = result.values.postScripts || '';
-  const preScripts = preScriptsInput ? preScriptsInput.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const postScripts = postScriptsInput ? postScriptsInput.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const preScripts = preScriptsInput
+    ? preScriptsInput
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+    : [];
+  const postScripts = postScriptsInput
+    ? postScriptsInput
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+    : [];
 
   try {
     const res = await fetch('/api/collections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, scenarios: [], variables, preScripts, postScripts })
+      body: JSON.stringify({
+        name,
+        description,
+        scenarios: [],
+        variables,
+        preScripts,
+        postScripts,
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -647,9 +720,14 @@ function parseCsvLine(line) {
 }
 
 function parseCsvToObjects(text) {
-  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
   if (lines.length < 2) return [];
-  const headers = parseCsvLine(lines[0]).map(h => h.trim()).filter(Boolean);
+  const headers = parseCsvLine(lines[0])
+    .map(h => h.trim())
+    .filter(Boolean);
   if (headers.length === 0) return [];
   return lines.slice(1).map(line => {
     const values = parseCsvLine(line);
@@ -705,17 +783,30 @@ async function runCollection(id) {
           value: JSON.stringify(defaultEnv, null, 2),
           rows: 4,
           monospace: true,
-          hint: 'Defaults to Global + Environment variables. Override as needed.'
+          hint: 'Defaults to Global + Environment variables. Override as needed.',
         },
-        { id: 'stopOnError', label: 'On error', type: 'select', value: 'false', options: [
-          { value: 'false', label: 'Continue on error' },
-          { value: 'true', label: 'Stop on first error' }
-        ] },
+        {
+          id: 'stopOnError',
+          label: 'On error',
+          type: 'select',
+          value: 'false',
+          options: [
+            { value: 'false', label: 'Continue on error' },
+            { value: 'true', label: 'Stop on first error' },
+          ],
+        },
         { id: 'iterations', label: 'Iteration count', type: 'number', value: 1 },
-        { id: 'iterationData', label: 'Iteration data (JSON array or CSV)', type: 'textarea', value: '', rows: 4, monospace: true },
+        {
+          id: 'iterationData',
+          label: 'Iteration data (JSON array or CSV)',
+          type: 'textarea',
+          value: '',
+          rows: 4,
+          monospace: true,
+        },
         { id: 'retries', label: 'Retries per step', type: 'number', value: 0 },
-        { id: 'retryDelayMs', label: 'Retry delay (ms)', type: 'number', value: 250 }
-      ]
+        { id: 'retryDelayMs', label: 'Retry delay (ms)', type: 'number', value: 250 },
+      ],
     });
     setTimeout(() => {
       const overlay = document.querySelector('.modal-overlay[data-app-modal="true"]');
@@ -723,7 +814,7 @@ async function runCollection(id) {
       const fileInput = overlay.querySelector('#iterationDataFile');
       const dataInput = overlay.querySelector('#iterationData');
       if (!fileInput || !dataInput) return;
-      fileInput.addEventListener('change', async (event) => {
+      fileInput.addEventListener('change', async event => {
         const file = event.target.files?.[0];
         if (!file) return;
         try {
@@ -775,7 +866,14 @@ async function runCollection(id) {
     }
 
     const stopOnError = String(result.values.stopOnError) === 'true';
-    const runConfig = { environment, iterations, iterationData, retries, retryDelayMs, stopOnError };
+    const runConfig = {
+      environment,
+      iterations,
+      iterationData,
+      retries,
+      retryDelayMs,
+      stopOnError,
+    };
     const results = await runCollectionWithConfig(id, runConfig);
 
     const message = `✅ ${results.passed} passed, ❌ ${results.failed} failed, ⏭️ ${results.skipped} skipped`;
@@ -799,8 +897,8 @@ async function runCollectionWithConfig(collectionId, runConfig) {
       iterations: runConfig.iterations || 1,
       iterationData: runConfig.iterationData || [],
       retries: runConfig.retries || 0,
-      retryDelayMs: runConfig.retryDelayMs || 0
-    })
+      retryDelayMs: runConfig.retryDelayMs || 0,
+    }),
   });
 
   const results = await res.json();
@@ -836,8 +934,10 @@ function escapeXml(text) {
 }
 
 function getDefaultRunEnvironment() {
-  const globals = typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
-  const envVars = typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
+  const globals =
+    typeof window.getGlobalVariables === 'function' ? window.getGlobalVariables() : {};
+  const envVars =
+    typeof window.getEnvironmentVariables === 'function' ? window.getEnvironmentVariables() : {};
   return { ...globals, ...envVars };
 }
 
@@ -854,7 +954,11 @@ function downloadTextFile(filename, data, type = 'text/plain') {
 function exportCollectionRunReport(results) {
   const gate = computeGateSummary(results);
   const payload = gate ? { ...results, gate } : results;
-  downloadTextFile('collection-run-report.json', JSON.stringify(payload, null, 2), 'application/json');
+  downloadTextFile(
+    'collection-run-report.json',
+    JSON.stringify(payload, null, 2),
+    'application/json'
+  );
 }
 
 function exportCollectionRunGate(results) {
@@ -869,7 +973,8 @@ function exportCollectionRunGate(results) {
 
 function copyCollectionGateCommand() {
   const command = 'node scripts/collection-gate.js ./collection-run-gate.json';
-  navigator.clipboard.writeText(command)
+  navigator.clipboard
+    .writeText(command)
     .then(() => showNotification('Gate command copied to clipboard.', 'success'))
     .catch(error => showNotification('Failed to copy command: ' + error.message, 'error'));
 }
@@ -880,7 +985,7 @@ function exportCollectionRunBundle(results) {
   const filename = `collection-run-${name}-${timestamp}.json`;
   const payload = {
     exportedAt: new Date().toISOString(),
-    run: results
+    run: results,
   };
   downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json');
 }
@@ -891,25 +996,27 @@ function exportCollectionRunJUnit(results) {
   const failures = scenarios.filter(s => s.status === 'failed').length;
   const skipped = scenarios.filter(s => s.status === 'skipped').length;
 
-  const testcases = scenarios.map(scenario => {
-    const name = `${scenario.scenarioName || scenario.name || 'Scenario'} (iter ${scenario.iteration || 1})`;
-    const duration = ((scenario.duration || 0) / 1000).toFixed(3);
-    if (scenario.status === 'failed') {
-      return `
+  const testcases = scenarios
+    .map(scenario => {
+      const name = `${scenario.scenarioName || scenario.name || 'Scenario'} (iter ${scenario.iteration || 1})`;
+      const duration = ((scenario.duration || 0) / 1000).toFixed(3);
+      if (scenario.status === 'failed') {
+        return `
         <testcase name="${escapeXml(name)}" time="${duration}">
           <failure message="Failed">Failed</failure>
         </testcase>
       `;
-    }
-    if (scenario.status === 'skipped') {
-      return `
+      }
+      if (scenario.status === 'skipped') {
+        return `
         <testcase name="${escapeXml(name)}" time="${duration}">
           <skipped />
         </testcase>
       `;
-    }
-    return `<testcase name="${escapeXml(name)}" time="${duration}" />`;
-  }).join('');
+      }
+      return `<testcase name="${escapeXml(name)}" time="${duration}" />`;
+    })
+    .join('');
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <testsuite name="MCP Collection Run" tests="${scenarios.length}" failures="${failures}" skipped="${skipped}" time="${totalTime.toFixed(3)}">
@@ -921,11 +1028,12 @@ ${testcases}
 function exportCollectionRunHtml(results) {
   const scenarios = results.scenarios || [];
   const statusColor = results.failed > 0 ? '#ef4444' : '#22c55e';
-  const rows = scenarios.map(scenario => {
-    const status = scenario.status || 'unknown';
-    const duration = scenario.duration || 0;
-    const iter = scenario.iteration || 1;
-    return `
+  const rows = scenarios
+    .map(scenario => {
+      const status = scenario.status || 'unknown';
+      const duration = scenario.duration || 0;
+      const iter = scenario.iteration || 1;
+      return `
       <tr>
         <td>${escapeHtml(scenario.scenarioName || scenario.name || 'Scenario')}</td>
         <td>${iter}</td>
@@ -933,7 +1041,8 @@ function exportCollectionRunHtml(results) {
         <td>${duration} ms</td>
       </tr>
     `;
-  }).join('');
+    })
+    .join('');
 
   const html = `<!doctype html>
 <html lang="en">
@@ -1046,9 +1155,12 @@ async function createMocksFromRun(results) {
         id: 'serverFilter',
         label: 'Server (optional)',
         type: 'select',
-        options: [{ value: '', label: 'All servers' }, ...servers.map(server => ({ value: server, label: server }))]
-      }
-    ]
+        options: [
+          { value: '', label: 'All servers' },
+          ...servers.map(server => ({ value: server, label: server })),
+        ],
+      },
+    ],
   });
 
   if (!filterResult.confirmed) return;
@@ -1087,7 +1199,7 @@ async function createMocksFromRun(results) {
         name: toolName,
         description: def?.description || `Recorded from ${serverName}`,
         inputSchema: def?.inputSchema || { type: 'object', properties: {} },
-        response
+        response,
       });
     }
 
@@ -1103,8 +1215,8 @@ async function createMocksFromRun(results) {
           resources: [],
           prompts: [],
           delay: 0,
-          errorRate: 0
-        })
+          errorRate: 0,
+        }),
       });
     } catch (error) {
       console.error('Failed to create mock from run:', error);
@@ -1166,15 +1278,25 @@ function clearGoldenFromReport(results) {
 function showCollectionRunReport(results) {
   window.lastCollectionRunReport = results;
   const goldenEntry = getGoldenBaselineForRun(results);
-  const snapshotEntry = results.snapshotMeta || getLatestSnapshotForCollection(results?.collectionId, results?.collectionName);
+  const snapshotEntry =
+    results.snapshotMeta ||
+    getLatestSnapshotForCollection(results?.collectionId, results?.collectionName);
   const modal = document.createElement('div');
   modal.className = 'modal-overlay active';
   modal.id = 'collectionRunReportModal';
   modal.style.display = 'flex';
 
-  const scenariosHtml = (results.scenarios || []).map(scenario => {
-    const statusColor = scenario.status === 'passed' ? 'var(--success)' : scenario.status === 'failed' ? 'var(--error)' : 'var(--text-muted)';
-    const stepsHtml = (scenario.steps || []).map(step => `
+  const scenariosHtml = (results.scenarios || [])
+    .map(scenario => {
+      const statusColor =
+        scenario.status === 'passed'
+          ? 'var(--success)'
+          : scenario.status === 'failed'
+            ? 'var(--error)'
+            : 'var(--text-muted)';
+      const stepsHtml = (scenario.steps || [])
+        .map(
+          step => `
       <div style="padding: 6px 0; border-top: 1px dashed var(--border)">
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem">
           <div>
@@ -1185,15 +1307,21 @@ function showCollectionRunReport(results) {
           </div>
           <span style="color: var(--text-muted)">${step.duration || 0}ms</span>
         </div>
-        ${step.assertions && step.assertions.length ? `
+        ${
+          step.assertions && step.assertions.length
+            ? `
           <div style="margin-top: 4px; font-size: 0.7rem; color: var(--text-muted)">
             Assertions: ${step.assertions.filter(a => a.passed).length}/${step.assertions.length} passed
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
-    `).join('');
+    `
+        )
+        .join('');
 
-    return `
+      return `
       <details style="border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--bg-surface)">
         <summary style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
           <div style="display: flex; flex-direction: column">
@@ -1209,7 +1337,8 @@ function showCollectionRunReport(results) {
         </div>
       </details>
     `;
-  }).join('');
+    })
+    .join('');
 
   modal.innerHTML = `
     <div class="modal" style="max-width: 800px; max-height: 85vh">
@@ -1223,7 +1352,9 @@ function showCollectionRunReport(results) {
         </button>
       </div>
       <div style="padding: var(--spacing-md); overflow-y: auto; max-height: calc(85vh - 130px)">
-        ${results.snapshotMeta ? `
+        ${
+          results.snapshotMeta
+            ? `
           <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: rgba(59, 130, 246, 0.08); font-size: 0.75rem">
             <strong>📸 Snapshot Replay</strong>
             <div style="color: var(--text-muted); margin-top: 4px">
@@ -1233,7 +1364,9 @@ function showCollectionRunReport(results) {
               ${(results.snapshotMeta.mocks || []).length} mocks
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         ${(() => {
           const gate = computeGateSummary(results);
           if (!gate) return '';
@@ -1261,13 +1394,15 @@ function showCollectionRunReport(results) {
           if (goldenEntry) {
             const goldenDelta = computeRunDelta(results, {
               timestamp: goldenEntry.timestamp,
-              results: goldenEntry.results
+              results: goldenEntry.results,
             });
-            blocks.push(renderDeltaBlock(
-              goldenDelta,
-              `⭐ Golden baseline · ${new Date(goldenEntry.timestamp).toLocaleString()}`,
-              'Golden baseline'
-            ));
+            blocks.push(
+              renderDeltaBlock(
+                goldenDelta,
+                `⭐ Golden baseline · ${new Date(goldenEntry.timestamp).toLocaleString()}`,
+                'Golden baseline'
+              )
+            );
           } else {
             blocks.push(`
               <div style="padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px dashed var(--border); background: var(--bg-surface); font-size: 0.75rem; color: var(--text-muted)">
@@ -1279,23 +1414,27 @@ function showCollectionRunReport(results) {
           if (snapshotEntry && snapshotEntry.runId !== results.runId) {
             const snapshotDelta = computeRunDelta(results, {
               timestamp: snapshotEntry.timestamp,
-              results: snapshotEntry.results
+              results: snapshotEntry.results,
             });
-            blocks.push(renderDeltaBlock(
-              snapshotDelta,
-              `📸 Snapshot · ${new Date(snapshotEntry.timestamp).toLocaleString()}`,
-              'Snapshot baseline'
-            ));
+            blocks.push(
+              renderDeltaBlock(
+                snapshotDelta,
+                `📸 Snapshot · ${new Date(snapshotEntry.timestamp).toLocaleString()}`,
+                'Snapshot baseline'
+              )
+            );
           }
 
           const previousEntry = findPreviousCollectionRun(results);
           const delta = computeRunDelta(results, previousEntry);
           if (delta) {
-            blocks.push(renderDeltaBlock(
-              delta,
-              `Δ Regression vs ${new Date(delta.previousTimestamp).toLocaleString()}`,
-              'Auto compare'
-            ));
+            blocks.push(
+              renderDeltaBlock(
+                delta,
+                `Δ Regression vs ${new Date(delta.previousTimestamp).toLocaleString()}`,
+                'Auto compare'
+              )
+            );
           }
 
           return blocks.join('');
@@ -1314,20 +1453,28 @@ function showCollectionRunReport(results) {
         <button class="btn" onclick="rerunCollectionFromReport(window.lastCollectionRunReport)">↻ Rerun</button>
         <button class="btn" onclick="createMocksFromRun(window.lastCollectionRunReport)">🎭 Mock from Run</button>
         <button class="btn" onclick="saveRunSnapshot(window.lastCollectionRunReport)">📸 Save Snapshot</button>
-        ${snapshotEntry ? `
+        ${
+          snapshotEntry
+            ? `
           <button class="btn" onclick="showSnapshotReport('${escapeAttr(snapshotEntry.id)}')">🎬 Replay Snapshot</button>
           <button class="btn" onclick="exportSnapshotById('${escapeAttr(snapshotEntry.id)}')">📤 Export Snapshot</button>
           <button class="btn" onclick="driftCheckSnapshot(window.lastCollectionRunReport)">🔍 Drift Check</button>
           <button class="btn" onclick="clearRunSnapshot(window.lastCollectionRunReport)">🧹 Clear Snapshot</button>
-        ` : ''}
+        `
+            : ''
+        }
         <button class="btn" onclick="exportCollectionRunGate(window.lastCollectionRunReport)">🚦 Export Gate</button>
         <button class="btn" onclick="copyCollectionGateCommand()">📋 Copy Gate Command</button>
-        ${goldenEntry ? `
+        ${
+          goldenEntry
+            ? `
           <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Update Golden</button>
           <button class="btn" onclick="clearGoldenFromReport(window.lastCollectionRunReport)">🧹 Clear Golden</button>
-        ` : `
+        `
+            : `
           <button class="btn" onclick="markGoldenFromReport(window.lastCollectionRunReport)">⭐ Set Golden</button>
-        `}
+        `
+        }
         <button class="btn" onclick="exportCollectionRunReport(window.lastCollectionRunReport)">📥 Export JSON</button>
         <button class="btn" onclick="exportCollectionRunJUnit(window.lastCollectionRunReport)">🧾 Export JUnit</button>
         <button class="btn" onclick="exportCollectionRunHtml(window.lastCollectionRunReport)">🧾 Export HTML</button>
@@ -1361,7 +1508,7 @@ async function deleteCollection(id) {
   const confirmed = await appConfirm('Delete this collection?', {
     title: 'Delete Collection',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
 
@@ -1397,15 +1544,18 @@ function renderMonitorsList() {
   if (!list) return;
 
   if (monitors.length === 0) {
-    list.innerHTML = '<div class="empty-state">No monitors configured. Create one to schedule automated tests!</div>';
+    list.innerHTML =
+      '<div class="empty-state">No monitors configured. Create one to schedule automated tests!</div>';
     return;
   }
 
-  list.innerHTML = monitors.map(mon => {
-    const statusIcon = mon.enabled ? '🟢' : '⚪';
-    const lastStatus = mon.lastStatus === 'passed' ? '✅' : mon.lastStatus === 'failed' ? '❌' : '⏸️';
+  list.innerHTML = monitors
+    .map(mon => {
+      const statusIcon = mon.enabled ? '🟢' : '⚪';
+      const lastStatus =
+        mon.lastStatus === 'passed' ? '✅' : mon.lastStatus === 'failed' ? '❌' : '⏸️';
 
-    return `
+      return `
       <div class="monitor-card">
         <div class="monitor-header">
           <h3>${statusIcon} ${escapeHtml(mon.name || 'Monitor')}</h3>
@@ -1434,7 +1584,8 @@ function renderMonitorsList() {
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 }
 
 async function loadMonitorStats() {
@@ -1489,11 +1640,16 @@ async function createMonitorModal() {
         required: true,
         options: collections.map(col => ({
           value: col.id,
-          label: `${col.name} (${col.id})`
-        }))
+          label: `${col.name} (${col.id})`,
+        })),
       },
-      { id: 'schedule', label: 'Schedule', required: true, placeholder: '5m, 1h, or cron expression' }
-    ]
+      {
+        id: 'schedule',
+        label: 'Schedule',
+        required: true,
+        placeholder: '5m, 1h, or cron expression',
+      },
+    ],
   });
   if (!result.confirmed) return;
 
@@ -1512,8 +1668,8 @@ async function createMonitorModal() {
         schedule,
         enabled: true,
         environment: {},
-        notifications: []
-      })
+        notifications: [],
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -1531,8 +1687,10 @@ async function runMonitorNow(id) {
     const res = await fetch(`/api/monitors/${id}/run`, { method: 'POST' });
     const results = await res.json();
 
-    showNotification(`Monitor completed: ${results.passed} passed, ${results.failed} failed`,
-      results.failed === 0 ? 'success' : 'warning');
+    showNotification(
+      `Monitor completed: ${results.passed} passed, ${results.failed} failed`,
+      results.failed === 0 ? 'success' : 'warning'
+    );
 
     await loadMonitors();
   } catch (error) {
@@ -1555,7 +1713,7 @@ async function deleteMonitor(id) {
   const confirmed = await appConfirm('Delete this monitor?', {
     title: 'Delete Monitor',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
 
@@ -1578,7 +1736,7 @@ async function loadToolExplorer() {
       fetch('/api/toolexplorer/stats'),
       fetch('/api/toolexplorer/leaderboard'),
       fetch('/api/toolexplorer/health'),
-      fetch('/api/mcp/tools')
+      fetch('/api/mcp/tools'),
     ]);
 
     const statsData = await statsRes.json();
@@ -1607,7 +1765,7 @@ async function loadToolExplorer() {
       totalDuration += avgDuration * success;
     });
 
-    const avgSuccessRate = totalCalls > 0 ? (totalSuccess / totalCalls) : 0;
+    const avgSuccessRate = totalCalls > 0 ? totalSuccess / totalCalls : 0;
     const avgLatency = totalSuccess > 0 ? Math.round(totalDuration / totalSuccess) : 0;
     const totalTools = connectedTools.length || statsList.length;
 
@@ -1615,7 +1773,7 @@ async function loadToolExplorer() {
       totalTools,
       totalCalls,
       avgSuccessRate,
-      avgLatency
+      avgLatency,
     });
 
     const leaderboard = await leaderRes.json();
@@ -1627,7 +1785,7 @@ async function loadToolExplorer() {
       totalTools,
       totalCalls,
       totalFailures,
-      overallSuccessRate: health.overallSuccessRate ?? (avgSuccessRate * 100)
+      overallSuccessRate: health.overallSuccessRate ?? avgSuccessRate * 100,
     });
     renderFlakeRadar();
     initFlakeAlerts();
@@ -1705,7 +1863,9 @@ function renderLeaderboard(data) {
         </tr>
       </thead>
       <tbody>
-        ${rows.map((tool, idx) => `
+        ${rows
+          .map(
+            (tool, idx) => `
           <tr>
             <td>${idx + 1}</td>
             <td>${escapeHtml(tool.server)}</td>
@@ -1714,7 +1874,9 @@ function renderLeaderboard(data) {
             <td>${tool.successRate.toFixed(1)}%</td>
             <td>${tool.avgLatency}ms</td>
           </tr>
-        `).join('')}
+        `
+          )
+          .join('')}
       </tbody>
     </table>
   `;
@@ -1726,16 +1888,22 @@ function renderHealthDashboard(health) {
 
   const successRate = typeof health.overallSuccessRate === 'number' ? health.overallSuccessRate : 0;
   const totalCalls = Number(health.totalCalls) || 0;
-  const status = totalCalls === 0
-    ? 'no data'
-    : successRate >= 95 ? 'healthy' : successRate >= 80 ? 'warning' : 'critical';
-  const statusColor = status === 'healthy'
-    ? 'green'
-    : status === 'warning'
-      ? 'orange'
-      : status === 'critical'
-        ? 'red'
-        : 'var(--text-muted)';
+  const status =
+    totalCalls === 0
+      ? 'no data'
+      : successRate >= 95
+        ? 'healthy'
+        : successRate >= 80
+          ? 'warning'
+          : 'critical';
+  const statusColor =
+    status === 'healthy'
+      ? 'green'
+      : status === 'warning'
+        ? 'orange'
+        : status === 'critical'
+          ? 'red'
+          : 'var(--text-muted)';
   const problematic = health.problematicTools || [];
   const slowTools = health.slowTools || [];
   const totalTools = health.totalTools || 0;
@@ -1765,32 +1933,48 @@ function renderHealthDashboard(health) {
         </div>
       </div>
       ${totalCalls === 0 ? '<div class="empty-state">Run tools to populate health metrics.</div>' : ''}
-      ${problematic.length > 0 ? `
+      ${
+        problematic.length > 0
+          ? `
         <div class="problematic-tools">
           <h4>Problematic Tools:</h4>
           <ul>
-            ${problematic.map(t => `
+            ${problematic
+              .map(
+                t => `
               <li>
                 <strong>${escapeHtml(t.server)}.${escapeHtml(t.tool)}</strong>:
                 ${t.successRate?.toFixed(1) ?? 0}% success
               </li>
-            `).join('')}
+            `
+              )
+              .join('')}
           </ul>
         </div>
-      ` : ''}
-      ${slowTools.length > 0 ? `
+      `
+          : ''
+      }
+      ${
+        slowTools.length > 0
+          ? `
         <div class="problematic-tools">
           <h4>Slow Tools:</h4>
           <ul>
-            ${slowTools.map(t => `
+            ${slowTools
+              .map(
+                t => `
               <li>
                 <strong>${escapeHtml(t.server)}.${escapeHtml(t.tool)}</strong>:
                 p95 ${t.p95Duration}ms
               </li>
-            `).join('')}
+            `
+              )
+              .join('')}
           </ul>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }
@@ -1799,7 +1983,7 @@ const FLAKE_ALERT_KEY = 'mcp_chat_studio_flake_alerts';
 let flakeAlertState = {
   enabled: false,
   baseline: null,
-  lastCheck: null
+  lastCheck: null,
 };
 let flakeAlertInterval = null;
 
@@ -1815,7 +1999,10 @@ function computeFlakeRows(history) {
   const percentile = (values, p) => {
     if (!values.length) return 0;
     const sorted = [...values].sort((a, b) => a - b);
-    const idx = Math.min(sorted.length - 1, Math.max(0, Math.round((p / 100) * (sorted.length - 1))));
+    const idx = Math.min(
+      sorted.length - 1,
+      Math.max(0, Math.round((p / 100) * (sorted.length - 1)))
+    );
     return sorted[idx];
   };
 
@@ -1832,7 +2019,9 @@ function computeFlakeRows(history) {
     const total = recent.length;
     if (!total) return;
 
-    const durations = recent.map(entry => Number(entry.duration || 0)).filter(value => Number.isFinite(value) && value > 0);
+    const durations = recent
+      .map(entry => Number(entry.duration || 0))
+      .filter(value => Number.isFinite(value) && value > 0);
     const median = percentile(durations, 50);
     const p95 = percentile(durations, 95);
     const jitter = median > 0 ? Math.round(((p95 - median) / median) * 100) : 0;
@@ -1857,7 +2046,7 @@ function computeFlakeRows(history) {
       jitter,
       score,
       failureRate: failures / total,
-      trend
+      trend,
     });
   });
 
@@ -1897,7 +2086,9 @@ function renderFlakeRadar() {
 
   el.innerHTML = `
     <div style="display: flex; flex-wrap: wrap; gap: 10px">
-      ${top.map(row => `
+      ${top
+        .map(
+          row => `
         <div class="flake-card">
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>${escapeHtml(row.tool)}</strong>
@@ -1911,7 +2102,9 @@ function renderFlakeRadar() {
             <span>${trendIcon(row.trend)} ${row.trend}</span>
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `;
 }
@@ -1922,7 +2115,7 @@ function loadFlakeAlertState() {
     flakeAlertState = {
       enabled: Boolean(stored.enabled),
       baseline: stored.baseline || null,
-      lastCheck: stored.lastCheck || null
+      lastCheck: stored.lastCheck || null,
     };
   } catch (error) {
     flakeAlertState = { enabled: false, baseline: null, lastCheck: null };
@@ -1949,7 +2142,7 @@ function buildFlakeBaseline(rows) {
       failureRate: row.failureRate,
       jitter: row.jitter,
       p95: row.p95,
-      total: row.total
+      total: row.total,
     };
   });
   return baseline;
@@ -1989,7 +2182,9 @@ function renderFlakeAlerts() {
         <span class="pill">Stable: ${summary.stable}</span>
       </div>
     </div>
-    ${(top || []).map(item => `
+    ${(top || [])
+      .map(
+        item => `
       <div class="flake-alert-item">
         <div>
           <strong>${escapeHtml(item.tool)}</strong>
@@ -2001,7 +2196,9 @@ function renderFlakeAlerts() {
           <span class="pill">Jitter ${item.jitter}%</span>
         </div>
       </div>
-    `).join('')}
+    `
+      )
+      .join('')}
     ${(top || []).length === 0 ? '<div style="color: var(--text-muted)">No changes detected.</div>' : ''}
   `;
 }
@@ -2015,7 +2212,7 @@ async function setFlakeBaseline() {
   const rows = computeFlakeRows(history);
   flakeAlertState.baseline = {
     capturedAt: new Date().toISOString(),
-    tools: buildFlakeBaseline(rows)
+    tools: buildFlakeBaseline(rows),
   };
   flakeAlertState.lastCheck = null;
   saveFlakeAlertState();
@@ -2052,7 +2249,7 @@ async function checkFlakeAlerts(options = {}) {
         tool: row.tool,
         deltaScore,
         failureRate: row.failureRate,
-        jitter: row.jitter
+        jitter: row.jitter,
       });
     } else {
       stable += 1;
@@ -2066,9 +2263,9 @@ async function checkFlakeAlerts(options = {}) {
     checkedAt: new Date().toISOString(),
     summary: {
       alerts: alerts.length,
-      stable
+      stable,
     },
-    top
+    top,
   };
   saveFlakeAlertState();
   renderFlakeAlerts();
@@ -2146,11 +2343,14 @@ function renderMockServersList() {
   if (!list) return;
 
   if (mockServers.length === 0) {
-    list.innerHTML = '<div class="empty-state">No mock servers. Create one to simulate MCP responses!</div>';
+    list.innerHTML =
+      '<div class="empty-state">No mock servers. Create one to simulate MCP responses!</div>';
     return;
   }
 
-  list.innerHTML = mockServers.map(mock => `
+  list.innerHTML = mockServers
+    .map(
+      mock => `
     <div class="mock-card">
       <div class="mock-header">
         <h3>${escapeHtml(mock.name || 'Mock')}</h3>
@@ -2160,7 +2360,7 @@ function renderMockServersList() {
       <div class="mock-stats">
         <span>📞 ${mock.callCount || 0} calls</span>
         <span>⏱️ ${mock.delay || 0}ms delay</span>
-        <span>⚠️ ${(mock.errorRate * 100 || 0)}% error rate</span>
+        <span>⚠️ ${mock.errorRate * 100 || 0}% error rate</span>
       </div>
       <div class="mock-actions">
         <button class="btn-small" onclick="connectMockServer('${escapeAttr(mock.id)}')">🔌 Connect</button>
@@ -2169,14 +2369,18 @@ function renderMockServersList() {
         <button class="btn-small btn-danger" onclick="deleteMock('${escapeAttr(mock.id)}')">🗑️</button>
       </div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 }
 
 function slugifyName(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'mock';
+  return (
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'mock'
+  );
 }
 
 async function connectMockServer(mockId) {
@@ -2187,7 +2391,7 @@ async function connectMockServer(mockId) {
     title: 'Connect Mock Server',
     label: 'Server name',
     defaultValue: defaultName,
-    required: true
+    required: true,
   });
   if (!serverName) return;
 
@@ -2215,8 +2419,8 @@ async function connectMockServer(mockId) {
           name: serverName,
           type: 'mock',
           mockId,
-          description: `Mock server for ${mockName || mockId}`
-        })
+          description: `Mock server for ${mockName || mockId}`,
+        }),
       });
 
       if (!addRes.ok) throw new Error(await addRes.text());
@@ -2224,7 +2428,7 @@ async function connectMockServer(mockId) {
 
     const connectRes = await fetch(`/api/mcp/connect/${encodeURIComponent(serverName)}`, {
       method: 'POST',
-      credentials: 'include'
+      credentials: 'include',
     });
     if (!connectRes.ok) throw new Error(await connectRes.text());
 
@@ -2243,8 +2447,8 @@ async function createMockServerModal() {
     confirmText: 'Create',
     fields: [
       { id: 'name', label: 'Mock server name', required: true, placeholder: 'Test Mock Server' },
-      { id: 'description', label: 'Description', placeholder: 'Optional' }
-    ]
+      { id: 'description', label: 'Description', placeholder: 'Optional' },
+    ],
   });
   if (!result.confirmed) return;
 
@@ -2264,8 +2468,8 @@ async function createMockServerModal() {
         resources: [],
         prompts: [],
         delay: 0,
-        errorRate: 0
-      })
+        errorRate: 0,
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -2278,7 +2482,8 @@ async function createMockServerModal() {
 }
 
 async function addScenarioToCollection(collectionId) {
-  const scenarios = typeof window.getLocalScenarios === 'function' ? window.getLocalScenarios() : [];
+  const scenarios =
+    typeof window.getLocalScenarios === 'function' ? window.getLocalScenarios() : [];
   if (!scenarios || scenarios.length === 0) {
     showNotification('No local scenarios found. Record one first in Scenarios.', 'error');
     return;
@@ -2295,10 +2500,10 @@ async function addScenarioToCollection(collectionId) {
         required: true,
         options: scenarios.map(s => ({
           value: s.id,
-          label: `${s.name} (${s.steps?.length || 0} steps)`
-        }))
-      }
-    ]
+          label: `${s.name} (${s.steps?.length || 0} steps)`,
+        })),
+      },
+    ],
   });
   if (!result.confirmed) return;
   const scenario = scenarios.find(s => s.id === result.values.scenarioId);
@@ -2317,8 +2522,8 @@ async function addScenarioToCollection(collectionId) {
         steps: scenario.steps || [],
         variables: scenario.variables || {},
         preScripts: scenario.preScripts || [],
-        postScripts: scenario.postScripts || []
-      })
+        postScripts: scenario.postScripts || [],
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -2346,19 +2551,19 @@ async function editCollectionSettings(collectionId) {
           value: JSON.stringify(collection.variables || {}, null, 2),
           rows: 5,
           monospace: true,
-          hint: 'Overrides global + environment variables for this collection.'
+          hint: 'Overrides global + environment variables for this collection.',
         },
         {
           id: 'preScripts',
           label: 'Pre-script IDs (comma-separated)',
-          value: (collection.preScripts || []).join(', ')
+          value: (collection.preScripts || []).join(', '),
         },
         {
           id: 'postScripts',
           label: 'Post-script IDs (comma-separated)',
-          value: (collection.postScripts || []).join(', ')
-        }
-      ]
+          value: (collection.postScripts || []).join(', '),
+        },
+      ],
     });
     if (!result.confirmed) return;
 
@@ -2376,13 +2581,23 @@ async function editCollectionSettings(collectionId) {
     const preScriptsInput = result.values.preScripts || '';
     const postScriptsInput = result.values.postScripts || '';
 
-    const preScripts = preScriptsInput ? preScriptsInput.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const postScripts = postScriptsInput ? postScriptsInput.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const preScripts = preScriptsInput
+      ? preScriptsInput
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : [];
+    const postScripts = postScriptsInput
+      ? postScriptsInput
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : [];
 
     const updateRes = await fetch(`/api/collections/${collectionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ variables, preScripts, postScripts })
+      body: JSON.stringify({ variables, preScripts, postScripts }),
     });
 
     if (!updateRes.ok) throw new Error(await updateRes.text());
@@ -2394,19 +2609,20 @@ async function editCollectionSettings(collectionId) {
 }
 
 async function createMockFromHistory() {
-  const history = typeof window.getToolExecutionHistory === 'function'
-    ? window.getToolExecutionHistory()
-    : [];
+  const history =
+    typeof window.getToolExecutionHistory === 'function' ? window.getToolExecutionHistory() : [];
 
   if (!history || history.length === 0) {
     showNotification('No tool history available to build mocks.', 'error');
     return;
   }
 
-  const serverOptions = Array.from(new Set(history.map(entry => entry.server).filter(Boolean))).map(server => ({
-    value: server,
-    label: server
-  }));
+  const serverOptions = Array.from(new Set(history.map(entry => entry.server).filter(Boolean))).map(
+    server => ({
+      value: server,
+      label: server,
+    })
+  );
   const filterResult = await appFormModal({
     title: 'Generate Mocks',
     confirmText: 'Generate',
@@ -2415,9 +2631,9 @@ async function createMockFromHistory() {
         id: 'serverFilter',
         label: 'Server (optional)',
         type: 'select',
-        options: [{ value: '', label: 'All servers' }, ...serverOptions]
-      }
-    ]
+        options: [{ value: '', label: 'All servers' }, ...serverOptions],
+      },
+    ],
   });
   if (!filterResult.confirmed) return;
   const serverFilter = filterResult.values.serverFilter;
@@ -2460,7 +2676,7 @@ async function createMockFromHistory() {
         name: toolName,
         description: def?.description || `Recorded from ${serverName}`,
         inputSchema: def?.inputSchema || { type: 'object', properties: {} },
-        response: entry.response
+        response: entry.response,
       });
     }
 
@@ -2476,8 +2692,8 @@ async function createMockFromHistory() {
           resources: [],
           prompts: [],
           delay: 0,
-          errorRate: 0
-        })
+          errorRate: 0,
+        }),
       });
     } catch (error) {
       console.error('Failed to create mock from history:', error);
@@ -2500,7 +2716,7 @@ Resources: ${mock.resources?.length || 0}
 Prompts: ${mock.prompts?.length || 0}
 Total Calls: ${mock.callCount || 0}
 Delay: ${mock.delay || 0}ms
-Error Rate: ${(mock.errorRate * 100 || 0)}%
+Error Rate: ${mock.errorRate * 100 || 0}%
 
 Tools:
 ${mock.tools?.map(t => `  - ${t.name}: ${t.description || 'No description'}`).join('\n') || '  (none)'}
@@ -2509,7 +2725,7 @@ ${mock.tools?.map(t => `  - ${t.name}: ${t.description || 'No description'}`).jo
   await appAlert('', {
     title: 'Mock Details',
     bodyHtml: `<pre style="white-space: pre-wrap; font-size: 0.75rem; color: var(--text-secondary)">${escapeHtml(details)}</pre>`,
-    confirmText: 'Close'
+    confirmText: 'Close',
   });
 }
 
@@ -2527,7 +2743,7 @@ async function deleteMock(id) {
   const confirmed = await appConfirm('Delete this mock server?', {
     title: 'Delete Mock',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
 
@@ -2562,15 +2778,17 @@ function renderScriptsList() {
   if (!list) return;
 
   if (scripts.length === 0) {
-    list.innerHTML = '<div class="empty-state">No scripts yet. Create pre/post scripts for automated testing!</div>';
+    list.innerHTML =
+      '<div class="empty-state">No scripts yet. Create pre/post scripts for automated testing!</div>';
     return;
   }
 
-  list.innerHTML = scripts.map(script => {
-    const typeIcon = script.type === 'pre' ? '⏮️' : '⏭️';
-    const enabledIcon = script.enabled ? '✅' : '⏸️';
+  list.innerHTML = scripts
+    .map(script => {
+      const typeIcon = script.type === 'pre' ? '⏮️' : '⏭️';
+      const enabledIcon = script.enabled ? '✅' : '⏸️';
 
-    return `
+      return `
       <div class="script-card">
         <div class="script-header">
           <h3>${typeIcon} ${escapeHtml(script.name || 'Script')}</h3>
@@ -2588,7 +2806,8 @@ function renderScriptsList() {
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 }
 
 async function createScriptModal() {
@@ -2604,8 +2823,8 @@ async function createScriptModal() {
         required: true,
         options: [
           { value: 'pre', label: 'pre-request' },
-          { value: 'post', label: 'post-request' }
-        ]
+          { value: 'post', label: 'post-request' },
+        ],
       },
       { id: 'description', label: 'Description', placeholder: 'Optional' },
       {
@@ -2614,9 +2833,9 @@ async function createScriptModal() {
         type: 'textarea',
         rows: 8,
         monospace: true,
-        required: true
-      }
-    ]
+        required: true,
+      },
+    ],
   });
   if (!result.confirmed) return;
 
@@ -2631,7 +2850,7 @@ async function createScriptModal() {
     const validateRes = await fetch('/api/scripts/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code }),
     });
 
     const validation = await validateRes.json();
@@ -2643,7 +2862,7 @@ async function createScriptModal() {
     const res = await fetch('/api/scripts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, type, description, code, enabled: true })
+      body: JSON.stringify({ name, type, description, code, enabled: true }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -2666,7 +2885,7 @@ async function editScript(id) {
     multiline: true,
     rows: 8,
     monospace: true,
-    required: true
+    required: true,
   });
   if (!newCode) return;
 
@@ -2674,7 +2893,7 @@ async function editScript(id) {
     await fetch(`/api/scripts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: newCode })
+      body: JSON.stringify({ code: newCode }),
     });
 
     await loadScripts();
@@ -2690,13 +2909,13 @@ async function testScript(id) {
       variables: {},
       environment: {},
       request: {},
-      response: { content: [{ text: 'Test response' }] }
+      response: { content: [{ text: 'Test response' }] },
     };
 
     const res = await fetch(`/api/scripts/${id}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ context })
+      body: JSON.stringify({ context }),
     });
 
     const result = await res.json();
@@ -2704,8 +2923,10 @@ async function testScript(id) {
     if (result.assertions) {
       const passed = result.assertions.filter(a => a.passed).length;
       const failed = result.assertions.filter(a => !a.passed).length;
-      showNotification(`Test completed: ${passed} passed, ${failed} failed`,
-        failed === 0 ? 'success' : 'warning');
+      showNotification(
+        `Test completed: ${passed} passed, ${failed} failed`,
+        failed === 0 ? 'success' : 'warning'
+      );
     } else {
       showNotification('Script executed successfully', 'success');
     }
@@ -2719,7 +2940,7 @@ async function toggleScript(id, enable) {
     await fetch(`/api/scripts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: enable })
+      body: JSON.stringify({ enabled: enable }),
     });
 
     await loadScripts();
@@ -2733,7 +2954,7 @@ async function deleteScript(id) {
   const confirmed = await appConfirm('Delete this script?', {
     title: 'Delete Script',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
 
@@ -2758,7 +2979,7 @@ let schemaWatchState = {
   enabled: false,
   baseline: null,
   lastCheck: null,
-  offlineServers: []
+  offlineServers: [],
 };
 let schemaWatchInterval = null;
 
@@ -2825,7 +3046,7 @@ async function fetchSchemaSnapshot() {
       serverName: tool.serverName,
       name: tool.name,
       description: tool.description || '',
-      inputSchema: tool.inputSchema || { type: 'object', properties: {} }
+      inputSchema: tool.inputSchema || { type: 'object', properties: {} },
     }))
     .sort((a, b) => {
       if (a.serverName === b.serverName) return a.name.localeCompare(b.name);
@@ -2835,7 +3056,7 @@ async function fetchSchemaSnapshot() {
   const snapshot = {
     capturedAt: new Date().toISOString(),
     toolCount: tools.length,
-    tools
+    tools,
   };
   lastSchemaSnapshot = snapshot;
   return snapshot;
@@ -2904,7 +3125,7 @@ function loadSchemaWatchState() {
       enabled: Boolean(stored.enabled),
       baseline: stored.baseline || null,
       lastCheck: stored.lastCheck || null,
-      offlineServers: stored.offlineServers || []
+      offlineServers: stored.offlineServers || [],
     };
   } catch (error) {
     schemaWatchState = { enabled: false, baseline: null, lastCheck: null, offlineServers: [] };
@@ -2939,9 +3160,7 @@ async function fetchConnectedServers() {
 }
 
 function snapshotToolMap(snapshot, connectedServers = null) {
-  const tools = Array.isArray(snapshot)
-    ? snapshot
-    : snapshot?.tools || [];
+  const tools = Array.isArray(snapshot) ? snapshot : snapshot?.tools || [];
   const map = new Map();
   const filtered = connectedServers
     ? tools.filter(tool => connectedServers.has(tool.serverName))
@@ -2956,7 +3175,7 @@ function snapshotToolMap(snapshot, connectedServers = null) {
       name: tool.name,
       description: tool.description || '',
       inputSchema: schema,
-      hash
+      hash,
     });
   });
   return map;
@@ -2989,11 +3208,11 @@ function diffSchemaMaps(baselineMap, currentMap) {
       added: added.length,
       removed: removed.length,
       changed: changed.length,
-      totalChanges: added.length + removed.length + changed.length
+      totalChanges: added.length + removed.length + changed.length,
     },
     added,
     removed,
-    changed
+    changed,
   };
 }
 
@@ -3029,11 +3248,13 @@ async function checkSchemaWatch(options = {}) {
   const baselineServers = new Set(
     (schemaWatchState.baseline?.tools || []).map(tool => tool.serverName)
   );
-  const offlineServers = Array.from(baselineServers).filter(server => !connectedServers.has(server));
+  const offlineServers = Array.from(baselineServers).filter(
+    server => !connectedServers.has(server)
+  );
 
   schemaWatchState.lastCheck = {
     checkedAt: new Date().toISOString(),
-    diff
+    diff,
   };
   schemaWatchState.offlineServers = offlineServers;
   saveSchemaWatchState();
@@ -3104,7 +3325,10 @@ function renderSchemaWatch() {
         <span class="pill">Changed: ${summary.changed}</span>
       </div>
     </div>
-    ${diff.added.slice(0, 3).map(tool => `
+    ${diff.added
+      .slice(0, 3)
+      .map(
+        tool => `
       <div class="schema-watch-item">
         <div>
           <strong>➕ ${escapeHtml(tool.name)}</strong>
@@ -3112,8 +3336,13 @@ function renderSchemaWatch() {
         </div>
         <span class="pill">New</span>
       </div>
-    `).join('')}
-    ${diff.changed.slice(0, 3).map(entry => `
+    `
+      )
+      .join('')}
+    ${diff.changed
+      .slice(0, 3)
+      .map(
+        entry => `
       <div class="schema-watch-item">
         <div>
           <strong>✏️ ${escapeHtml(entry.tool.name)}</strong>
@@ -3121,8 +3350,13 @@ function renderSchemaWatch() {
         </div>
         <span class="pill">Changed</span>
       </div>
-    `).join('')}
-    ${diff.removed.slice(0, 3).map(tool => `
+    `
+      )
+      .join('')}
+    ${diff.removed
+      .slice(0, 3)
+      .map(
+        tool => `
       <div class="schema-watch-item">
         <div>
           <strong>➖ ${escapeHtml(tool.name)}</strong>
@@ -3130,10 +3364,13 @@ function renderSchemaWatch() {
         </div>
         <span class="pill">Removed</span>
       </div>
-    `).join('')}
-    ${(diff.added.length + diff.changed.length + diff.removed.length) === 0
-      ? '<div style="color: var(--text-muted)">No changes detected.</div>'
-      : ''
+    `
+      )
+      .join('')}
+    ${
+      diff.added.length + diff.changed.length + diff.removed.length === 0
+        ? '<div style="color: var(--text-muted)">No changes detected.</div>'
+        : ''
     }
   `;
 }
@@ -3174,7 +3411,7 @@ function diffSchemaSnapshots(baselineSnapshot, currentSnapshot) {
     if (previousSchema !== currentSchema) {
       changed.push({
         tool,
-        previous
+        previous,
       });
     }
     baselineMap.delete(key);
@@ -3187,11 +3424,11 @@ function diffSchemaSnapshots(baselineSnapshot, currentSnapshot) {
       added: added.length,
       removed: removed.length,
       changed: changed.length,
-      totalChanges: added.length + removed.length + changed.length
+      totalChanges: added.length + removed.length + changed.length,
     },
     added,
     removed,
-    changed
+    changed,
   };
 }
 
@@ -3212,8 +3449,10 @@ function exportCurrentSchemaSnapshot() {
 }
 
 function copySchemaDiffCommand() {
-  const command = 'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate';
-  navigator.clipboard.writeText(command)
+  const command =
+    'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate';
+  navigator.clipboard
+    .writeText(command)
     .then(() => showNotification('CI command copied to clipboard.', 'success'))
     .catch(error => showNotification('Failed to copy command: ' + error.message, 'error'));
 }
@@ -3225,7 +3464,7 @@ async function exportSchemaGatePack() {
 
     const command = [
       'mcp-test schema snapshot -o schema-current.json',
-      'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate'
+      'mcp-test schema diff ./schema-baseline.json ./schema-current.json --format junit --out ./schema-diff.xml --gate',
     ].join('\n');
 
     await navigator.clipboard.writeText(command);
@@ -3244,22 +3483,34 @@ function showSchemaDiffModal(diff, baseline, current) {
   modal.id = 'schemaDiffModal';
   modal.style.display = 'flex';
 
-  const addedList = diff.added.map(tool => `
+  const addedList = diff.added
+    .map(
+      tool => `
     <div style="padding: 6px 0; border-top: 1px dashed var(--border)">
       <strong>${escapeHtml(tool.serverName)}.${escapeHtml(tool.name)}</strong>
     </div>
-  `).join('');
-  const removedList = diff.removed.map(tool => `
+  `
+    )
+    .join('');
+  const removedList = diff.removed
+    .map(
+      tool => `
     <div style="padding: 6px 0; border-top: 1px dashed var(--border)">
       <strong>${escapeHtml(tool.serverName)}.${escapeHtml(tool.name)}</strong>
     </div>
-  `).join('');
-  const changedList = diff.changed.map(entry => `
+  `
+    )
+    .join('');
+  const changedList = diff.changed
+    .map(
+      entry => `
     <div style="padding: 6px 0; border-top: 1px dashed var(--border)">
       <strong>${escapeHtml(entry.tool.serverName)}.${escapeHtml(entry.tool.name)}</strong>
       <div style="font-size: 0.7rem; color: var(--text-muted)">Schema changed</div>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
 
   modal.innerHTML = `
     <div class="modal" style="max-width: 820px; max-height: 85vh">
@@ -3310,17 +3561,23 @@ function renderContractsList() {
   if (!list) return;
 
   if (contracts.length === 0) {
-    list.innerHTML = '<div class="empty-state">No contracts defined. Upload a JSON schema to validate tool responses!</div>';
+    list.innerHTML =
+      '<div class="empty-state">No contracts defined. Upload a JSON schema to validate tool responses!</div>';
     return;
   }
 
-  list.innerHTML = contracts.map(contract => {
-    const statusIcon = contract.lastValidation?.valid ? '✅' : contract.lastValidation ? '❌' : '⏸️';
-    const breakingChanges = contract.breakingChanges?.length || 0;
-    const toolLabel = escapeHtml(contract.toolName || contract.name || 'Unknown tool');
-    const serverLabel = escapeHtml(contract.server || 'unknown');
+  list.innerHTML = contracts
+    .map(contract => {
+      const statusIcon = contract.lastValidation?.valid
+        ? '✅'
+        : contract.lastValidation
+          ? '❌'
+          : '⏸️';
+      const breakingChanges = contract.breakingChanges?.length || 0;
+      const toolLabel = escapeHtml(contract.toolName || contract.name || 'Unknown tool');
+      const serverLabel = escapeHtml(contract.server || 'unknown');
 
-    return `
+      return `
       <div class="contract-card">
         <div class="contract-header">
           <h3>${statusIcon} ${toolLabel}</h3>
@@ -3344,7 +3601,8 @@ function renderContractsList() {
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 }
 
 async function createContractModal() {
@@ -3355,9 +3613,16 @@ async function createContractModal() {
       { id: 'server', label: 'Server name', required: true },
       { id: 'toolName', label: 'Tool name', required: true },
       { id: 'version', label: 'Contract version', value: '1.0.0' },
-      { id: 'schema', label: 'JSON Schema', type: 'textarea', rows: 6, monospace: true, required: true },
-      { id: 'sampleArgs', label: 'Sample args JSON', type: 'textarea', rows: 4, monospace: true }
-    ]
+      {
+        id: 'schema',
+        label: 'JSON Schema',
+        type: 'textarea',
+        rows: 6,
+        monospace: true,
+        required: true,
+      },
+      { id: 'sampleArgs', label: 'Sample args JSON', type: 'textarea', rows: 4, monospace: true },
+    ],
   });
   if (!result.confirmed) return;
 
@@ -3383,8 +3648,8 @@ async function createContractModal() {
         toolName,
         version,
         schema,
-        sampleArgs
-      })
+        sampleArgs,
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -3438,7 +3703,7 @@ async function viewContract(id) {
   `;
 
   document.body.appendChild(modal);
-  modal.onclick = (e) => {
+  modal.onclick = e => {
     if (e.target === modal) modal.remove();
   };
 }
@@ -3453,10 +3718,12 @@ async function validateContract(id) {
     if (result.valid) {
       showNotification('✅ Contract validation passed!', 'success');
     } else {
-      const errors = (result.errors || []).map(e => {
-        if (typeof e === 'string') return e;
-        return `${e.field || 'response'}: ${e.message || e.error || 'Validation error'}`;
-      }).join('\n');
+      const errors = (result.errors || [])
+        .map(e => {
+          if (typeof e === 'string') return e;
+          return `${e.field || 'response'}: ${e.message || e.error || 'Validation error'}`;
+        })
+        .join('\n');
       showNotification(`❌ Validation failed:\n${errors}`, 'error');
     }
 
@@ -3476,9 +3743,9 @@ async function detectBreakingChanges(id) {
     if (!result.breakingChanges || result.breakingChanges.length === 0) {
       showNotification('✅ No breaking changes detected!', 'success');
     } else {
-      const changes = result.breakingChanges.map(c =>
-        `${c.type}: ${c.field} - ${c.description || c.message || 'Change detected'}`
-      ).join('\n');
+      const changes = result.breakingChanges
+        .map(c => `${c.type}: ${c.field} - ${c.description || c.message || 'Change detected'}`)
+        .join('\n');
       showNotification(`⚠️ Breaking changes found:\n${changes}`, 'warning');
 
       // Update contract list
@@ -3493,7 +3760,7 @@ async function deleteContract(id) {
   const confirmed = await appConfirm('Delete this contract?', {
     title: 'Delete Contract',
     confirmText: 'Delete',
-    confirmVariant: 'danger'
+    confirmVariant: 'danger',
   });
   if (!confirmed) return;
 
@@ -3538,12 +3805,14 @@ async function loadConnectedServers() {
     const statusData = await res.json();
 
     // Transform status object into array of servers
-    connectedServers = Object.entries(statusData).map(([name, status]) => ({
-      name,
-      transport: status.type || 'stdio',
-      connected: status.connected,
-      toolCount: status.toolCount || 0
-    })).filter(s => s.connected); // Only show connected servers
+    connectedServers = Object.entries(statusData)
+      .map(([name, status]) => ({
+        name,
+        transport: status.type || 'stdio',
+        connected: status.connected,
+        toolCount: status.toolCount || 0,
+      }))
+      .filter(s => s.connected); // Only show connected servers
 
     return connectedServers;
   } catch (error) {
@@ -3576,9 +3845,12 @@ async function showServerSelectionModal(action = 'generate') {
     z-index: 10000;
   `;
 
-  const serverOptions = servers.map(s =>
-    `<option value="${escapeAttr(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.transport || 'stdio')})</option>`
-  ).join('');
+  const serverOptions = servers
+    .map(
+      s =>
+        `<option value="${escapeAttr(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.transport || 'stdio')})</option>`
+    )
+    .join('');
 
   modal.innerHTML = `
     <div style="background: var(--bg-surface); padding: 24px; border-radius: 12px; min-width: 400px;">
@@ -3629,7 +3901,7 @@ async function showServerSelectionModal(action = 'generate') {
   };
 
   // Close on background click
-  modal.onclick = (e) => {
+  modal.onclick = e => {
     if (e.target === modal) modal.remove();
   };
 }
@@ -3737,7 +4009,7 @@ async function loadPerformanceMetrics() {
       avgResponseTime: null,
       p95Latency: null,
       totalCalls: 0,
-      slowestTools: []
+      slowestTools: [],
     });
   }
 }
@@ -3748,14 +4020,16 @@ function renderPerformanceMetrics(data) {
   const p95El = document.getElementById('p95Latency');
   const totalEl = document.getElementById('totalCalls');
 
-  if (avgEl) avgEl.textContent = data.avgResponseTime ? `${data.avgResponseTime.toFixed(0)}ms` : '-';
+  if (avgEl)
+    avgEl.textContent = data.avgResponseTime ? `${data.avgResponseTime.toFixed(0)}ms` : '-';
   if (p95El) p95El.textContent = data.p95Latency ? `${data.p95Latency.toFixed(0)}ms` : '-';
   if (totalEl) totalEl.textContent = data.totalCalls ? data.totalCalls.toLocaleString() : '0';
 
   // Render slowest tools
   const slowestToolsEl = document.getElementById('slowestTools');
   if (slowestToolsEl && data.slowestTools) {
-    slowestToolsEl.innerHTML = '<h4 style="font-size: 0.9rem; margin-bottom: 8px">Slowest Tools</h4>';
+    slowestToolsEl.innerHTML =
+      '<h4 style="font-size: 0.9rem; margin-bottom: 8px">Slowest Tools</h4>';
     data.slowestTools.slice(0, 5).forEach(tool => {
       slowestToolsEl.innerHTML += `
         <div style="display: flex; justify-content: space-between; padding: 8px; background: var(--bg-card); border-radius: 4px">
@@ -3776,7 +4050,7 @@ let debuggerState = {
   breakpoints: [],
   status: 'idle',
   stepMode: false,
-  lastState: null
+  lastState: null,
 };
 
 async function loadDebuggerWorkflows() {
@@ -3792,9 +4066,13 @@ async function loadDebuggerWorkflows() {
       return;
     }
 
-    select.innerHTML = workflows.map(workflow => `
+    select.innerHTML = workflows
+      .map(
+        workflow => `
       <option value="${escapeAttr(workflow.id)}">${escapeHtml(workflow.name || workflow.id)}</option>
-    `).join('');
+    `
+      )
+      .join('');
 
     if (typeof workflowState !== 'undefined' && workflowState.currentId) {
       const hasCurrent = workflows.some(w => w.id === workflowState.currentId);
@@ -3818,7 +4096,8 @@ function onDebuggerWorkflowSelect() {
 function getDebuggerWorkflowId() {
   const select = document.getElementById('debuggerWorkflowSelect');
   if (select?.value) return select.value;
-  if (typeof workflowState !== 'undefined' && workflowState.currentId) return workflowState.currentId;
+  if (typeof workflowState !== 'undefined' && workflowState.currentId)
+    return workflowState.currentId;
   return null;
 }
 
@@ -3845,9 +4124,8 @@ async function startDebugSession(forceStepMode = null) {
   if (input === null) return;
 
   const stepToggle = document.getElementById('debuggerStepMode');
-  const stepMode = typeof forceStepMode === 'boolean'
-    ? forceStepMode
-    : Boolean(stepToggle?.checked);
+  const stepMode =
+    typeof forceStepMode === 'boolean' ? forceStepMode : Boolean(stepToggle?.checked);
 
   try {
     const res = await fetch(`/api/workflows/${workflowId}/debug/start`, {
@@ -3856,8 +4134,8 @@ async function startDebugSession(forceStepMode = null) {
       body: JSON.stringify({
         input,
         breakpoints: debuggerState.breakpoints,
-        stepMode
-      })
+        stepMode,
+      }),
     });
 
     if (!res.ok) {
@@ -3941,7 +4219,7 @@ async function toggleBreakpoints() {
   const input = await appPrompt('Breakpoint node IDs (comma separated):', {
     title: 'Breakpoints',
     label: 'Node IDs',
-    defaultValue: current
+    defaultValue: current,
   });
   if (input === null) return;
 
@@ -3964,7 +4242,7 @@ async function toggleBreakpoints() {
       await fetch(`/api/workflows/debug/${debuggerState.sessionId}/breakpoint/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId })
+        body: JSON.stringify({ nodeId }),
       });
     }
 
@@ -3972,7 +4250,7 @@ async function toggleBreakpoints() {
       await fetch(`/api/workflows/debug/${debuggerState.sessionId}/breakpoint/remove`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId })
+        body: JSON.stringify({ nodeId }),
       });
     }
 
@@ -4014,7 +4292,9 @@ async function updateDebuggerTimeline() {
     if (executionLog.length === 0) {
       stepsEl.innerHTML = `<div style="padding: 12px; color: var(--text-secondary)">Waiting for execution data...</div>`;
     } else {
-      stepsEl.innerHTML = executionLog.map(entry => `
+      stepsEl.innerHTML = executionLog
+        .map(
+          entry => `
         <div style="padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface)">
           <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; font-weight: 600">
             <span>${escapeHtml(entry.nodeId)} <span style="color: var(--text-secondary)">(${escapeHtml(entry.type)})</span></span>
@@ -4023,7 +4303,9 @@ async function updateDebuggerTimeline() {
           <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px">${escapeHtml(entry.timestamp || '')}</div>
           ${entry.error ? `<div style="margin-top: 6px; color: var(--error); font-size: 0.75rem">${escapeHtml(entry.error)}</div>` : ''}
         </div>
-      `).join('');
+      `
+        )
+        .join('');
     }
 
     if (variablesEl) {

@@ -27,7 +27,11 @@ function scrubSecrets(obj) {
   const clone = Array.isArray(obj) ? [] : {};
   Object.entries(obj).forEach(([key, value]) => {
     const lowered = key.toLowerCase();
-    if (['token', 'secret', 'password', 'api_key', 'apikey', 'client_secret'].some(k => lowered.includes(k))) {
+    if (
+      ['token', 'secret', 'password', 'api_key', 'apikey', 'client_secret'].some(k =>
+        lowered.includes(k)
+      )
+    ) {
       clone[key] = scrubValue(value);
       return;
     }
@@ -46,7 +50,7 @@ export function logAudit(event, data = {}) {
     const entry = {
       ts: new Date().toISOString(),
       event,
-      data: scrubSecrets(data)
+      data: scrubSecrets(data),
     };
     appendFileSync(AUDIT_FILE, `${JSON.stringify(entry)}\n`, 'utf8');
   } catch (error) {

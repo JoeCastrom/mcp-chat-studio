@@ -28,9 +28,9 @@ async function run() {
     env: {
       ...process.env,
       PORT: String(port),
-      NODE_ENV: 'test'
+      NODE_ENV: 'test',
     },
-    stdio: 'inherit'
+    stdio: 'inherit',
   });
 
   const ok = await waitForHealth();

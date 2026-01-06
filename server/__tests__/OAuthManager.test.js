@@ -11,17 +11,18 @@ const mockAxiosGet = jest.fn();
 jest.unstable_mockModule('axios', () => ({
   default: {
     post: mockAxiosPost,
-    get: mockAxiosGet
-  }
+    get: mockAxiosGet,
+  },
 }));
 
 // Mock uuid
 jest.unstable_mockModule('uuid', () => ({
-  v4: jest.fn(() => 'test-uuid-' + Date.now())
+  v4: jest.fn(() => 'test-uuid-' + Date.now()),
 }));
 
 // Import after mocking
-const { OAuthManager, createOAuthManager, getOAuthManager } = await import('../services/OAuthManager.js');
+const { OAuthManager, createOAuthManager, getOAuthManager } =
+  await import('../services/OAuthManager.js');
 
 describe('OAuthManager', () => {
   let manager;
@@ -37,7 +38,7 @@ describe('OAuthManager', () => {
       manager = new OAuthManager({
         provider: 'github',
         client_id: 'test_client_id',
-        client_secret: 'test_secret'
+        client_secret: 'test_secret',
       });
 
       expect(manager.provider).toBe('github');
@@ -61,7 +62,7 @@ describe('OAuthManager', () => {
 
     test('should apply scopes correctly', () => {
       manager = new OAuthManager({
-        scopes: ['read:user', 'repo']
+        scopes: ['read:user', 'repo'],
       });
 
       expect(manager.scopes).toEqual(['read:user', 'repo']);
@@ -95,19 +96,23 @@ describe('OAuthManager', () => {
       manager = new OAuthManager({
         provider: 'keycloak',
         keycloak_url: 'https://auth.example.com',
-        keycloak_realm: 'myrealm'
+        keycloak_realm: 'myrealm',
       });
       const endpoints = manager.getEndpoints();
 
-      expect(endpoints.authorization).toBe('https://auth.example.com/realms/myrealm/protocol/openid-connect/auth');
-      expect(endpoints.token).toBe('https://auth.example.com/realms/myrealm/protocol/openid-connect/token');
+      expect(endpoints.authorization).toBe(
+        'https://auth.example.com/realms/myrealm/protocol/openid-connect/auth'
+      );
+      expect(endpoints.token).toBe(
+        'https://auth.example.com/realms/myrealm/protocol/openid-connect/token'
+      );
     });
 
     test('getEndpoints should return custom endpoints', () => {
       manager = new OAuthManager({
         authorize_url: 'https://custom.auth/authorize',
         token_url: 'https://custom.auth/token',
-        userinfo_url: 'https://custom.auth/userinfo'
+        userinfo_url: 'https://custom.auth/userinfo',
       });
       const endpoints = manager.getEndpoints();
 
@@ -120,7 +125,7 @@ describe('OAuthManager', () => {
     test('should return true when properly configured', () => {
       manager = new OAuthManager({
         provider: 'github',
-        client_id: 'test_id'
+        client_id: 'test_id',
       });
 
       expect(manager.isConfigured()).toBe(true);
@@ -128,7 +133,7 @@ describe('OAuthManager', () => {
 
     test('should return false when client_id is missing', () => {
       manager = new OAuthManager({
-        provider: 'github'
+        provider: 'github',
       });
 
       expect(manager.isConfigured()).toBe(false);
@@ -138,7 +143,7 @@ describe('OAuthManager', () => {
       manager = new OAuthManager({
         provider: 'github',
         client_id: 'test_id',
-        disabled: true
+        disabled: true,
       });
 
       expect(manager.isConfigured()).toBe(false);
@@ -171,7 +176,7 @@ describe('OAuthManager', () => {
       manager = new OAuthManager({
         provider: 'github',
         client_id: 'test_client_id',
-        redirect_uri: 'http://localhost:3082/callback'
+        redirect_uri: 'http://localhost:3082/callback',
       });
 
       const url = manager.startAuth('session123');
@@ -185,15 +190,14 @@ describe('OAuthManager', () => {
     test('startAuth should throw when not configured', () => {
       manager = new OAuthManager({});
 
-      expect(() => manager.startAuth('session123'))
-        .toThrow('OAuth not configured');
+      expect(() => manager.startAuth('session123')).toThrow('OAuth not configured');
     });
 
     test('startAuth should include PKCE parameters when enabled', () => {
       manager = new OAuthManager({
         provider: 'github',
         client_id: 'test_id',
-        use_pkce: true
+        use_pkce: true,
       });
 
       const url = manager.startAuth('session123');
@@ -230,7 +234,7 @@ describe('OAuthManager', () => {
     test('cleanupStates should remove expired states', () => {
       manager = new OAuthManager({
         provider: 'github',
-        client_id: 'test_id'
+        client_id: 'test_id',
       });
 
       // Start auth to create state
@@ -247,12 +251,14 @@ describe('OAuthManager', () => {
         provider: 'keycloak',
         keycloak_url: 'https://auth.example.com',
         keycloak_realm: 'myrealm',
-        client_id: 'test_id'
+        client_id: 'test_id',
       });
 
       const url = manager.getLogoutUrl('session123', 'http://localhost:3082');
 
-      expect(url).toContain('https://auth.example.com/realms/myrealm/protocol/openid-connect/logout');
+      expect(url).toContain(
+        'https://auth.example.com/realms/myrealm/protocol/openid-connect/logout'
+      );
       expect(url).toContain('client_id=test_id');
     });
   });

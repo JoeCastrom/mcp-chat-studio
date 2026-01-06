@@ -5,10 +5,12 @@ import fs from 'fs/promises';
 const router = express.Router();
 
 function sanitizeName(name) {
-  return (name || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9-_]+/g, '-')
-    .replace(/^[-_]+|[-_]+$/g, '') || 'mcp-generator';
+  return (
+    (name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, '-')
+      .replace(/^[-_]+|[-_]+$/g, '') || 'mcp-generator'
+  );
 }
 
 function isSafeFileName(name) {

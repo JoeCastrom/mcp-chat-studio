@@ -22,7 +22,7 @@ export class InspectorEnhancer {
 
     return {
       sessionId,
-      started: new Date().toISOString()
+      started: new Date().toISOString(),
     };
   }
 
@@ -43,7 +43,7 @@ export class InspectorEnhancer {
       serverName: event.serverName,
       method: event.method,
       data: event.data,
-      duration: event.duration // milliseconds
+      duration: event.duration, // milliseconds
     };
 
     timeline.push(entry);
@@ -84,7 +84,7 @@ export class InspectorEnhancer {
       total,
       offset,
       limit,
-      events
+      events,
     };
   }
 
@@ -105,7 +105,7 @@ export class InspectorEnhancer {
       toolName,
       inputs = [], // Array of argument objects
       parallel = false,
-      continueOnError = true
+      continueOnError = true,
     } = config;
 
     const testId = `bulk_${Date.now()}`;
@@ -120,7 +120,7 @@ export class InspectorEnhancer {
       results: [],
       startTime: new Date().toISOString(),
       endTime: null,
-      duration: 0
+      duration: 0,
     };
 
     this.bulkResults.set(testId, results);
@@ -146,13 +146,12 @@ export class InspectorEnhancer {
               input: inputs[index],
               status: 'error',
               error: result.reason?.message || 'Unknown error',
-              duration: 0
+              duration: 0,
             });
             results.failed++;
           }
           results.completed++;
         });
-
       } else {
         // Run tests sequentially
         for (let i = 0; i < inputs.length; i++) {
@@ -167,7 +166,7 @@ export class InspectorEnhancer {
               input: inputs[i],
               status: 'error',
               error: error.message,
-              duration: 0
+              duration: 0,
             });
             results.failed++;
             results.completed++;
@@ -183,9 +182,7 @@ export class InspectorEnhancer {
       results.duration = Date.now() - startTime;
 
       // Calculate statistics
-      const durations = results.results
-        .filter(r => r.status === 'success')
-        .map(r => r.duration);
+      const durations = results.results.filter(r => r.status === 'success').map(r => r.duration);
 
       if (durations.length > 0) {
         durations.sort((a, b) => a - b);
@@ -194,12 +191,11 @@ export class InspectorEnhancer {
           minDuration: durations[0],
           maxDuration: durations[durations.length - 1],
           p50Duration: durations[Math.floor(durations.length * 0.5)],
-          p95Duration: durations[Math.floor(durations.length * 0.95)]
+          p95Duration: durations[Math.floor(durations.length * 0.95)],
         };
       }
 
       return results;
-
     } catch (error) {
       results.endTime = new Date().toISOString();
       results.duration = Date.now() - startTime;
@@ -223,7 +219,7 @@ export class InspectorEnhancer {
         input: args,
         status: 'success',
         output: result,
-        duration
+        duration,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -233,7 +229,7 @@ export class InspectorEnhancer {
         input: args,
         status: 'error',
         error: error.message,
-        duration
+        duration,
       };
     }
   }
@@ -255,19 +251,12 @@ export class InspectorEnhancer {
    * Compare two tool call results (diff)
    */
   async diffResults(config) {
-    const {
-      serverName,
-      toolName,
-      args1,
-      args2,
-      label1 = 'Result A',
-      label2 = 'Result B'
-    } = config;
+    const { serverName, toolName, args1, args2, label1 = 'Result A', label2 = 'Result B' } = config;
 
     // Execute both calls
     const [result1, result2] = await Promise.all([
       this.mcpManager.callTool(serverName, toolName, args1),
-      this.mcpManager.callTool(serverName, toolName, args2)
+      this.mcpManager.callTool(serverName, toolName, args2),
     ]);
 
     // Extract text content
@@ -288,7 +277,7 @@ export class InspectorEnhancer {
       text2,
       diff,
       identical: text1 === text2,
-      similarity: this.calculateSimilarity(text1, text2)
+      similarity: this.calculateSimilarity(text1, text2),
     };
   }
 
@@ -310,7 +299,7 @@ export class InspectorEnhancer {
       text2,
       diff,
       identical: text1 === text2,
-      similarity: this.calculateSimilarity(text1, text2)
+      similarity: this.calculateSimilarity(text1, text2),
     };
   }
 
@@ -398,8 +387,8 @@ export class InspectorEnhancer {
         } else {
           matrix[i][j] = Math.min(
             matrix[i - 1][j - 1] + 1, // substitution
-            matrix[i][j - 1] + 1,     // insertion
-            matrix[i - 1][j] + 1      // deletion
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1 // deletion
           );
         }
       }
@@ -437,7 +426,7 @@ export class InspectorEnhancer {
         event.direction,
         event.serverName,
         event.method,
-        event.duration || 0
+        event.duration || 0,
       ];
       rows.push(row.join(','));
     });
@@ -452,7 +441,7 @@ export class InspectorEnhancer {
     return Array.from(this.timelines.keys()).map(sessionId => ({
       sessionId,
       eventCount: this.timelines.get(sessionId).length,
-      lastEvent: this.timelines.get(sessionId).slice(-1)[0]?.timestamp
+      lastEvent: this.timelines.get(sessionId).slice(-1)[0]?.timestamp,
     }));
   }
 

@@ -51,7 +51,7 @@ export function createShare(sessionId, ttlHours = DEFAULT_TTL_HOURS) {
   data[token] = {
     sessionId,
     createdAt: now,
-    expiresAt: now + ttlHours * 60 * 60 * 1000
+    expiresAt: now + ttlHours * 60 * 60 * 1000,
   };
   saveShares(data);
   return data[token] ? { token, ...data[token] } : null;

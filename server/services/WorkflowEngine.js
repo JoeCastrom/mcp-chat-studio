@@ -11,37 +11,39 @@ const __dirname = path.dirname(__filename);
 const WORKFLOWS_FILE = path.join(__dirname, '../../workflows.json');
 
 // Zod schema for workflow validation
-const NodeDataSchema = z.object({
-  server: z.string().optional(),
-  tool: z.string().optional(),
-  args: z.union([z.string(), z.record(z.any())]).optional(),
-  systemPrompt: z.string().optional(),
-  prompt: z.string().optional(),
-  code: z.string().optional(),
-  condition: z.string().optional(),
-  expected: z.string().optional(),
-}).passthrough();
+const NodeDataSchema = z
+  .object({
+    server: z.string().optional(),
+    tool: z.string().optional(),
+    args: z.union([z.string(), z.record(z.any())]).optional(),
+    systemPrompt: z.string().optional(),
+    prompt: z.string().optional(),
+    code: z.string().optional(),
+    condition: z.string().optional(),
+    expected: z.string().optional(),
+  })
+  .passthrough();
 
 const NodeSchema = z.object({
   id: z.string().min(1),
   type: z.enum(['trigger', 'tool', 'llm', 'javascript', 'assert']),
   position: z.object({
     x: z.number(),
-    y: z.number()
+    y: z.number(),
   }),
-  data: NodeDataSchema.optional().default({})
+  data: NodeDataSchema.optional().default({}),
 });
 
 const EdgeSchema = z.object({
   from: z.string().min(1),
-  to: z.string().min(1)
+  to: z.string().min(1),
 });
 
 const WorkflowSchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   nodes: z.array(NodeSchema),
-  edges: z.array(EdgeSchema)
+  edges: z.array(EdgeSchema),
 });
 
 // Ensure workflows file exists
@@ -75,13 +77,15 @@ export class WorkflowEngine {
     // Validate workflow structure
     const validationResult = WorkflowSchema.safeParse(workflow);
     if (!validationResult.success) {
-      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      const errors = validationResult.error.errors
+        .map(e => `${e.path.join('.')}: ${e.message}`)
+        .join(', ');
       throw new Error(`Invalid workflow structure: ${errors}`);
     }
-    
+
     const workflows = this.getAllWorkflows();
     const index = workflows.findIndex(w => w.id === workflow.id);
-    
+
     if (index >= 0) {
       workflows[index] = { ...workflows[index], ...workflow, updatedAt: new Date().toISOString() };
     } else {
@@ -89,7 +93,7 @@ export class WorkflowEngine {
         ...workflow,
         id: workflow.id || `wf_${Date.now()}`,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
     }
 
@@ -112,19 +116,19 @@ export class WorkflowEngine {
       input: inputData,
       steps: {}, // Store outputs of each node
       logs: [],
-      lastNodeId: null
+      lastNodeId: null,
     };
 
     const executionLog = [];
-    
+
     // Simple topological sort / dependency resolution
     // For now, we assume linear or simple branching flows that can be traversed
     // We'll find start nodes and follow edges
-    
+
     // Map nodes and edges for easy access
     const nodeMap = new Map(workflow.nodes.map(n => [n.id, n]));
     const adjacency = {}; // node.id -> [next_node_ids]
-    
+
     workflow.edges.forEach(edge => {
       if (!adjacency[edge.from]) adjacency[edge.from] = [];
       adjacency[edge.from].push(edge.to);
@@ -148,22 +152,22 @@ export class WorkflowEngine {
       llmClient = createLLMClient({
         provider: 'ollama',
         model: 'llama3.1:8b',
-        base_url: 'http://localhost:11434'
+        base_url: 'http://localhost:11434',
       });
       console.log('[Workflow] No LLM config provided, using default Ollama llama3.1:8b');
     }
 
     while (queue.length > 0) {
       const node = queue.shift();
-      
+
       // If we've already visited this node in this path, skip to avoid cycles
       // (This is a simplified execution model)
       if (visited.has(node.id)) continue;
-      
+
       // Check if all dependencies are met (all incoming edges have results)
       const incoming = workflow.edges.filter(e => e.to === node.id);
       const ready = incoming.every(e => results[e.from] !== undefined);
-      
+
       if (!ready && incoming.length > 0) {
         // Push back to end of queue to wait for dependencies
         queue.push(node);
@@ -178,19 +182,18 @@ export class WorkflowEngine {
         results[node.id] = result;
         context.steps[node.id] = result;
         context.lastNodeId = node.id;
-        
+
         executionLog.push({
           nodeId: node.id,
           type: node.type,
           status: 'success',
           output: result,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
         // Add next nodes to queue
         const nextNodes = (adjacency[node.id] || []).map(id => nodeMap.get(id));
         queue.push(...nextNodes);
-
       } catch (error) {
         console.error(`[Workflow] Node ${node.id} failed:`, error);
         executionLog.push({
@@ -198,7 +201,7 @@ export class WorkflowEngine {
           type: node.type,
           status: 'error',
           error: error.message,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         // Stop execution on error
         throw new Error(`Node ${node.label || node.id} failed: ${error.message}`);
@@ -208,7 +211,7 @@ export class WorkflowEngine {
     return {
       status: 'completed',
       results,
-      logs: executionLog
+      logs: executionLog,
     };
   }
 
@@ -221,7 +224,8 @@ export class WorkflowEngine {
         return context.input; // Pass through initial input
 
       case 'tool':
-        if (!data.server || !data.tool) throw new Error('Tool node missing server or tool selection');
+        if (!data.server || !data.tool)
+          throw new Error('Tool node missing server or tool selection');
         let args = data.args;
         if (typeof args === 'string') {
           const trimmed = args.trim();
@@ -306,9 +310,9 @@ export class WorkflowEngine {
               context: context,
               console: {
                 log: (...args) => console.log('[Workflow JS]', ...args),
-                error: (...args) => console.error('[Workflow JS]', ...args)
-              }
-            }
+                error: (...args) => console.error('[Workflow JS]', ...args),
+              },
+            },
           });
 
           // Wrap code to return result
@@ -327,46 +331,65 @@ export class WorkflowEngine {
       case 'assert':
         // Get the previous node's output
         const prevNodeIds = Object.keys(context.steps);
-        const prevOutput = prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
-        const outputStr = typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
+        const prevOutput =
+          prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
+        const outputStr =
+          typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
         const expected = data.expected || '';
         const condition = data.condition || 'contains';
-        
+
         let passed = false;
         let message = '';
-        
+
         switch (condition) {
           case 'contains':
             passed = outputStr.toLowerCase().includes(expected.toLowerCase());
-            message = passed ? `Output contains "${expected}"` : `Output does not contain "${expected}"`;
+            message = passed
+              ? `Output contains "${expected}"`
+              : `Output does not contain "${expected}"`;
             break;
           case 'equals':
             passed = outputStr === expected;
-            message = passed ? `Output equals expected value` : `Output "${outputStr.substring(0, 50)}..." does not equal "${expected}"`;
+            message = passed
+              ? `Output equals expected value`
+              : `Output "${outputStr.substring(0, 50)}..." does not equal "${expected}"`;
             break;
           case 'not_contains':
             passed = !outputStr.toLowerCase().includes(expected.toLowerCase());
-            message = passed ? `Output does not contain "${expected}"` : `Output contains "${expected}" (unexpected)`;
+            message = passed
+              ? `Output does not contain "${expected}"`
+              : `Output contains "${expected}" (unexpected)`;
             break;
           case 'truthy':
-            passed = !!prevOutput && prevOutput !== 'false' && prevOutput !== 'null' && prevOutput !== 'undefined';
+            passed =
+              !!prevOutput &&
+              prevOutput !== 'false' &&
+              prevOutput !== 'null' &&
+              prevOutput !== 'undefined';
             message = passed ? 'Output is truthy' : 'Output is falsy';
             break;
           case 'length_gt':
-            const length = typeof prevOutput === 'string' ? prevOutput.length : (Array.isArray(prevOutput) ? prevOutput.length : 0);
+            const length =
+              typeof prevOutput === 'string'
+                ? prevOutput.length
+                : Array.isArray(prevOutput)
+                  ? prevOutput.length
+                  : 0;
             const threshold = parseInt(expected) || 0;
             passed = length > threshold;
-            message = passed ? `Length ${length} > ${threshold}` : `Length ${length} <= ${threshold}`;
+            message = passed
+              ? `Length ${length} > ${threshold}`
+              : `Length ${length} <= ${threshold}`;
             break;
         }
-        
+
         return {
           assertion: true,
           passed,
           condition,
           expected,
           message,
-          actualOutput: outputStr.substring(0, 200)
+          actualOutput: outputStr.substring(0, 200),
         };
 
       default:
@@ -380,7 +403,7 @@ export class WorkflowEngine {
       return obj.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
         const parts = path.split('.');
         let current = context.steps;
-        
+
         // Handle 'input' root
         if (parts[0] === 'input') {
           current = context.input;
@@ -400,7 +423,7 @@ export class WorkflowEngine {
           if (current === undefined || current === null) return match;
           current = current[part];
         }
-        
+
         return current !== undefined ? current : match;
       });
     } else if (Array.isArray(obj)) {

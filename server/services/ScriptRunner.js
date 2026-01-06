@@ -30,7 +30,7 @@ export class ScriptRunner {
       variables: context.variables || {},
       environment: context.environment || {},
       request: context.request || {},
-      response: context.response || {}
+      response: context.response || {},
     };
   }
 
@@ -162,7 +162,7 @@ JSON.stringify({
     return {
       variables: parsed.variables || payload.variables || {},
       environment: parsed.environment || payload.environment || {},
-      assertions: Array.isArray(parsed.assertions) ? parsed.assertions : []
+      assertions: Array.isArray(parsed.assertions) ? parsed.assertions : [],
     };
   }
 
@@ -207,7 +207,7 @@ JSON.stringify({
       description = '',
       type = 'pre', // 'pre' or 'post'
       code,
-      enabled = true
+      enabled = true,
     } = data;
 
     if (!name) {
@@ -230,7 +230,7 @@ JSON.stringify({
       code,
       enabled,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.scripts.set(script.id, script);
@@ -278,7 +278,7 @@ JSON.stringify({
       ...script,
       ...updates,
       id: script.id, // Preserve ID
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.scripts.set(id, updated);
@@ -336,7 +336,7 @@ JSON.stringify({
 
     const fullContext = {
       ...context,
-      response
+      response,
     };
 
     return await this.executeScript(script, fullContext);
@@ -367,7 +367,7 @@ JSON.stringify({
     const results = {
       context: { ...context },
       response,
-      assertions: []
+      assertions: [],
     };
 
     for (const scriptId of scriptIds) {
@@ -384,7 +384,7 @@ JSON.stringify({
         results.assertions.push({
           name: `Script ${scriptId} execution`,
           passed: false,
-          error: error.message
+          error: error.message,
         });
       }
     }
@@ -404,7 +404,7 @@ JSON.stringify({
         sandbox: { __ctx: payload },
         timeout: 5000,
         eval: false,
-        wasm: false
+        wasm: false,
       });
 
       let rawResult;
@@ -421,8 +421,8 @@ JSON.stringify({
         context: {
           ...context,
           variables: parsed.variables,
-          environment: parsed.environment
-        }
+          environment: parsed.environment,
+        },
       };
 
       if (parsed.assertions.length > 0) {
@@ -432,7 +432,6 @@ JSON.stringify({
       console.log(`[ScriptRunner] Script ${script.name} completed successfully`);
 
       return result;
-
     } catch (error) {
       console.error(`[ScriptRunner] Script ${script.name} failed:`, error.message);
       throw new Error(`Script execution failed: ${error.message}`);
@@ -450,7 +449,7 @@ JSON.stringify({
         sandbox: { __ctx: payload },
         timeout: 100,
         eval: false,
-        wasm: false
+        wasm: false,
       });
       try {
         vm.run(wrapper);
@@ -464,7 +463,7 @@ JSON.stringify({
     } catch (error) {
       return {
         valid: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -491,7 +490,7 @@ JSON.stringify({
       preScripts: preScripts.length,
       postScripts: postScripts.length,
       enabledScripts: enabledScripts.length,
-      disabledScripts: scripts.length - enabledScripts.length
+      disabledScripts: scripts.length - enabledScripts.length,
     };
   }
 }

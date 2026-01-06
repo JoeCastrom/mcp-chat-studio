@@ -55,7 +55,7 @@ router.post('/load', async (req, res) => {
       args: args || {},
       concurrency: concurrency || 10,
       duration: duration || 10000,
-      sessionId: req.cookies?.sessionId
+      sessionId: req.cookies?.sessionId,
     });
 
     res.json(results);
@@ -106,7 +106,8 @@ router.post('/load', async (req, res) => {
  */
 router.post('/stress', async (req, res) => {
   try {
-    const { serverName, toolName, args, startConcurrency, maxConcurrency, step, stepDuration } = req.body;
+    const { serverName, toolName, args, startConcurrency, maxConcurrency, step, stepDuration } =
+      req.body;
 
     if (!serverName || !toolName) {
       return res.status(400).json({ error: 'serverName and toolName are required' });
@@ -120,7 +121,7 @@ router.post('/stress', async (req, res) => {
       maxConcurrency: maxConcurrency || 50,
       step: step || 5,
       stepDuration: stepDuration || 5000,
-      sessionId: req.cookies?.sessionId
+      sessionId: req.cookies?.sessionId,
     });
 
     res.json(results);
@@ -178,7 +179,7 @@ router.post('/spike', async (req, res) => {
       normalConcurrency,
       spikeConcurrency,
       normalDuration,
-      spikeDuration
+      spikeDuration,
     } = req.body;
 
     if (!serverName || !toolName) {
@@ -193,7 +194,7 @@ router.post('/spike', async (req, res) => {
       spikeConcurrency: spikeConcurrency || 50,
       normalDuration: normalDuration || 10000,
       spikeDuration: spikeDuration || 5000,
-      sessionId: req.cookies?.sessionId
+      sessionId: req.cookies?.sessionId,
     });
 
     res.json(results);

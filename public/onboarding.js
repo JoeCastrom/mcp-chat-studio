@@ -19,7 +19,7 @@ const onboardingTour = {
   completeTour() {
     localStorage.setItem(this.STORAGE_KEY, 'true');
     this.cleanup();
-    showToast('🎉 Tour complete! You\'re ready to go.', 'success');
+    showToast("🎉 Tour complete! You're ready to go.", 'success');
   },
 
   // Skip tour
@@ -49,7 +49,7 @@ const onboardingTour = {
             <span class="tour-badge">⛓️ Visual Workflows</span>
           </div>
         `,
-        position: 'center'
+        position: 'center',
       },
       {
         element: '#mcpServers',
@@ -58,7 +58,7 @@ const onboardingTour = {
           <p>Start by <strong>adding MCP servers</strong> here. Click "+ Add" to configure STDIO or SSE servers.</p>
           <p style="margin-top: 8px; font-size: 0.85rem;">Use templates for popular servers like GitHub, Filesystem, or Brave Search.</p>
         `,
-        position: 'right'
+        position: 'right',
       },
       {
         element: '#testAllBtn',
@@ -67,7 +67,7 @@ const onboardingTour = {
           <p>Once connected, click here to <strong>smoke test all tools</strong> at once.</p>
           <p style="margin-top: 8px; font-size: 0.85rem;">This validates your server is working correctly before diving deeper.</p>
         `,
-        position: 'right'
+        position: 'right',
       },
       {
         element: '.tab-nav',
@@ -83,7 +83,7 @@ const onboardingTour = {
             <li><strong>Analytics</strong> — Usage stats & health monitoring</li>
           </ul>
         `,
-        position: 'bottom'
+        position: 'bottom',
       },
       {
         element: '#workflowsTabBtn',
@@ -94,7 +94,7 @@ const onboardingTour = {
             Pro tip: Use the <strong>✨ AI Builder</strong> to generate workflows from natural language!
           </p>
         `,
-        position: 'bottom'
+        position: 'bottom',
       },
       {
         element: '#modelBadge',
@@ -110,7 +110,7 @@ const onboardingTour = {
           </div>
           <p style="margin-top: 8px; font-size: 0.85rem;">Works with local Ollama out of the box — no API keys needed!</p>
         `,
-        position: 'bottom'
+        position: 'bottom',
       },
       {
         element: null,
@@ -125,11 +125,11 @@ const onboardingTour = {
             <kbd>Escape</kbd><span>Cancel / Close</span>
           </div>
         `,
-        position: 'center'
+        position: 'center',
       },
       {
         element: null,
-        title: '🎉 You\'re Ready!',
+        title: "🎉 You're Ready!",
         content: `
           <p>You now have the power to <strong>test, debug, and automate</strong> your MCP servers like a pro.</p>
           <p style="margin-top: 12px; font-size: 0.85rem;">
@@ -139,8 +139,8 @@ const onboardingTour = {
             Happy testing! 🚀
           </p>
         `,
-        position: 'center'
-      }
+        position: 'center',
+      },
     ];
   },
 
@@ -184,7 +184,7 @@ const onboardingTour = {
     this.tooltip = this.overlay.querySelector('.tour-tooltip');
 
     // Add escape key listener
-    this.escapeHandler = (e) => {
+    this.escapeHandler = e => {
       if (e.key === 'Escape') this.skipTour();
     };
     document.addEventListener('keydown', this.escapeHandler);
@@ -193,7 +193,7 @@ const onboardingTour = {
   // Show a specific step
   showStep(index) {
     if (index < 0 || index >= this.steps.length) return;
-    
+
     this.currentStep = index;
     const step = this.steps[index];
 
@@ -212,7 +212,7 @@ const onboardingTour = {
 
     prevBtn.style.display = index === 0 ? 'none' : 'inline-flex';
     skipBtn.style.display = index === this.steps.length - 1 ? 'none' : 'inline-flex';
-    
+
     if (index === this.steps.length - 1) {
       nextBtn.textContent = 'Get Started! 🚀';
       nextBtn.onclick = () => this.completeTour();
@@ -228,12 +228,12 @@ const onboardingTour = {
   // Position spotlight and tooltip
   positionElements(step) {
     const backdrop = this.overlay.querySelector('.tour-backdrop');
-    
+
     if (!step.element || step.position === 'center') {
       // Center position - no element highlight
       this.spotlight.style.display = 'none';
       backdrop.style.opacity = '1';
-      
+
       this.tooltip.style.position = 'fixed';
       this.tooltip.style.top = '50%';
       this.tooltip.style.left = '50%';
@@ -256,13 +256,13 @@ const onboardingTour = {
     // Show spotlight
     const rect = el.getBoundingClientRect();
     const padding = 8;
-    
+
     this.spotlight.style.display = 'block';
     this.spotlight.style.left = `${rect.left - padding}px`;
     this.spotlight.style.top = `${rect.top - padding}px`;
     this.spotlight.style.width = `${rect.width + padding * 2}px`;
     this.spotlight.style.height = `${rect.height + padding * 2}px`;
-    
+
     backdrop.style.opacity = '1';
 
     // Position tooltip
@@ -338,7 +338,7 @@ const onboardingTour = {
     if (this.escapeHandler) {
       document.removeEventListener('keydown', this.escapeHandler);
     }
-  }
+  },
 };
 
 // Function to start tour manually

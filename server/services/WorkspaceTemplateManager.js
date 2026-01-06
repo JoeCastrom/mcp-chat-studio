@@ -52,7 +52,7 @@ export class WorkspaceTemplateManager {
       name: t.name,
       description: t.description || '',
       createdAt: t.createdAt,
-      updatedAt: t.updatedAt
+      updatedAt: t.updatedAt,
     }));
   }
 
@@ -79,7 +79,7 @@ export class WorkspaceTemplateManager {
       description,
       bundle,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.templates.set(template.id, template);
@@ -93,7 +93,7 @@ export class WorkspaceTemplateManager {
       ...template,
       ...updates,
       id: template.id,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     if (!updated.name) {

@@ -16,11 +16,11 @@ const brainState = {
     systemTokens: 0,
     userTokens: 0,
     assistantTokens: 0,
-    toolTokens: 0
+    toolTokens: 0,
   },
   timeline: [],
   messageTimestamps: new Map(),
-  baseTime: null
+  baseTime: null,
 };
 
 function getTimelineContainers() {
@@ -58,12 +58,14 @@ function getToolHistoryMessages() {
     tool: entry.tool,
     server: entry.server,
     success: entry.success !== false,
-    timestamp: entry.timestamp
+    timestamp: entry.timestamp,
   }));
 }
 
 function getMessagePreview(text, maxLength) {
-  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  const cleaned = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!cleaned) return 'No content';
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength)}...` : cleaned;
 }
@@ -87,13 +89,17 @@ function updateBrainGraph(messageDomElements = []) {
     else if (msgEl.classList.contains('assistant')) role = 'assistant';
     else if (msgEl.classList.contains('system')) role = 'system';
 
-    if (msgEl.innerHTML.includes('✅') || msgEl.innerHTML.includes('⚠️') || msgEl.innerHTML.includes('❌')) {
+    if (
+      msgEl.innerHTML.includes('✅') ||
+      msgEl.innerHTML.includes('⚠️') ||
+      msgEl.innerHTML.includes('❌')
+    ) {
       role = 'tool';
     }
 
     return {
       role,
-      content: msgEl.innerText || ''
+      content: msgEl.innerText || '',
     };
   });
 
@@ -106,7 +112,7 @@ function updateBrainGraph(messageDomElements = []) {
     systemTokens: 0,
     userTokens: 0,
     assistantTokens: 0,
-    toolTokens: 0
+    toolTokens: 0,
   };
 
   brainState.messages.forEach(msg => {
@@ -145,7 +151,7 @@ function buildTimeline(domMessages, toolMessages) {
       kind: 'message',
       role: msg.role || 'unknown',
       content: msg.content,
-      timestamp
+      timestamp,
     });
   });
 
@@ -158,7 +164,7 @@ function buildTimeline(domMessages, toolMessages) {
       tool: msg.tool,
       server: msg.server,
       success: msg.success !== false,
-      timestamp
+      timestamp,
     });
   });
 
@@ -168,7 +174,11 @@ function buildTimeline(domMessages, toolMessages) {
 
 function formatTime(timestamp) {
   if (!timestamp) return '--:--:--';
-  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 function renderTimeline() {
@@ -180,7 +190,7 @@ function renderTimeline() {
     user: '👤',
     assistant: '🤖',
     tool: '⚙️',
-    unknown: '❓'
+    unknown: '❓',
   };
 
   containers.forEach(container => {
@@ -188,28 +198,32 @@ function renderTimeline() {
     if (!list) return;
 
     if (brainState.timeline.length === 0) {
-      list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.8rem;">No activity yet.</div>';
+      list.innerHTML =
+        '<div style="color: var(--text-muted); font-size: 0.8rem;">No activity yet.</div>';
       return;
     }
 
-    list.innerHTML = brainState.timeline.map((entry, index) => {
-      const timeLabel = formatTime(entry.timestamp);
-      const role = entry.role || 'unknown';
-      const icon = iconMap[role] || '❓';
-      const isTool = entry.kind === 'tool';
-      const status = isTool ? (entry.success ? 'success' : 'error') : 'neutral';
-      const title = isTool
-        ? `${entry.server ? `${entry.server}.` : ''}${entry.tool || 'Tool'}`
-        : getMessagePreview(entry.content, 52);
-      const preview = isTool
-        ? entry.success ? 'Tool call completed' : 'Tool call failed'
-        : getMessagePreview(entry.content, 120);
+    list.innerHTML = brainState.timeline
+      .map((entry, index) => {
+        const timeLabel = formatTime(entry.timestamp);
+        const role = entry.role || 'unknown';
+        const icon = iconMap[role] || '❓';
+        const isTool = entry.kind === 'tool';
+        const status = isTool ? (entry.success ? 'success' : 'error') : 'neutral';
+        const title = isTool
+          ? `${entry.server ? `${entry.server}.` : ''}${entry.tool || 'Tool'}`
+          : getMessagePreview(entry.content, 52);
+        const preview = isTool
+          ? entry.success
+            ? 'Tool call completed'
+            : 'Tool call failed'
+          : getMessagePreview(entry.content, 120);
 
-      const badges = isTool
-        ? `<span class="brain-badge tool">Tool</span><span class="brain-badge ${entry.success ? '' : 'error'}">${entry.success ? 'Success' : 'Error'}</span>`
-        : `<span class="brain-badge ${role}">${role}</span>`;
+        const badges = isTool
+          ? `<span class="brain-badge tool">Tool</span><span class="brain-badge ${entry.success ? '' : 'error'}">${entry.success ? 'Success' : 'Error'}</span>`
+          : `<span class="brain-badge ${role}">${role}</span>`;
 
-      return `
+        return `
         <div class="brain-timeline-item" data-role="${role}" data-status="${status}">
           <span class="brain-timeline-dot"></span>
           <div class="brain-timeline-card">
@@ -226,14 +240,15 @@ function renderTimeline() {
           </div>
         </div>
       `;
-    }).join('');
+      })
+      .join('');
   });
 }
 
 function renderContextStats() {
   const statsEls = [
     document.getElementById('contextStats'),
-    document.getElementById('chatContextStats')
+    document.getElementById('chatContextStats'),
   ].filter(Boolean);
   if (statsEls.length === 0) return;
 
@@ -257,12 +272,16 @@ function renderContextStats() {
         <span style="color: #10b981;">● Assistant:</span>
         <span>${assistantTokens.toLocaleString()} (${((assistantTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
       </div>
-      ${toolTokens > 0 ? `
+      ${
+        toolTokens > 0
+          ? `
       <div style="display: flex; justify-content: space-between;">
         <span style="color: #f59e0b;">● Tools:</span>
         <span>${toolTokens.toLocaleString()} (${((toolTokens / totalTokens) * 100 || 0).toFixed(1)}%)</span>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
       <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
         <div style="display: flex; justify-content: space-between;">
           <span style="color: var(--text-secondary);">Messages:</span>

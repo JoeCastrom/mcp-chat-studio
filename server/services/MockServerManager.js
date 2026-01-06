@@ -67,7 +67,7 @@ export class MockServerManager {
       resources = [],
       prompts = [],
       delay = 0,
-      errorRate = 0
+      errorRate = 0,
     } = data;
 
     if (!name) {
@@ -85,7 +85,7 @@ export class MockServerManager {
       errorRate,
       callCount: 0,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.mocks.set(mock.id, mock);
@@ -127,7 +127,7 @@ export class MockServerManager {
       ...updates,
       id: mock.id, // Preserve ID
       callCount: mock.callCount, // Preserve stats
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.mocks.set(id, updated);
@@ -181,16 +181,18 @@ export class MockServerManager {
     // Return the canned response (with variable substitution)
     const response = this.substituteVariables(tool.response, args);
 
-    console.log(`[MockServerManager] Mock call: ${mockId}.${toolName} (${mock.callCount} total calls)`);
+    console.log(
+      `[MockServerManager] Mock call: ${mockId}.${toolName} (${mock.callCount} total calls)`
+    );
 
     return {
       content: [
         {
           type: 'text',
-          text: typeof response === 'string' ? response : JSON.stringify(response, null, 2)
-        }
+          text: typeof response === 'string' ? response : JSON.stringify(response, null, 2),
+        },
       ],
-      isError: false
+      isError: false,
     };
   }
 
@@ -222,9 +224,9 @@ export class MockServerManager {
         {
           uri: resourceUri,
           mimeType: resource.mimeType || 'text/plain',
-          text: resource.content
-        }
-      ]
+          text: resource.content,
+        },
+      ],
     };
   }
 
@@ -256,7 +258,7 @@ export class MockServerManager {
 
     return {
       description: prompt.description,
-      messages
+      messages,
     };
   }
 
@@ -270,8 +272,8 @@ export class MockServerManager {
       tools: mock.tools.map(t => ({
         name: t.name,
         description: t.description,
-        inputSchema: t.inputSchema
-      }))
+        inputSchema: t.inputSchema,
+      })),
     };
   }
 
@@ -286,8 +288,8 @@ export class MockServerManager {
         uri: r.uri,
         name: r.name,
         description: r.description,
-        mimeType: r.mimeType
-      }))
+        mimeType: r.mimeType,
+      })),
     };
   }
 
@@ -301,8 +303,8 @@ export class MockServerManager {
       prompts: mock.prompts.map(p => ({
         name: p.name,
         description: p.description,
-        arguments: p.arguments
-      }))
+        arguments: p.arguments,
+      })),
     };
   }
 
@@ -353,8 +355,8 @@ export class MockServerManager {
         .map(m => ({
           id: m.id,
           name: m.name,
-          callCount: m.callCount
-        }))
+          callCount: m.callCount,
+        })),
     };
   }
 
@@ -387,9 +389,9 @@ export class MockServerManager {
       description: scenario.description || scenario.name,
       inputSchema: {
         type: 'object',
-        properties: scenario.inputs || {}
+        properties: scenario.inputs || {},
       },
-      response: scenario.expectedOutput || { status: 'success' }
+      response: scenario.expectedOutput || { status: 'success' },
     }));
 
     return this.createMock({
@@ -397,7 +399,7 @@ export class MockServerManager {
       description: `Auto-generated from collection ${collectionId}`,
       tools,
       resources: [],
-      prompts: []
+      prompts: [],
     });
   }
 }

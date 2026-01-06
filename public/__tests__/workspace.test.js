@@ -6,7 +6,7 @@
 describe('Workspace Panel Management', () => {
   // Replicate panel ID generation pattern
   let panelIdCounter = 0;
-  
+
   function generatePanelId() {
     panelIdCounter += 1;
     return `panel_${Date.now()}_${panelIdCounter}`;
@@ -27,8 +27,20 @@ describe('Workspace Panel Management', () => {
 
   test('panel definitions structure', () => {
     const panelDefs = {
-      chat: { icon: '💬', title: 'Chat', width: 500, height: 600, connects: ['inspector', 'history'] },
-      inspector: { icon: '🔧', title: 'Inspector', width: 450, height: 500, connects: ['workflows'] },
+      chat: {
+        icon: '💬',
+        title: 'Chat',
+        width: 500,
+        height: 600,
+        connects: ['inspector', 'history'],
+      },
+      inspector: {
+        icon: '🔧',
+        title: 'Inspector',
+        width: 450,
+        height: 500,
+        connects: ['workflows'],
+      },
     };
 
     expect(panelDefs.chat.connects).toContain('inspector');
@@ -55,12 +67,12 @@ describe('Zoom and Pan Calculations', () => {
     const oldZoom = 1;
     const newZoom = 1.2;
     let panX = 100;
-    
+
     const mouseX = 50;
-    
+
     // Pan adjustment formula
     panX = mouseX + (panX - mouseX) * (newZoom / oldZoom);
-    
+
     // Should adjust pan to keep mouse position stable
     expect(panX).toBe(110); // 50 + (100-50) * 1.2 = 50 + 60 = 110
   });
@@ -71,7 +83,10 @@ describe('Zoom and Pan Calculations', () => {
       { x: 200, y: 150, width: 100, height: 100 },
     ];
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     panels.forEach(p => {
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
@@ -89,7 +104,7 @@ describe('Zoom and Pan Calculations', () => {
 describe('Grid Snapping', () => {
   test('snap to grid calculation', () => {
     const gridSize = 20;
-    
+
     function snapToGrid(value) {
       return Math.round(value / gridSize) * gridSize;
     }
@@ -102,7 +117,7 @@ describe('Grid Snapping', () => {
 
   test('snap when within distance', () => {
     const snapDistance = 10;
-    
+
     function shouldSnap(current, target) {
       return Math.abs(current - target) <= snapDistance;
     }
@@ -146,8 +161,8 @@ describe('MiniMap Calculations', () => {
     const viewWidth = 800;
     const viewHeight = 600;
 
-    const viewX = (range/2 - panX/zoom - viewWidth/2) * scale;
-    const viewY = (range/2 - panY/zoom - viewHeight/2) * scale;
+    const viewX = (range / 2 - panX / zoom - viewWidth / 2) * scale;
+    const viewY = (range / 2 - panY / zoom - viewHeight / 2) * scale;
 
     // Should calculate correct viewport position
     expect(viewX).toBeCloseTo((5000 - 100 - 400) * 0.02);
@@ -157,11 +172,11 @@ describe('MiniMap Calculations', () => {
   test('panel dot positioning', () => {
     const range = 10000;
     const scale = 200 / range;
-    
+
     const panel = { x: 0, y: 0, width: 100, height: 100 };
-    
-    const dotLeft = (panel.x + range/2) * scale;
-    const dotTop = (panel.y + range/2) * scale;
+
+    const dotLeft = (panel.x + range / 2) * scale;
+    const dotTop = (panel.y + range / 2) * scale;
 
     // Panel at origin should appear at center of minimap
     expect(dotLeft).toBe(100); // 5000 * 0.02 = 100
@@ -195,7 +210,7 @@ describe('Layout Persistence', () => {
     const stored = localStorage.getItem(LAYOUT_KEY);
 
     expect(stored).toBeNull();
-    
+
     const panels = stored ? JSON.parse(stored) : [];
     expect(panels).toEqual([]);
   });

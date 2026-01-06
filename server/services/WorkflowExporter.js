@@ -85,28 +85,26 @@ async def main():
 `;
 
     // Topological sort (simplified: assume linear-ish for export or just use the node order if valid)
-    // For a robust export, we should traverse. For now, let's execute in the order of the nodes array 
-    // BUT filtered by dependencies. 
+    // For a robust export, we should traverse. For now, let's execute in the order of the nodes array
+    // BUT filtered by dependencies.
     // Actually, let's just assume the user put them in roughly order or use a simple BFS like the engine.
-    
+
     // We'll reimplement the BFS logic in the generated code or flattening it here.
     // Flattening here is safer for the script structure.
-    
+
     const sortedNodes = this.sortNodes(nodes, edges);
 
     for (const node of sortedNodes) {
       const safeId = node.id.replace(/[^a-zA-Z0-9]/g, '_');
-      
+
       code += `
         # --- Node: ${node.id} (${node.type}) --- 
 `;
-      
+
       if (node.type === 'trigger') {
         code += `        ctx["steps"]["${node.id}"] = ctx["input"]
 `;
-      } 
-      
-      else if (node.type === 'tool') {
+      } else if (node.type === 'tool') {
         const data = node.data || {};
         code += `        try:
             print(f"▶️ Executing ${node.id}...")
@@ -133,9 +131,7 @@ async def main():
             print(f"  ❌ Error: {e}")
             ctx["steps"]["${node.id}"] = {"error": str(e)}
 `;
-      }
-      
-      else if (node.type === 'llm') {
+      } else if (node.type === 'llm') {
         // Generate LLM call using openai/httpx (assuming OpenAI compatible)
         code += `        try:
             print(f"▶️ Executing ${node.id} (LLM)...")
@@ -151,11 +147,9 @@ async def main():
         except Exception as e:
             print(f"  ❌ Error: {e}")
 `;
-      }
-      
-      else if (node.type === 'javascript') {
-          // JS in Python? We'll comment it out or try to convert simple logic
-          code += `        # Node ${node.id} is a JavaScript node. 
+      } else if (node.type === 'javascript') {
+        // JS in Python? We'll comment it out or try to convert simple logic
+        code += `        # Node ${node.id} is a JavaScript node. 
         # Please implement the equivalent Python logic here:
         # ${JSON.stringify(node.data.code || '')}
 `;
@@ -360,35 +354,38 @@ main().catch(err => {
     // Simple BFS for sorting
     const adj = {};
     const inDegree = {};
-    nodes.forEach(n => { adj[n.id] = []; inDegree[n.id] = 0; });
+    nodes.forEach(n => {
+      adj[n.id] = [];
+      inDegree[n.id] = 0;
+    });
     edges.forEach(e => {
-        if(adj[e.from]) adj[e.from].push(e.to);
-        if(inDegree[e.to] !== undefined) inDegree[e.to]++;
+      if (adj[e.from]) adj[e.from].push(e.to);
+      if (inDegree[e.to] !== undefined) inDegree[e.to]++;
     });
 
     const queue = nodes.filter(n => inDegree[n.id] === 0);
     const sorted = [];
-    
-    while(queue.length > 0) {
-        const u = queue.shift();
-        sorted.push(u);
-        
-        if(adj[u.id]) {
-            for(const vId of adj[u.id]) {
-                inDegree[vId]--;
-                if(inDegree[vId] === 0) {
-                    const v = nodes.find(n => n.id === vId);
-                    if(v) queue.push(v);
-                }
-            }
+
+    while (queue.length > 0) {
+      const u = queue.shift();
+      sorted.push(u);
+
+      if (adj[u.id]) {
+        for (const vId of adj[u.id]) {
+          inDegree[vId]--;
+          if (inDegree[vId] === 0) {
+            const v = nodes.find(n => n.id === vId);
+            if (v) queue.push(v);
+          }
         }
+      }
     }
-    
+
     // Add any remaining nodes (cycles/disconnected)
     nodes.forEach(n => {
-        if (!sorted.find(s => s.id === n.id)) sorted.push(n);
+      if (!sorted.find(s => s.id === n.id)) sorted.push(n);
     });
-    
+
     return sorted;
   }
 
@@ -396,7 +393,7 @@ main().catch(err => {
     try {
       if (!argsStr) return '{}';
       // Validate JSON
-      JSON.parse(argsStr); 
+      JSON.parse(argsStr);
       return argsStr; // It's valid JSON, which is valid Python dict syntax usually
     } catch (e) {
       return '{}';

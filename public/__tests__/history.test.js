@@ -15,22 +15,25 @@ describe.skip('history panel', () => {
     globalThis.appendMessage = jest.fn();
     globalThis.showNotification = jest.fn();
     globalThis.getHistoryEntries = jest.fn(() => []);
-    globalThis.escapeHtml = (value) => String(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    globalThis.escapeHtml = value =>
+      String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     globalThis.window = globalThis;
     vm.runInThisContext(historySource);
   });
 
   test('renders empty state when no history', () => {
     globalThis.refreshHistoryPanel();
-    expect(document.getElementById('toolHistoryStats').textContent)
-      .toContain('No tool executions recorded');
-    expect(document.getElementById('toolHistoryList').textContent)
-      .toContain('Execute tools from the Inspector tab');
+    expect(document.getElementById('toolHistoryStats').textContent).toContain(
+      'No tool executions recorded'
+    );
+    expect(document.getElementById('toolHistoryList').textContent).toContain(
+      'Execute tools from the Inspector tab'
+    );
   });
 
   test('shows load more when history exceeds page size', () => {
@@ -41,7 +44,7 @@ describe.skip('history panel', () => {
       request: { idx },
       response: { ok: true },
       duration: 5,
-      success: true
+      success: true,
     }));
     globalThis.getHistoryEntries.mockReturnValue(history);
     globalThis.refreshHistoryPanel();

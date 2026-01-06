@@ -17,8 +17,8 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 
 ![Main Showcase](docs/gif/showcase.gif)
 
-| Workspace Canvas | Studio Assistant | AI Workflow Builder | Documentation Generator |
-| --- | --- | --- | --- |
+| Workspace Canvas                                        | Studio Assistant                                       | AI Workflow Builder                                               | Documentation Generator                                          |
+| ------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
 | ![Workspace Showcase](docs/gif/showcase-workspaces.gif) | ![Assistant Showcase](docs/gif/showcase-assistant.gif) | ![AI Builder Showcase](docs/gif/showcase-workflow-ai-builder.gif) | ![Docs Generator Showcase](docs/gif/showcase-docs-generator.gif) |
 
 > **📌 Local MCP Test Bench** - Designed for development. Not intended for internet exposure.
@@ -88,27 +88,35 @@ Use the **model badge** in the header to switch LLM providers; the **⚙️ Sett
 ## 🎨 Highlights: Advanced Testing & Debugging Suite
 
 ### 🐛 Workflow Debugger
+
 Debug complex workflows with professional debugging tools:
+
 - **Breakpoint debugging** - Pause execution at any node
 - **Step-through mode** - Execute one node at a time
 - **Variable inspection** - View inputs, outputs, and context
 - **Session management** - Pause, resume, step, or abort
 
 ### ✨ AI Workflow Builder
+
 Generate workflows from a natural-language goal:
+
 - **Tool-aware prompts** - Uses connected MCP tools as context
 - **One-click generate** - Creates a workflow you can edit and run
 - **Works with Workspace and Classic modes**
 - **Preflight validation** - Catch missing tool args and invalid JSON before execution
 
 ### 📦 Workflow Export
+
 Turn visual flows into runnable scripts:
+
 - **Python (mcp SDK)** and **Node.js (mcp SDK)**
 - **Tool calls + variable substitution** baked in
 - **Shareable** automation for CI or docs
 
 ### 🔍 Advanced Inspector
+
 Three powerful new testing tools:
+
 - **📊 Timeline** - Chronological log of all JSON-RPC messages
 - **🧪 Bulk Test** - Execute tools with multiple inputs (parallel/sequential)
 - **🔥 Bulk Test Heatmap** - Visualize latency spread across inputs + export JSON with heatmap data
@@ -125,7 +133,9 @@ Three powerful new testing tools:
 - **🔐 OAuth Settings UI** - Configure OAuth providers without touching config.yaml or .env (includes a Test OAuth button)
 
 ### 📋 Contract Testing
+
 Consumer-driven contract testing for MCP servers:
+
 - **Define contracts** - Specify expected tool behavior
 - **Multiple assertions** - Schema, contains, equals, response time, custom
 - **Auto-generation** - Generate contracts from tool schemas
@@ -134,7 +144,9 @@ Consumer-driven contract testing for MCP servers:
 - **Schema CI Gate** - One-click baseline export + CI fail-on-change command
 
 ### 📊 Tool Explorer & Analytics
+
 Real-time usage statistics and performance metrics:
+
 - **Usage tracking** - Calls, success rates, latency per tool
 - **Performance metrics** - p50/p95/p99 latency tracking
 - **Error monitoring** - Recent errors per tool
@@ -145,19 +157,25 @@ Real-time usage statistics and performance metrics:
 - **Flake alerts** - Baseline + regression checks for tool reliability
 
 ### 📚 Documentation Generator
+
 Publish MCP server docs in seconds:
+
 - **Markdown / HTML / JSON**
 - **Tools + schemas + examples**
 - **Shareable docs bundle**
 
 ### ⏱️ Monitors & Performance
+
 Keep an eye on quality and latency:
+
 - **Scheduled monitors** with pass/fail history
 - **Performance tab** with p50/p95/p99 and trends
 - **Health check dashboards**
 
 ### 🧭 Workspace Mode
+
 Build your own testing cockpit with floating panels:
+
 - **Add panels fast** - Radial menu + quick-access bar
 - **Canvas controls** - Zoom, pan, mini-map, fit-all
 - **Command palette** - Ctrl+K / Ctrl+Shift+P
@@ -398,22 +416,22 @@ Create production-ready MCP servers without writing boilerplate code!
 
 ### ⌨️ Keyboard Shortcuts
 
-| Shortcut             | Context            | Action                      |
-| -------------------- | ------------------ | --------------------------- |
-| `Enter`              | Chat               | Send message                |
-| `Shift+Enter`        | Chat               | New line                    |
-| `Escape`             | Global             | Cancel / Close modal        |
-| `Ctrl+K`             | Classic            | Focus tool search           |
-| `Ctrl+K`             | Workspace          | Command palette             |
-| `Ctrl+Shift+P`       | Workspace          | Command palette             |
-| `Ctrl+S`             | Workspace          | Save layout                 |
-| `Ctrl+L`             | Workspace          | Load preset                 |
-| `Ctrl+=` / `Ctrl+-`  | Workspace          | Zoom in / out               |
-| `Ctrl+0`             | Workspace          | Reset zoom                  |
-| `Alt+M`              | Workspace          | Toggle mini-map             |
-| `G`                  | Workspace          | Toggle grid snapping        |
-| `Ctrl+Shift+E`       | Chat               | Export chat                 |
-| `Ctrl+/`             | Workspace          | Show shortcuts help         |
+| Shortcut            | Context   | Action               |
+| ------------------- | --------- | -------------------- |
+| `Enter`             | Chat      | Send message         |
+| `Shift+Enter`       | Chat      | New line             |
+| `Escape`            | Global    | Cancel / Close modal |
+| `Ctrl+K`            | Classic   | Focus tool search    |
+| `Ctrl+K`            | Workspace | Command palette      |
+| `Ctrl+Shift+P`      | Workspace | Command palette      |
+| `Ctrl+S`            | Workspace | Save layout          |
+| `Ctrl+L`            | Workspace | Load preset          |
+| `Ctrl+=` / `Ctrl+-` | Workspace | Zoom in / out        |
+| `Ctrl+0`            | Workspace | Reset zoom           |
+| `Alt+M`             | Workspace | Toggle mini-map      |
+| `G`                 | Workspace | Toggle grid snapping |
+| `Ctrl+Shift+E`      | Chat      | Export chat          |
+| `Ctrl+/`            | Workspace | Show shortcuts help  |
 
 ### 📊 Token Usage Display
 
@@ -492,6 +510,7 @@ node scripts/collection-gate.js ./collection-run-gate.json
 ### 🎙️ Mock Recorder (Live Capture)
 
 Record live tool calls and instantly spin them into a mock server:
+
 - **Capture** tool calls from the Inspector
 - **Create mock** with one click
 - **Keep context** with real tool schemas and outputs
@@ -741,13 +760,13 @@ TOGETHER_API_KEY=your-key
 llm:
   provider: custom
   model: your-model
-  base_url: "https://your-llm.example.com/v1"
+  base_url: 'https://your-llm.example.com/v1'
   auth:
     type: client_credentials
-    auth_url: "https://your-idp.example.com/oauth/token"
-    client_id: "${LLM_CLIENT_ID}"
-    client_secret: "${LLM_CLIENT_SECRET}"
-    scope: "scope1 scope2"
+    auth_url: 'https://your-idp.example.com/oauth/token'
+    client_id: '${LLM_CLIENT_ID}'
+    client_secret: '${LLM_CLIENT_SECRET}'
+    scope: 'scope1 scope2'
 ```
 
 Custom endpoints also work with Bearer tokens (set `auth.type: bearer` and provide `api_key`).  
@@ -1013,6 +1032,7 @@ Per-request auth is available for OpenAPI proxy tools generated in the **Generat
 4. Execute the tool — overrides are sent as `__headers` / `__query`
 
 Notes:
+
 - Auth overrides apply only to **OpenAPI proxy tools** (generated with the OpenAPI Generator).
 - If a tool does not support overrides, the Inspector shows a warning and ignores the overrides.
 - Re-generate older OpenAPI servers to get `__headers`/`__query` support.

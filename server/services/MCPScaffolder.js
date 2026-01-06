@@ -226,7 +226,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     code += '    ]\n\n';
 
     code += '@server.call_tool()\n';
-    code += 'async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | ImageContent | EmbeddedResource]:\n';
+    code +=
+      'async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | ImageContent | EmbeddedResource]:\n';
     code += '    """Handle tool execution requests."""\n';
 
     tools.forEach((tool, index) => {
@@ -285,40 +286,46 @@ async def test_example_tool():
     const packageName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
     // package.json
-    files['package.json'] = JSON.stringify({
-      name: packageName,
-      version: '0.1.0',
-      description: description || `MCP server for ${name}`,
-      type: 'module',
-      main: isTypescript ? 'dist/index.js' : 'src/index.js',
-      bin: {
-        [packageName]: isTypescript ? './dist/index.js' : './src/index.js'
+    files['package.json'] = JSON.stringify(
+      {
+        name: packageName,
+        version: '0.1.0',
+        description: description || `MCP server for ${name}`,
+        type: 'module',
+        main: isTypescript ? 'dist/index.js' : 'src/index.js',
+        bin: {
+          [packageName]: isTypescript ? './dist/index.js' : './src/index.js',
+        },
+        scripts: {
+          start: isTypescript ? 'node dist/index.js' : 'node src/index.js',
+          dev: isTypescript ? 'tsx watch src/index.ts' : 'node --watch src/index.js',
+          build: isTypescript ? 'tsc' : 'echo "No build needed"',
+          test: 'jest',
+          lint: isTypescript ? 'eslint src/**/*.ts' : 'eslint src/**/*.js',
+        },
+        dependencies: {
+          '@modelcontextprotocol/sdk': '^1.0.0',
+        },
+        devDependencies: isTypescript
+          ? {
+              '@types/node': '^20.0.0',
+              typescript: '^5.0.0',
+              tsx: '^4.0.0',
+              jest: '^29.0.0',
+              '@types/jest': '^29.0.0',
+              'ts-jest': '^29.0.0',
+              eslint: '^8.0.0',
+              '@typescript-eslint/parser': '^6.0.0',
+              '@typescript-eslint/eslint-plugin': '^6.0.0',
+            }
+          : {
+              jest: '^29.0.0',
+              eslint: '^8.0.0',
+            },
       },
-      scripts: {
-        start: isTypescript ? 'node dist/index.js' : 'node src/index.js',
-        dev: isTypescript ? 'tsx watch src/index.ts' : 'node --watch src/index.js',
-        build: isTypescript ? 'tsc' : 'echo "No build needed"',
-        test: 'jest',
-        lint: isTypescript ? 'eslint src/**/*.ts' : 'eslint src/**/*.js'
-      },
-      dependencies: {
-        '@modelcontextprotocol/sdk': '^1.0.0'
-      },
-      devDependencies: isTypescript ? {
-        '@types/node': '^20.0.0',
-        typescript: '^5.0.0',
-        tsx: '^4.0.0',
-        jest: '^29.0.0',
-        '@types/jest': '^29.0.0',
-        'ts-jest': '^29.0.0',
-        eslint: '^8.0.0',
-        '@typescript-eslint/parser': '^6.0.0',
-        '@typescript-eslint/eslint-plugin': '^6.0.0'
-      } : {
-        jest: '^29.0.0',
-        eslint: '^8.0.0'
-      }
-    }, null, 2);
+      null,
+      2
+    );
 
     // Main server file
     const ext = isTypescript ? 'ts' : 'js';
@@ -326,26 +333,35 @@ async def test_example_tool():
 
     if (isTypescript) {
       // tsconfig.json
-      files['tsconfig.json'] = JSON.stringify({
-        compilerOptions: {
-          target: 'ES2022',
-          module: 'ESNext',
-          moduleResolution: 'node',
-          outDir: './dist',
-          rootDir: './src',
-          strict: true,
-          esModuleInterop: true,
-          skipLibCheck: true,
-          forceConsistentCasingInFileNames: true,
-          resolveJsonModule: true
+      files['tsconfig.json'] = JSON.stringify(
+        {
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'ESNext',
+            moduleResolution: 'node',
+            outDir: './dist',
+            rootDir: './src',
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+            forceConsistentCasingInFileNames: true,
+            resolveJsonModule: true,
+          },
+          include: ['src/**/*'],
+          exclude: ['node_modules', 'dist', '**/*.test.ts'],
         },
-        include: ['src/**/*'],
-        exclude: ['node_modules', 'dist', '**/*.test.ts']
-      }, null, 2);
+        null,
+        2
+      );
     }
 
     // README.md
-    files['README.md'] = this.generateReadme(name, isTypescript ? 'typescript' : 'nodejs', description, tools);
+    files['README.md'] = this.generateReadme(
+      name,
+      isTypescript ? 'typescript' : 'nodejs',
+      description,
+      tools
+    );
 
     // .gitignore
     files['.gitignore'] = `node_modules/
@@ -359,7 +375,8 @@ coverage/
 `;
 
     // jest.config.js
-    files['jest.config.js'] = isTypescript ? `export default {
+    files['jest.config.js'] = isTypescript
+      ? `export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
@@ -367,7 +384,8 @@ coverage/
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
-` : `export default {
+`
+      : `export default {
   testEnvironment: 'node',
 };
 `;
@@ -472,11 +490,15 @@ main().catch((error) => {
     }
 
     const type = isTypescript ? ': Tool[]' : '';
-    return `const TOOLS${type} = ${JSON.stringify(tools.map(t => ({
-      name: t.name,
-      description: t.description || 'No description',
-      inputSchema: t.inputSchema || { type: 'object', properties: {} }
-    })), null, 2)};`;
+    return `const TOOLS${type} = ${JSON.stringify(
+      tools.map(t => ({
+        name: t.name,
+        description: t.description || 'No description',
+        inputSchema: t.inputSchema || { type: 'object', properties: {} },
+      })),
+      null,
+      2
+    )};`;
   }
 
   generateNodeToolSwitch(tools) {
@@ -537,9 +559,18 @@ describe('${packageName}', () => {
 
   generateReadme(name, language, description, tools) {
     const languageInfo = {
-      python: { badge: '![Python](https://img.shields.io/badge/python-3.10+-blue.svg)', cmd: `pip install -e .` },
-      nodejs: { badge: '![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)', cmd: 'npm install' },
-      typescript: { badge: '![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)', cmd: 'npm install && npm run build' }
+      python: {
+        badge: '![Python](https://img.shields.io/badge/python-3.10+-blue.svg)',
+        cmd: `pip install -e .`,
+      },
+      nodejs: {
+        badge: '![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)',
+        cmd: 'npm install',
+      },
+      typescript: {
+        badge: '![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)',
+        cmd: 'npm install && npm run build',
+      },
     };
 
     const info = languageInfo[language] || languageInfo.nodejs;
@@ -569,8 +600,12 @@ mcpServers:
     type: stdio
     command: ${language === 'python' ? 'python' : 'node'}
     args:
-${language === 'python' ? `      - "-m"
-      - "${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.server"` : `      - "src/index.js"`}
+${
+  language === 'python'
+    ? `      - "-m"
+      - "${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.server"`
+    : `      - "src/index.js"`
+}
     description: "${description || name}"
 \`\`\`
 
@@ -582,7 +617,11 @@ ${language === 'python' ? `python -m ${name.toLowerCase().replace(/[^a-z0-9]/g, 
 
 ## Available Tools
 
-${tools.length > 0 ? tools.map(t => `### \`${t.name}\`
+${
+  tools.length > 0
+    ? tools
+        .map(
+          t => `### \`${t.name}\`
 
 ${t.description || 'No description'}
 
@@ -590,7 +629,11 @@ ${t.description || 'No description'}
 \`\`\`json
 ${JSON.stringify(t.inputSchema?.properties || {}, null, 2)}
 \`\`\`
-`).join('\n') : '### `example_tool`\n\nAn example tool to get you started.\n'}
+`
+        )
+        .join('\n')
+    : '### `example_tool`\n\nAn example tool to get you started.\n'
+}
 
 ## Development
 

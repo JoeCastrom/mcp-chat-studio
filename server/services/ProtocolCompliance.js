@@ -38,7 +38,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -139,7 +139,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -176,7 +176,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -224,7 +224,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -279,7 +279,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -313,7 +313,9 @@ export class ProtocolCompliance {
               errors.push(`Prompt "${prompt.name || index}" argument ${argIndex}: missing "name"`);
             }
             if (!arg.description) {
-              warnings.push(`Prompt "${prompt.name || index}" argument "${arg.name || argIndex}": missing "description"`);
+              warnings.push(
+                `Prompt "${prompt.name || index}" argument "${arg.name || argIndex}": missing "description"`
+              );
             }
           });
         }
@@ -323,7 +325,7 @@ export class ProtocolCompliance {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -335,7 +337,7 @@ export class ProtocolCompliance {
       overall: 'pending',
       checks: [],
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     try {
@@ -344,13 +346,15 @@ export class ProtocolCompliance {
         name: 'Initialization Response',
         passed: false,
         errors: [],
-        warnings: []
+        warnings: [],
       };
 
       if (mcpConnection.client && mcpConnection.connected) {
         // Assume initialization happened - we'd need to capture the actual response
         initCheck.passed = true;
-        initCheck.warnings.push('Could not verify initialization response format (already connected)');
+        initCheck.warnings.push(
+          'Could not verify initialization response format (already connected)'
+        );
       } else {
         initCheck.errors.push('Server not connected');
       }
@@ -362,7 +366,7 @@ export class ProtocolCompliance {
         name: 'Tools List Format',
         passed: false,
         errors: [],
-        warnings: []
+        warnings: [],
       };
 
       const tools = mcpConnection.tools || [];
@@ -377,7 +381,6 @@ export class ProtocolCompliance {
       results.errors = results.checks.flatMap(c => c.errors);
       results.warnings = results.checks.flatMap(c => c.warnings);
       results.overall = results.errors.length === 0 ? 'passed' : 'failed';
-
     } catch (error) {
       results.overall = 'error';
       results.errors.push(error.message);

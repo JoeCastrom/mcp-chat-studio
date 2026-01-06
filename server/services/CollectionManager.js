@@ -26,13 +26,7 @@ export class CollectionManager {
    * Create a new collection
    */
   createCollection(data) {
-    const {
-      name,
-      description = '',
-      scenarios = [],
-      variables = {},
-      auth = null
-    } = data;
+    const { name, description = '', scenarios = [], variables = {}, auth = null } = data;
 
     if (!name) {
       throw new Error('Collection name is required');
@@ -46,7 +40,7 @@ export class CollectionManager {
       variables,
       auth,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.saveCollection(collection);
@@ -77,7 +71,7 @@ export class CollectionManager {
             name: collection.name,
             description: collection.description,
             scenarioCount: collection.scenarios?.length || 0,
-            updatedAt: collection.updatedAt
+            updatedAt: collection.updatedAt,
           });
         } catch (error) {
           console.error(`Failed to load collection ${file}:`, error.message);
@@ -85,8 +79,8 @@ export class CollectionManager {
       }
     }
 
-    return collections.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    return collections.sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
   }
 
@@ -114,7 +108,7 @@ export class CollectionManager {
       ...collection,
       ...updates,
       id: collection.id, // Preserve ID
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.saveCollection(updated);
@@ -151,7 +145,7 @@ export class CollectionManager {
     collection.scenarios.push({
       id: this.generateId(),
       ...scenario,
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
     });
 
     collection.updatedAt = new Date().toISOString();
@@ -192,16 +186,14 @@ export class CollectionManager {
       retries = 0,
       retryDelayMs = 0,
       iterations = 1,
-      iterationData = []
+      iterationData = [],
     } = options;
     const parsedIterations = Number.isFinite(Number(iterations))
       ? Math.max(1, parseInt(iterations, 10))
       : 1;
     const dataRows = Array.isArray(iterationData) ? iterationData : [];
     const iterationCount = Math.max(parsedIterations, dataRows.length || 0, 1);
-    const maxRetries = Number.isFinite(Number(retries))
-      ? Math.max(0, parseInt(retries, 10))
-      : 0;
+    const maxRetries = Number.isFinite(Number(retries)) ? Math.max(0, parseInt(retries, 10)) : 0;
     const retryDelay = Number.isFinite(Number(retryDelayMs))
       ? Math.max(0, parseInt(retryDelayMs, 10))
       : 0;
@@ -220,9 +212,9 @@ export class CollectionManager {
       iterationDataCount: dataRows.length,
       retryPolicy: {
         retries: maxRetries,
-        retryDelayMs: retryDelay
+        retryDelayMs: retryDelay,
       },
-      scenarios: []
+      scenarios: [],
     };
 
     const startTime = Date.now();
@@ -245,7 +237,7 @@ export class CollectionManager {
             ...collection.variables,
             ...environment,
             ...(scenario.variables || {}),
-            ...rowVars
+            ...rowVars,
           };
           if (!Object.prototype.hasOwnProperty.call(mergedVariables, 'iteration')) {
             mergedVariables.iteration = iterationIndex + 1;
@@ -260,14 +252,8 @@ export class CollectionManager {
               sessionId,
               retries: maxRetries,
               retryDelayMs: retryDelay,
-              preScripts: [
-                ...(collection.preScripts || []),
-                ...(scenario.preScripts || [])
-              ],
-              postScripts: [
-                ...(collection.postScripts || []),
-                ...(scenario.postScripts || [])
-              ]
+              preScripts: [...(collection.preScripts || []), ...(scenario.preScripts || [])],
+              postScripts: [...(collection.postScripts || []), ...(scenario.postScripts || [])],
             }
           );
           scenarioResult.iteration = iterationIndex + 1;
@@ -299,7 +285,7 @@ export class CollectionManager {
             scenarioName: scenario.name,
             status: 'failed',
             error: error.message,
-            iteration: iterationIndex + 1
+            iteration: iterationIndex + 1,
           });
           results.failed++;
 
@@ -325,9 +311,8 @@ export class CollectionManager {
   async runScenario(scenario, variables, auth, options = {}) {
     const mcpManager = getMCPManager();
     const scriptRunner = getScriptRunner();
-    const steps = Array.isArray(scenario.steps) && scenario.steps.length > 0
-      ? scenario.steps
-      : [scenario];
+    const steps =
+      Array.isArray(scenario.steps) && scenario.steps.length > 0 ? scenario.steps : [scenario];
 
     const result = {
       scenarioId: scenario.id,
@@ -335,7 +320,7 @@ export class CollectionManager {
       status: 'passed',
       steps: [],
       duration: 0,
-      variables: { ...variables }
+      variables: { ...variables },
     };
 
     const startTime = Date.now();
@@ -349,24 +334,21 @@ export class CollectionManager {
         assertions: stepDef.assertions || [],
         extract: stepDef.extract || stepDef.variables || null,
         preScripts: stepDef.preScripts || [],
-        postScripts: stepDef.postScripts || []
+        postScripts: stepDef.postScripts || [],
       };
 
       if (!step.server || !step.tool) {
         result.steps.push({
           index,
           status: 'skipped',
-          error: 'Missing server or tool name'
+          error: 'Missing server or tool name',
         });
         result.status = 'failed';
         if (options.stopOnError) break;
         continue;
       }
 
-      const preScripts = [
-        ...(options.preScripts || []),
-        ...(step.preScripts || [])
-      ];
+      const preScripts = [...(options.preScripts || []), ...(step.preScripts || [])];
 
       let context = { variables: { ...result.variables }, scenario, step, index };
       if (preScripts.length > 0) {
@@ -381,7 +363,7 @@ export class CollectionManager {
             server: step.server,
             tool: step.tool,
             status: 'failed',
-            error: `Pre-script failed: ${error.message}`
+            error: `Pre-script failed: ${error.message}`,
           });
           result.status = 'failed';
           if (options.stopOnError) break;
@@ -404,7 +386,12 @@ export class CollectionManager {
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
         attempts = attempt + 1;
         try {
-          response = await mcpManager.callTool(step.server, step.tool, resolvedArgs, options.sessionId);
+          response = await mcpManager.callTool(
+            step.server,
+            step.tool,
+            resolvedArgs,
+            options.sessionId
+          );
           errorMessage = null;
           break;
         } catch (error) {
@@ -428,10 +415,7 @@ export class CollectionManager {
       const extracted = errorMessage ? {} : this.extractVariables(normalizedResponse, step.extract);
       result.variables = { ...result.variables, ...extracted };
 
-      const postScripts = [
-        ...(options.postScripts || []),
-        ...(step.postScripts || [])
-      ];
+      const postScripts = [...(options.postScripts || []), ...(step.postScripts || [])];
       if (postScripts.length > 0) {
         try {
           const postResult = await scriptRunner.executeAllPostScripts(
@@ -443,19 +427,21 @@ export class CollectionManager {
             result.variables = { ...postResult.context.variables };
           }
           if (postResult?.assertions?.length) {
-            assertionResults.push(...postResult.assertions.map(a => ({
-              assertion: { name: a.name || 'script' },
-              passed: a.passed,
-              message: a.error || a.name,
-              actualValue: null
-            })));
+            assertionResults.push(
+              ...postResult.assertions.map(a => ({
+                assertion: { name: a.name || 'script' },
+                passed: a.passed,
+                message: a.error || a.name,
+                actualValue: null,
+              }))
+            );
           }
         } catch (error) {
           assertionResults.push({
             assertion: { name: 'post-script' },
             passed: false,
             message: `Post-script failed: ${error.message}`,
-            actualValue: null
+            actualValue: null,
           });
         }
       }
@@ -474,7 +460,7 @@ export class CollectionManager {
         status: stepStatus,
         response: normalizedResponse,
         assertions: assertionResults,
-        extracted
+        extracted,
       });
 
       if (options.stopOnError && stepStatus === 'failed') {
@@ -597,11 +583,15 @@ export class CollectionManager {
       switch (operator) {
         case 'equals':
           passed = JSON.stringify(actualValue) === JSON.stringify(value);
-          message = passed ? `${path} equals expected` : `${path} = ${JSON.stringify(actualValue)}, expected ${JSON.stringify(value)}`;
+          message = passed
+            ? `${path} equals expected`
+            : `${path} = ${JSON.stringify(actualValue)}, expected ${JSON.stringify(value)}`;
           break;
         case 'not_equals':
           passed = JSON.stringify(actualValue) !== JSON.stringify(value);
-          message = passed ? `${path} does not equal ${JSON.stringify(value)}` : `${path} unexpectedly equals ${JSON.stringify(value)}`;
+          message = passed
+            ? `${path} does not equal ${JSON.stringify(value)}`
+            : `${path} unexpectedly equals ${JSON.stringify(value)}`;
           break;
         case 'contains':
           passed = String(actualValue).includes(value);
@@ -610,7 +600,9 @@ export class CollectionManager {
         case 'matches': {
           const regex = new RegExp(String(value).replace(/^\/|\/$/g, ''));
           passed = regex.test(String(actualValue));
-          message = passed ? `${path} matches ${value}` : `${path} = "${actualValue}" does not match ${value}`;
+          message = passed
+            ? `${path} matches ${value}`
+            : `${path} = "${actualValue}" does not match ${value}`;
           break;
         }
         case 'exists':
@@ -624,25 +616,33 @@ export class CollectionManager {
         case 'type': {
           const actualType = this.getType(actualValue);
           passed = actualType === value;
-          message = passed ? `${path} is type ${value}` : `${path} is ${actualType}, expected ${value}`;
+          message = passed
+            ? `${path} is type ${value}`
+            : `${path} is ${actualType}, expected ${value}`;
           break;
         }
         case 'length': {
           const len = actualValue?.length || 0;
           passed = len === value;
-          message = passed ? `${path}.length = ${value}` : `${path}.length = ${len}, expected ${value}`;
+          message = passed
+            ? `${path}.length = ${value}`
+            : `${path}.length = ${len}, expected ${value}`;
           break;
         }
         case 'length_gt': {
           const len = actualValue?.length || 0;
           passed = len > value;
-          message = passed ? `${path}.length > ${value}` : `${path}.length = ${len}, expected > ${value}`;
+          message = passed
+            ? `${path}.length > ${value}`
+            : `${path}.length = ${len}, expected > ${value}`;
           break;
         }
         case 'length_gte': {
           const len = actualValue?.length || 0;
           passed = len >= value;
-          message = passed ? `${path}.length >= ${value}` : `${path}.length = ${len}, expected >= ${value}`;
+          message = passed
+            ? `${path}.length >= ${value}`
+            : `${path}.length = ${len}, expected >= ${value}`;
           break;
         }
         case 'gt':
@@ -651,7 +651,9 @@ export class CollectionManager {
           break;
         case 'gte':
           passed = Number(actualValue) >= Number(value);
-          message = passed ? `${path} >= ${value}` : `${path} = ${actualValue}, expected >= ${value}`;
+          message = passed
+            ? `${path} >= ${value}`
+            : `${path} = ${actualValue}, expected >= ${value}`;
           break;
         case 'lt':
           passed = Number(actualValue) < Number(value);
@@ -659,7 +661,9 @@ export class CollectionManager {
           break;
         case 'lte':
           passed = Number(actualValue) <= Number(value);
-          message = passed ? `${path} <= ${value}` : `${path} = ${actualValue}, expected <= ${value}`;
+          message = passed
+            ? `${path} <= ${value}`
+            : `${path} = ${actualValue}, expected <= ${value}`;
           break;
         default:
           message = `Unknown operator: ${operator}`;
@@ -679,7 +683,10 @@ export class CollectionManager {
 
   parseFilterValue(raw) {
     const trimmed = raw.trim();
-    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    if (
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    ) {
       return trimmed.slice(1, -1);
     }
     if (trimmed === 'true') return true;
@@ -698,7 +705,7 @@ export class CollectionManager {
         type: 'filter',
         path: match[1].trim(),
         operator: match[2],
-        value: this.parseFilterValue(match[3])
+        value: this.parseFilterValue(match[3]),
       };
     }
     match = raw.match(/^@\.([^\s]+)\s*$/);
@@ -707,14 +714,14 @@ export class CollectionManager {
         type: 'filter',
         path: match[1].trim(),
         operator: 'truthy',
-        value: true
+        value: true,
       };
     }
     return {
       type: 'filter',
       path: raw,
       operator: 'truthy',
-      value: true
+      value: true,
     };
   }
 
@@ -830,7 +837,7 @@ export class CollectionManager {
       id: this.generateId(),
       name: newName || `${original.name} (Copy)`,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.saveCollection(forked);
@@ -893,7 +900,7 @@ export class CollectionManager {
     return {
       totalCollections: collections.length,
       totalScenarios,
-      recentCollections: collections.slice(0, 5)
+      recentCollections: collections.slice(0, 5),
     };
   }
 }

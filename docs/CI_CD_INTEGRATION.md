@@ -73,7 +73,7 @@ services:
   mcp-chat-studio:
     image: ghcr.io/joecastrom/mcp-chat-studio:latest
     ports:
-      - "3082:3082"
+      - '3082:3082'
     volumes:
       - ./config.yaml:/app/config.yaml
 
@@ -103,6 +103,7 @@ echo "✅ MCP tests passed!"
 ```
 
 Make it executable:
+
 ```bash
 chmod +x .git/hooks/pre-commit
 ```
@@ -167,7 +168,7 @@ steps:
       {
         "server": "my-server",
         "tool": "my-tool",
-        "args": {"param": "value"},
+        "args": { "param": "value" },
         "expectedResponse": {
           "content": [
             {
@@ -192,13 +193,13 @@ dev:
   mcpServers:
     my-server:
       command: npm
-      args: ["run", "dev"]
+      args: ['run', 'dev']
 
 production:
   mcpServers:
     my-server:
       command: node
-      args: ["dist/index.js"]
+      args: ['dist/index.js']
 ```
 
 ### 2. Matrix Testing

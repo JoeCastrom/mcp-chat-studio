@@ -37,7 +37,7 @@ export class DocumentationGenerator {
       generatedAt: new Date().toISOString(),
       tools: tools.tools || [],
       resources: resources.resources || [],
-      prompts: prompts.prompts || []
+      prompts: prompts.prompts || [],
     };
 
     if (format === 'markdown') {
@@ -435,7 +435,7 @@ export class DocumentationGenerator {
   generateExample(tool) {
     const example = {
       tool: tool.name,
-      arguments: {}
+      arguments: {},
     };
 
     if (tool.inputSchema && tool.inputSchema.properties) {
@@ -501,14 +501,14 @@ export class DocumentationGenerator {
         results.push({
           serverName,
           ...file,
-          success: true
+          success: true,
         });
       } catch (error) {
         console.error(`[DocumentationGenerator] Failed for ${serverName}:`, error.message);
         results.push({
           serverName,
           success: false,
-          error: error.message
+          error: error.message,
         });
       }
     }

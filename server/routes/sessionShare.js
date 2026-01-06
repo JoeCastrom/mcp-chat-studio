@@ -17,7 +17,7 @@ router.post('/', (req, res) => {
   logAudit('session.share_create', { sessionId, shareToken: share.token });
   res.json({
     token: share.token,
-    expiresAt: share.expiresAt
+    expiresAt: share.expiresAt,
   });
 });
 

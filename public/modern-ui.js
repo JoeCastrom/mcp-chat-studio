@@ -5,16 +5,16 @@
 const modernUI = {
   // Current active view
   activeView: 'chat',
-  
+
   // Secondary panel state
   secondaryOpen: false,
   secondaryView: null,
-  
+
   // Command palette state
   commandPaletteOpen: false,
   selectedCommandIndex: 0,
   filteredCommands: [],
-  
+
   // View configuration
   views: {
     chat: { icon: '💬', label: 'Chat', primary: true },
@@ -30,34 +30,167 @@ const modernUI = {
     mocks: { icon: '🎭', label: 'Mocks', primary: false },
     scripts: { icon: '📝', label: 'Scripts', primary: false },
     docs: { icon: '📖', label: 'Documentation', primary: false },
-    contracts: { icon: '📋', label: 'Contracts', primary: false }
+    contracts: { icon: '📋', label: 'Contracts', primary: false },
   },
 
   // All commands for command palette
   commands: [
     // Navigation
-    { id: 'chat', icon: '💬', title: 'Chat', desc: 'AI chat with tool calling', category: 'Navigate', shortcut: 'Ctrl+1' },
-    { id: 'inspector', icon: '🔧', title: 'Inspector', desc: 'Debug MCP protocol', category: 'Navigate', shortcut: 'Ctrl+2' },
-    { id: 'workflows', icon: '⛓️', title: 'Workflows', desc: 'Visual automation builder', category: 'Navigate', shortcut: 'Ctrl+3' },
-    { id: 'scenarios', icon: '🧪', title: 'Scenarios', desc: 'Record and replay tests', category: 'Navigate', shortcut: 'Ctrl+4' },
-    { id: 'collections', icon: '📚', title: 'Collections', desc: 'Organize test suites', category: 'Navigate', shortcut: 'Ctrl+5' },
-    { id: 'history', icon: '📜', title: 'History', desc: 'Tool execution log', category: 'Navigate' },
-    { id: 'toolexplorer', icon: '📊', title: 'Analytics', desc: 'Usage statistics & health', category: 'Navigate' },
-    { id: 'monitors', icon: '⏰', title: 'Monitors', desc: 'Scheduled test runs', category: 'Navigate' },
-    { id: 'generator', icon: '⚙️', title: 'Generator', desc: 'Create MCP server code', category: 'Navigate' },
+    {
+      id: 'chat',
+      icon: '💬',
+      title: 'Chat',
+      desc: 'AI chat with tool calling',
+      category: 'Navigate',
+      shortcut: 'Ctrl+1',
+    },
+    {
+      id: 'inspector',
+      icon: '🔧',
+      title: 'Inspector',
+      desc: 'Debug MCP protocol',
+      category: 'Navigate',
+      shortcut: 'Ctrl+2',
+    },
+    {
+      id: 'workflows',
+      icon: '⛓️',
+      title: 'Workflows',
+      desc: 'Visual automation builder',
+      category: 'Navigate',
+      shortcut: 'Ctrl+3',
+    },
+    {
+      id: 'scenarios',
+      icon: '🧪',
+      title: 'Scenarios',
+      desc: 'Record and replay tests',
+      category: 'Navigate',
+      shortcut: 'Ctrl+4',
+    },
+    {
+      id: 'collections',
+      icon: '📚',
+      title: 'Collections',
+      desc: 'Organize test suites',
+      category: 'Navigate',
+      shortcut: 'Ctrl+5',
+    },
+    {
+      id: 'history',
+      icon: '📜',
+      title: 'History',
+      desc: 'Tool execution log',
+      category: 'Navigate',
+    },
+    {
+      id: 'toolexplorer',
+      icon: '📊',
+      title: 'Analytics',
+      desc: 'Usage statistics & health',
+      category: 'Navigate',
+    },
+    {
+      id: 'monitors',
+      icon: '⏰',
+      title: 'Monitors',
+      desc: 'Scheduled test runs',
+      category: 'Navigate',
+    },
+    {
+      id: 'generator',
+      icon: '⚙️',
+      title: 'Generator',
+      desc: 'Create MCP server code',
+      category: 'Navigate',
+    },
     { id: 'mocks', icon: '🎭', title: 'Mocks', desc: 'Mock MCP servers', category: 'Navigate' },
-    { id: 'scripts', icon: '📝', title: 'Scripts', desc: 'Pre/Post test scripts', category: 'Navigate' },
-    { id: 'docs', icon: '📖', title: 'Documentation', desc: 'Auto-generated docs', category: 'Navigate' },
-    { id: 'contracts', icon: '📋', title: 'Contracts', desc: 'Schema validation', category: 'Navigate' },
+    {
+      id: 'scripts',
+      icon: '📝',
+      title: 'Scripts',
+      desc: 'Pre/Post test scripts',
+      category: 'Navigate',
+    },
+    {
+      id: 'docs',
+      icon: '📖',
+      title: 'Documentation',
+      desc: 'Auto-generated docs',
+      category: 'Navigate',
+    },
+    {
+      id: 'contracts',
+      icon: '📋',
+      title: 'Contracts',
+      desc: 'Schema validation',
+      category: 'Navigate',
+    },
     // Actions
-    { id: 'test-all', icon: '🚀', title: 'Test All Tools', desc: 'Smoke test connected servers', category: 'Actions', action: () => testAllTools?.() },
-    { id: 'add-server', icon: '➕', title: 'Add MCP Server', desc: 'Configure new server', category: 'Actions', action: () => showAddServerModal?.() },
-    { id: 'variables', icon: '🧩', title: 'Variables Manager', desc: 'Global & environment variables', category: 'Actions', action: () => showVariablesManager?.() },
-    { id: 'settings', icon: '⚙️', title: 'LLM Settings', desc: 'Configure AI provider', category: 'Actions', action: () => showSettingsModal?.() },
-    { id: 'clear-chat', icon: '🗑️', title: 'Clear Chat', desc: 'Start fresh conversation', category: 'Actions', action: () => clearChat?.() },
-    { id: 'export', icon: '📥', title: 'Export Chat', desc: 'Download conversation', category: 'Actions', action: () => exportChat?.() },
-    { id: 'shortcuts', icon: '⌨️', title: 'Keyboard Shortcuts', desc: 'View all hotkeys', category: 'Actions', action: () => showShortcutsHelp?.() },
-    { id: 'mcp-servers', icon: '🔌', title: 'Toggle MCP Sidebar', desc: 'Show/hide server list', category: 'Actions', action: () => modernUI.toggleMCPSidebar() }
+    {
+      id: 'test-all',
+      icon: '🚀',
+      title: 'Test All Tools',
+      desc: 'Smoke test connected servers',
+      category: 'Actions',
+      action: () => testAllTools?.(),
+    },
+    {
+      id: 'add-server',
+      icon: '➕',
+      title: 'Add MCP Server',
+      desc: 'Configure new server',
+      category: 'Actions',
+      action: () => showAddServerModal?.(),
+    },
+    {
+      id: 'variables',
+      icon: '🧩',
+      title: 'Variables Manager',
+      desc: 'Global & environment variables',
+      category: 'Actions',
+      action: () => showVariablesManager?.(),
+    },
+    {
+      id: 'settings',
+      icon: '⚙️',
+      title: 'LLM Settings',
+      desc: 'Configure AI provider',
+      category: 'Actions',
+      action: () => showSettingsModal?.(),
+    },
+    {
+      id: 'clear-chat',
+      icon: '🗑️',
+      title: 'Clear Chat',
+      desc: 'Start fresh conversation',
+      category: 'Actions',
+      action: () => clearChat?.(),
+    },
+    {
+      id: 'export',
+      icon: '📥',
+      title: 'Export Chat',
+      desc: 'Download conversation',
+      category: 'Actions',
+      action: () => exportChat?.(),
+    },
+    {
+      id: 'shortcuts',
+      icon: '⌨️',
+      title: 'Keyboard Shortcuts',
+      desc: 'View all hotkeys',
+      category: 'Actions',
+      action: () => showShortcutsHelp?.(),
+    },
+    {
+      id: 'mcp-servers',
+      icon: '🔌',
+      title: 'Toggle MCP Sidebar',
+      desc: 'Show/hide server list',
+      category: 'Actions',
+      action: () => modernUI.toggleMCPSidebar(),
+    },
   ],
 
   // Initialize modern UI
@@ -66,7 +199,7 @@ const modernUI = {
     this.createCommandPalette();
     this.setupKeyboardShortcuts();
     this.applyModernLayout();
-    
+
     // Show hint on first load
     if (!localStorage.getItem('mcp_modern_ui_hint_shown')) {
       this.showFloatingHint();
@@ -79,10 +212,10 @@ const modernUI = {
     const sidebar = document.createElement('div');
     sidebar.className = 'icon-sidebar';
     sidebar.id = 'iconSidebar';
-    
+
     const mainIcons = document.createElement('div');
     mainIcons.className = 'icon-sidebar-main';
-    
+
     // Primary view icons
     const primaryViews = Object.entries(this.views).filter(([_, v]) => v.primary);
     primaryViews.forEach(([id, view]) => {
@@ -94,13 +227,13 @@ const modernUI = {
       btn.onclick = () => this.switchView(id);
       mainIcons.appendChild(btn);
     });
-    
+
     sidebar.appendChild(mainIcons);
-    
+
     // Bottom section with more menu
     const bottomIcons = document.createElement('div');
     bottomIcons.className = 'icon-sidebar-bottom';
-    
+
     // MCP Servers toggle
     const mcpBtn = document.createElement('button');
     mcpBtn.className = 'sidebar-icon';
@@ -108,20 +241,20 @@ const modernUI = {
     mcpBtn.innerHTML = '🔌';
     mcpBtn.onclick = () => this.toggleMCPSidebar();
     bottomIcons.appendChild(mcpBtn);
-    
+
     // More menu button
     const moreBtn = document.createElement('button');
     moreBtn.className = 'sidebar-icon';
     moreBtn.setAttribute('data-tooltip', 'More');
     moreBtn.innerHTML = '☰';
-    moreBtn.onclick = (e) => this.toggleMoreMenu(e);
+    moreBtn.onclick = e => this.toggleMoreMenu(e);
     bottomIcons.appendChild(moreBtn);
-    
+
     sidebar.appendChild(bottomIcons);
-    
+
     // Create more menu
     this.createMoreMenu();
-    
+
     document.body.appendChild(sidebar);
   },
 
@@ -130,7 +263,7 @@ const modernUI = {
     const menu = document.createElement('div');
     menu.className = 'more-menu';
     menu.id = 'moreMenu';
-    
+
     const secondaryViews = Object.entries(this.views).filter(([_, v]) => !v.primary);
     secondaryViews.forEach(([id, view]) => {
       const item = document.createElement('div');
@@ -145,11 +278,11 @@ const modernUI = {
       };
       menu.appendChild(item);
     });
-    
+
     document.body.appendChild(menu);
-    
+
     // Close on outside click
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', e => {
       if (!e.target.closest('.more-menu') && !e.target.closest('[data-tooltip="More"]')) {
         this.closeMoreMenu();
       }
@@ -161,10 +294,10 @@ const modernUI = {
     const overlay = document.createElement('div');
     overlay.className = 'command-palette-overlay';
     overlay.id = 'commandPalette';
-    overlay.onclick = (e) => {
+    overlay.onclick = e => {
       if (e.target === overlay) this.closeCommandPalette();
     };
-    
+
     overlay.innerHTML = `
       <div class="command-palette">
         <div class="command-input-wrapper">
@@ -186,23 +319,23 @@ const modernUI = {
         </div>
       </div>
     `;
-    
+
     document.body.appendChild(overlay);
-    
+
     // Setup input handling
     const input = document.getElementById('commandInput');
     input.addEventListener('input', () => this.filterCommands(input.value));
-    input.addEventListener('keydown', (e) => this.handleCommandKey(e));
+    input.addEventListener('keydown', e => this.handleCommandKey(e));
   },
 
   // Apply modern layout class
   applyModernLayout() {
     document.body.classList.add('modern-layout');
-    
+
     // Hide old tab navigation
     const tabNav = document.querySelector('.tab-nav');
     if (tabNav) tabNav.style.display = 'none';
-    
+
     // Adjust main container
     const main = document.querySelector('.main');
     if (main) main.classList.add('main-with-sidebar');
@@ -211,7 +344,7 @@ const modernUI = {
   // Switch primary view
   switchView(viewId) {
     this.activeView = viewId;
-    
+
     // Update sidebar icons
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.classList.remove('active');
@@ -219,12 +352,12 @@ const modernUI = {
         btn.classList.add('active');
       }
     });
-    
+
     // Use existing switchTab function
     if (typeof switchTab === 'function') {
       switchTab(viewId);
     }
-    
+
     // Close secondary panel if opening primary
     if (this.views[viewId]?.primary) {
       this.closeSecondaryPanel();
@@ -235,12 +368,12 @@ const modernUI = {
   openSecondaryPanel(viewId) {
     this.secondaryView = viewId;
     this.secondaryOpen = true;
-    
+
     // For now, use existing tab switching
     if (typeof switchTab === 'function') {
       switchTab(viewId);
     }
-    
+
     this.closeMoreMenu();
   },
 
@@ -276,7 +409,7 @@ const modernUI = {
     this.commandPaletteOpen = true;
     const overlay = document.getElementById('commandPalette');
     const input = document.getElementById('commandInput');
-    
+
     overlay?.classList.add('active');
     input?.focus();
     input.value = '';
@@ -292,17 +425,18 @@ const modernUI = {
   // Filter commands
   filterCommands(query) {
     const q = query.toLowerCase().trim();
-    
+
     if (!q) {
       this.filteredCommands = this.commands;
     } else {
-      this.filteredCommands = this.commands.filter(cmd => 
-        cmd.title.toLowerCase().includes(q) ||
-        cmd.desc.toLowerCase().includes(q) ||
-        cmd.category.toLowerCase().includes(q)
+      this.filteredCommands = this.commands.filter(
+        cmd =>
+          cmd.title.toLowerCase().includes(q) ||
+          cmd.desc.toLowerCase().includes(q) ||
+          cmd.category.toLowerCase().includes(q)
       );
     }
-    
+
     this.selectedCommandIndex = 0;
     this.renderCommands();
   },
@@ -311,21 +445,21 @@ const modernUI = {
   renderCommands() {
     const container = document.getElementById('commandResults');
     if (!container) return;
-    
+
     // Group by category
     const grouped = {};
     this.filteredCommands.forEach(cmd => {
       if (!grouped[cmd.category]) grouped[cmd.category] = [];
       grouped[cmd.category].push(cmd);
     });
-    
+
     let html = '';
     let index = 0;
-    
+
     for (const [category, commands] of Object.entries(grouped)) {
       html += `<div class="command-group">
         <div class="command-group-title">${category}</div>`;
-      
+
       commands.forEach(cmd => {
         const selected = index === this.selectedCommandIndex ? 'selected' : '';
         html += `
@@ -340,12 +474,14 @@ const modernUI = {
         `;
         index++;
       });
-      
+
       html += '</div>';
     }
-    
-    container.innerHTML = html || '<div style="padding: 20px; text-align: center; color: var(--text-muted)">No results found</div>';
-    
+
+    container.innerHTML =
+      html ||
+      '<div style="padding: 20px; text-align: center; color: var(--text-muted)">No results found</div>';
+
     // Add click handlers
     container.querySelectorAll('.command-item').forEach(item => {
       item.onclick = () => this.executeCommand(item.dataset.id);
@@ -394,9 +530,9 @@ const modernUI = {
   executeCommand(id) {
     const cmd = this.commands.find(c => c.id === id);
     if (!cmd) return;
-    
+
     this.closeCommandPalette();
-    
+
     if (cmd.action) {
       cmd.action();
     } else if (this.views[id]) {
@@ -410,7 +546,7 @@ const modernUI = {
 
   // Setup keyboard shortcuts
   setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', e => {
       // Ctrl+K - Command palette
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
@@ -420,7 +556,7 @@ const modernUI = {
           this.openCommandPalette();
         }
       }
-      
+
       // Escape - Close modals
       if (e.key === 'Escape') {
         if (this.commandPaletteOpen) {
@@ -436,14 +572,14 @@ const modernUI = {
     hint.className = 'floating-hint';
     hint.innerHTML = `Press <kbd>Ctrl+K</kbd> for quick navigation`;
     document.body.appendChild(hint);
-    
+
     // Auto-hide after 5 seconds
     setTimeout(() => {
       hint.style.opacity = '0';
       hint.style.transform = 'translateX(-50%) translateY(20px)';
       setTimeout(() => hint.remove(), 300);
     }, 5000);
-  }
+  },
 };
 
 // Initialize when DOM is ready

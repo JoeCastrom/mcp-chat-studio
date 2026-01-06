@@ -39,7 +39,7 @@ function encryptPayload(payload, key) {
   return {
     iv: iv.toString('base64'),
     tag: tag.toString('base64'),
-    data: encrypted.toString('base64')
+    data: encrypted.toString('base64'),
   };
 }
 

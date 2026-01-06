@@ -9,7 +9,7 @@ const mockFileData = new Map();
 const mockDirContents = new Map();
 
 jest.unstable_mockModule('fs', () => ({
-  readFileSync: jest.fn((path) => {
+  readFileSync: jest.fn(path => {
     if (mockFileData.has(path)) {
       return mockFileData.get(path);
     }
@@ -18,37 +18,40 @@ jest.unstable_mockModule('fs', () => ({
   writeFileSync: jest.fn((path, data) => {
     mockFileData.set(path, data);
   }),
-  existsSync: jest.fn((path) => {
+  existsSync: jest.fn(path => {
     return mockFileData.has(path) || mockDirContents.has(path) || path.includes('collections');
   }),
   mkdirSync: jest.fn(),
-  readdirSync: jest.fn((path) => {
+  readdirSync: jest.fn(path => {
     return mockDirContents.get(path) || [];
   }),
-  unlinkSync: jest.fn((path) => {
+  unlinkSync: jest.fn(path => {
     mockFileData.delete(path);
-  })
+  }),
 }));
 
 // Mock MCPManager
 jest.unstable_mockModule('../services/MCPManager.js', () => ({
   getMCPManager: jest.fn(() => ({
     callTool: jest.fn().mockResolvedValue({
-      content: [{ type: 'text', text: '{"status": "success", "data": {"id": 123}}' }]
-    })
-  }))
+      content: [{ type: 'text', text: '{"status": "success", "data": {"id": 123}}' }],
+    }),
+  })),
 }));
 
 // Mock ScriptRunner
 jest.unstable_mockModule('../services/ScriptRunner.js', () => ({
   getScriptRunner: jest.fn(() => ({
     executeAllPreScripts: jest.fn().mockResolvedValue({ variables: {} }),
-    executeAllPostScripts: jest.fn().mockResolvedValue({ context: { variables: {} }, assertions: [] })
-  }))
+    executeAllPostScripts: jest
+      .fn()
+      .mockResolvedValue({ context: { variables: {} }, assertions: [] }),
+  })),
 }));
 
 // Import after mocking
-const { CollectionManager, getCollectionManager } = await import('../services/CollectionManager.js');
+const { CollectionManager, getCollectionManager } =
+  await import('../services/CollectionManager.js');
 
 describe('CollectionManager', () => {
   let manager;
@@ -57,7 +60,7 @@ describe('CollectionManager', () => {
     jest.clearAllMocks();
     mockFileData.clear();
     mockDirContents.clear();
-    
+
     // Create fresh instance for each test
     manager = new CollectionManager();
   });
@@ -66,7 +69,7 @@ describe('CollectionManager', () => {
     test('createCollection should create collection with name and description', () => {
       const collection = manager.createCollection({
         name: 'Test Collection',
-        description: 'A test collection'
+        description: 'A test collection',
       });
 
       expect(collection.id).toBeDefined();
@@ -78,8 +81,9 @@ describe('CollectionManager', () => {
     });
 
     test('createCollection should throw error when name is missing', () => {
-      expect(() => manager.createCollection({ description: 'No name' }))
-        .toThrow('Collection name is required');
+      expect(() => manager.createCollection({ description: 'No name' })).toThrow(
+        'Collection name is required'
+      );
     });
 
     test('createCollection should create with default values', () => {
@@ -104,10 +108,7 @@ describe('CollectionManager', () => {
 
   describe('Variable Substitution', () => {
     test('applyTemplateVariables should replace {{var}} in strings', () => {
-      const result = manager.applyTemplateVariables(
-        'Hello {{name}}!',
-        { name: 'World' }
-      );
+      const result = manager.applyTemplateVariables('Hello {{name}}!', { name: 'World' });
 
       expect(result).toBe('Hello World!');
     });
@@ -123,28 +124,22 @@ describe('CollectionManager', () => {
     });
 
     test('applyTemplateVariables should handle arrays', () => {
-      const result = manager.applyTemplateVariables(
-        ['{{a}}', '{{b}}'],
-        { a: 'first', b: 'second' }
-      );
+      const result = manager.applyTemplateVariables(['{{a}}', '{{b}}'], {
+        a: 'first',
+        b: 'second',
+      });
 
       expect(result).toEqual(['first', 'second']);
     });
 
     test('applyTemplateVariables should preserve unmatched variables', () => {
-      const result = manager.applyTemplateVariables(
-        'Hello {{unknown}}!',
-        { name: 'World' }
-      );
+      const result = manager.applyTemplateVariables('Hello {{unknown}}!', { name: 'World' });
 
       expect(result).toBe('Hello {{unknown}}!');
     });
 
     test('applyTemplateVariables should handle nested variable paths', () => {
-      const result = manager.applyTemplateVariables(
-        '{{user.name}}',
-        { user: { name: 'John' } }
-      );
+      const result = manager.applyTemplateVariables('{{user.name}}', { user: { name: 'John' } });
 
       expect(result).toBe('John');
     });
@@ -257,18 +252,12 @@ describe('CollectionManager', () => {
     });
 
     test('getValueAtPath should get array element', () => {
-      const result = manager.getValueAtPath(
-        { items: ['a', 'b', 'c'] },
-        '$.items[1]'
-      );
+      const result = manager.getValueAtPath({ items: ['a', 'b', 'c'] }, '$.items[1]');
       expect(result).toBe('b');
     });
 
     test('getValueAtPath should handle wildcard', () => {
-      const result = manager.getValueAtPath(
-        { items: [{ id: 1 }, { id: 2 }] },
-        '$.items[*].id'
-      );
+      const result = manager.getValueAtPath({ items: [{ id: 1 }, { id: 2 }] }, '$.items[*].id');
       expect(result).toEqual([1, 2]);
     });
   });
@@ -276,7 +265,7 @@ describe('CollectionManager', () => {
   describe('Response Normalization', () => {
     test('normalizeResponse should parse MCP content', () => {
       const result = manager.normalizeResponse({
-        content: [{ type: 'text', text: '{"status": "ok"}' }]
+        content: [{ type: 'text', text: '{"status": "ok"}' }],
       });
 
       expect(result).toEqual({ status: 'ok' });
@@ -304,10 +293,9 @@ describe('CollectionManager', () => {
     });
 
     test('extractVariables should handle array config', () => {
-      const result = manager.extractVariables(
-        { data: { id: 456 } },
-        [{ name: 'extractedId', path: '$.data.id' }]
-      );
+      const result = manager.extractVariables({ data: { id: 456 } }, [
+        { name: 'extractedId', path: '$.data.id' },
+      ]);
 
       expect(result).toEqual({ extractedId: 456 });
     });

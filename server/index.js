@@ -56,32 +56,37 @@ const swaggerOptions = {
     info: {
       title: 'MCP Chat Studio API',
       version: '1.5.0',
-      description: 'API for MCP Chat Studio - Multi-provider LLM support with MCP tool integration, debugging, testing, and analytics',
+      description:
+        'API for MCP Chat Studio - Multi-provider LLM support with MCP tool integration, debugging, testing, and analytics',
       contact: {
         name: 'MCP Chat Studio',
-        url: 'https://github.com/JoeCastrom/mcp-chat-studio'
-      }
+        url: 'https://github.com/JoeCastrom/mcp-chat-studio',
+      },
     },
-    servers: [
-      { url: 'http://localhost:3082', description: 'Local development server' }
-    ],
+    servers: [{ url: 'http://localhost:3082', description: 'Local development server' }],
     tags: [
       { name: 'Chat', description: 'Chat and LLM operations' },
       { name: 'MCP', description: 'MCP server and tool management' },
       { name: 'Workflows', description: 'Workflow builder operations' },
-      { name: 'Inspector', description: 'Advanced inspector features (timeline, bulk testing, diff)' },
+      {
+        name: 'Inspector',
+        description: 'Advanced inspector features (timeline, bulk testing, diff)',
+      },
       { name: 'Contracts', description: 'Consumer-driven contract testing' },
       { name: 'ToolExplorer', description: 'Tool usage statistics and metrics' },
       { name: 'Collections', description: 'Organize scenarios into collections (like Postman)' },
       { name: 'Monitors', description: 'Scheduled test execution (like Postman Monitors)' },
       { name: 'Mocks', description: 'Runtime mock MCP servers (like Postman Mock Servers)' },
-      { name: 'Scripts', description: 'Pre-request and post-response scripts (like Postman scripts)' },
+      {
+        name: 'Scripts',
+        description: 'Pre-request and post-response scripts (like Postman scripts)',
+      },
       { name: 'Documentation', description: 'Auto-generate server documentation' },
       { name: 'LLM', description: 'LLM configuration' },
-      { name: 'OAuth', description: 'OAuth authentication' }
-    ]
+      { name: 'OAuth', description: 'OAuth authentication' },
+    ],
   },
-  apis: ['./server/routes/*.js', './server/index.js']
+  apis: ['./server/routes/*.js', './server/index.js'],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -99,7 +104,7 @@ function getCorsOrigins() {
     'http://localhost:3082',
     'http://127.0.0.1:3082',
     `http://localhost:${PORT}`,
-    `http://127.0.0.1:${PORT}`
+    `http://127.0.0.1:${PORT}`,
   ];
 
   // Allow additional origins via environment variable
@@ -117,33 +122,41 @@ function isAllowedOrigin(origin) {
   if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
     return true;
   }
-  if (process.env.NODE_ENV !== 'production' && origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)
+  ) {
     return true;
   }
   return false;
 }
 
 // Middleware
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
 
-    // Check if origin is in allowed list
-    if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
-      return callback(null, true);
-    }
+      // Check if origin is in allowed list
+      if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
+        return callback(null, true);
+      }
 
-    // In development, allow all localhost ports if configured or default to safer regex
-    // Stricter regex to prevent subdomains or similar looking domains
-    if (process.env.NODE_ENV !== 'production' && origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)) {
-      return callback(null, true);
-    }
+      // In development, allow all localhost ports if configured or default to safer regex
+      // Stricter regex to prevent subdomains or similar looking domains
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)
+      ) {
+        return callback(null, true);
+      }
 
-    callback(new Error('CORS not allowed'), false);
-  },
-  credentials: true,
-}));
+      callback(new Error('CORS not allowed'), false);
+    },
+    credentials: true,
+  })
+);
 
 // Log CORS configuration at startup
 console.log(`[CORS] Mode: ${corsMode}`);
@@ -160,7 +173,7 @@ app.use((req, res, next) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 24 * 60 * 60 * 1000,
     });
     req.cookies.sessionId = sessionId;
   }
@@ -173,7 +186,7 @@ app.use((req, res, next) => {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 24 * 60 * 60 * 1000,
     });
     req.cookies[CSRF_COOKIE_NAME] = token;
   }
@@ -242,10 +255,14 @@ if (existsSync(dompurifyFile)) {
 }
 
 // Swagger API documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'MCP Chat Studio API Docs'
-}));
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'MCP Chat Studio API Docs',
+  })
+);
 
 // JSON spec endpoint
 app.get('/api-docs.json', (req, res) => {

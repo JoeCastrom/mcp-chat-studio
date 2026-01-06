@@ -23,7 +23,7 @@ export class PerformanceTester {
       args = {},
       concurrency = 10,
       duration = 10000, // 10 seconds
-      sessionId = null
+      sessionId = null,
     } = config;
 
     const testId = `test_${Date.now()}`;
@@ -46,8 +46,8 @@ export class PerformanceTester {
         p95Latency: 0,
         p99Latency: 0,
         throughput: 0, // requests per second
-        errors: []
-      }
+        errors: [],
+      },
     };
 
     this.activeTests.set(testId, { status: 'running', results });
@@ -56,7 +56,9 @@ export class PerformanceTester {
     const endTime = startTime + duration;
     const workers = [];
 
-    console.log(`[LoadTest] Starting test ${testId}: ${concurrency} concurrent workers for ${duration}ms`);
+    console.log(
+      `[LoadTest] Starting test ${testId}: ${concurrency} concurrent workers for ${duration}ms`
+    );
 
     // Create worker promises
     for (let i = 0; i < concurrency; i++) {
@@ -72,7 +74,9 @@ export class PerformanceTester {
     this.calculateSummary(results);
 
     this.activeTests.get(testId).status = 'completed';
-    console.log(`[LoadTest] Test ${testId} completed: ${results.summary.total} requests, ${results.summary.successful} successful`);
+    console.log(
+      `[LoadTest] Test ${testId} completed: ${results.summary.total} requests, ${results.summary.successful} successful`
+    );
 
     return results;
   }
@@ -87,7 +91,7 @@ export class PerformanceTester {
         timestamp: new Date().toISOString(),
         latency: 0,
         success: false,
-        error: null
+        error: null,
       };
 
       try {
@@ -130,7 +134,7 @@ export class PerformanceTester {
     summary.avgLatency = latencies.reduce((sum, l) => sum + l, 0) / latencies.length;
 
     // Calculate percentiles
-    summary.p50Latency = this.percentile(latencies, 0.50);
+    summary.p50Latency = this.percentile(latencies, 0.5);
     summary.p95Latency = this.percentile(latencies, 0.95);
     summary.p99Latency = this.percentile(latencies, 0.99);
 
@@ -163,7 +167,7 @@ export class PerformanceTester {
       maxConcurrency = 50,
       step = 5,
       stepDuration = 5000, // 5 seconds per step
-      sessionId = null
+      sessionId = null,
     } = config;
 
     const results = {
@@ -171,10 +175,12 @@ export class PerformanceTester {
       serverName,
       toolName,
       startTime: new Date().toISOString(),
-      steps: []
+      steps: [],
     };
 
-    console.log(`[StressTest] Starting stress test: ${startConcurrency} to ${maxConcurrency} by ${step}`);
+    console.log(
+      `[StressTest] Starting stress test: ${startConcurrency} to ${maxConcurrency} by ${step}`
+    );
 
     for (let concurrency = startConcurrency; concurrency <= maxConcurrency; concurrency += step) {
       console.log(`[StressTest] Testing with concurrency: ${concurrency}`);
@@ -185,12 +191,12 @@ export class PerformanceTester {
         args,
         concurrency,
         duration: stepDuration,
-        sessionId
+        sessionId,
       });
 
       results.steps.push({
         concurrency,
-        summary: stepResult.summary
+        summary: stepResult.summary,
       });
 
       // Stop if error rate is too high
@@ -216,7 +222,7 @@ export class PerformanceTester {
       spikeConcurrency = 50,
       normalDuration = 10000,
       spikeDuration = 5000,
-      sessionId = null
+      sessionId = null,
     } = config;
 
     const results = {
@@ -224,7 +230,7 @@ export class PerformanceTester {
       serverName,
       toolName,
       startTime: new Date().toISOString(),
-      phases: []
+      phases: [],
     };
 
     console.log(`[SpikeTest] Starting spike test`);
@@ -237,9 +243,13 @@ export class PerformanceTester {
       args,
       concurrency: normalConcurrency,
       duration: normalDuration,
-      sessionId
+      sessionId,
     });
-    results.phases.push({ phase: 'normal', concurrency: normalConcurrency, summary: normalResult.summary });
+    results.phases.push({
+      phase: 'normal',
+      concurrency: normalConcurrency,
+      summary: normalResult.summary,
+    });
 
     // Phase 2: Spike
     console.log(`[SpikeTest] Phase 2: Spike (${spikeConcurrency} workers)`);
@@ -249,9 +259,13 @@ export class PerformanceTester {
       args,
       concurrency: spikeConcurrency,
       duration: spikeDuration,
-      sessionId
+      sessionId,
     });
-    results.phases.push({ phase: 'spike', concurrency: spikeConcurrency, summary: spikeResult.summary });
+    results.phases.push({
+      phase: 'spike',
+      concurrency: spikeConcurrency,
+      summary: spikeResult.summary,
+    });
 
     // Phase 3: Recovery to normal
     console.log(`[SpikeTest] Phase 3: Recovery (${normalConcurrency} workers)`);
@@ -261,9 +275,13 @@ export class PerformanceTester {
       args,
       concurrency: normalConcurrency,
       duration: normalDuration,
-      sessionId
+      sessionId,
     });
-    results.phases.push({ phase: 'recovery', concurrency: normalConcurrency, summary: recoveryResult.summary });
+    results.phases.push({
+      phase: 'recovery',
+      concurrency: normalConcurrency,
+      summary: recoveryResult.summary,
+    });
 
     results.endTime = new Date().toISOString();
     return results;
@@ -283,7 +301,7 @@ export class PerformanceTester {
     return Array.from(this.activeTests.entries()).map(([id, data]) => ({
       testId: id,
       status: data.status,
-      summary: data.results.summary
+      summary: data.results.summary,
     }));
   }
 

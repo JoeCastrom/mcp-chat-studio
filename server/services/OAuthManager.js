@@ -7,12 +7,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import https from 'https';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  getToken,
-  setToken,
-  deleteToken,
-  clearTokens
-} from './OAuthTokenStore.js';
+import { getToken, setToken, deleteToken, clearTokens } from './OAuthTokenStore.js';
 
 function createHttpsAgent(disableVerify) {
   return new https.Agent({
@@ -54,8 +49,7 @@ export class OAuthManager {
     const oauthConfig = config?.oauth ?? config ?? {};
     this.config = oauthConfig || {};
     this.disableSSLVerify =
-      this.config.disable_ssl_verify === true ||
-      process.env.OAUTH_DISABLE_SSL_VERIFY === 'true';
+      this.config.disable_ssl_verify === true || process.env.OAUTH_DISABLE_SSL_VERIFY === 'true';
 
     // Provider type (keycloak, github, google, or custom)
     this.provider = this.config.provider || 'keycloak';

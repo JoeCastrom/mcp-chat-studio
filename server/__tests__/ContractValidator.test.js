@@ -10,9 +10,9 @@ describe('ContractValidator', () => {
       const schema = {
         properties: {
           name: { type: 'string' },
-          age: { type: 'number' }
+          age: { type: 'number' },
         },
-        required: ['name', 'age']
+        required: ['name', 'age'],
       };
 
       const args = { name: 'John' }; // Missing 'age'
@@ -26,8 +26,8 @@ describe('ContractValidator', () => {
     test('should validate string types', () => {
       const schema = {
         properties: {
-          name: { type: 'string' }
-        }
+          name: { type: 'string' },
+        },
       };
 
       const args = { name: 123 }; // Wrong type
@@ -41,8 +41,8 @@ describe('ContractValidator', () => {
     test('should validate number types', () => {
       const schema = {
         properties: {
-          age: { type: 'number' }
-        }
+          age: { type: 'number' },
+        },
       };
 
       const args = { age: '25' }; // Wrong type
@@ -55,8 +55,8 @@ describe('ContractValidator', () => {
     test('should validate integer types', () => {
       const schema = {
         properties: {
-          count: { type: 'integer' }
-        }
+          count: { type: 'integer' },
+        },
       };
 
       const validArgs = { count: 5 };
@@ -69,8 +69,8 @@ describe('ContractValidator', () => {
     test('should validate boolean types', () => {
       const schema = {
         properties: {
-          active: { type: 'boolean' }
-        }
+          active: { type: 'boolean' },
+        },
       };
 
       const args = { active: 'true' }; // Wrong type
@@ -83,8 +83,8 @@ describe('ContractValidator', () => {
     test('should validate array types', () => {
       const schema = {
         properties: {
-          items: { type: 'array' }
-        }
+          items: { type: 'array' },
+        },
       };
 
       const validArgs = { items: [1, 2, 3] };
@@ -97,8 +97,8 @@ describe('ContractValidator', () => {
     test('should validate object types', () => {
       const schema = {
         properties: {
-          config: { type: 'object' }
-        }
+          config: { type: 'object' },
+        },
       };
 
       const validArgs = { config: { key: 'value' } };
@@ -111,8 +111,8 @@ describe('ContractValidator', () => {
     test('should validate enum values', () => {
       const schema = {
         properties: {
-          status: { type: 'string', enum: ['active', 'inactive', 'pending'] }
-        }
+          status: { type: 'string', enum: ['active', 'inactive', 'pending'] },
+        },
       };
 
       const validArgs = { status: 'active' };
@@ -125,8 +125,8 @@ describe('ContractValidator', () => {
     test('should allow unknown fields', () => {
       const schema = {
         properties: {
-          name: { type: 'string' }
-        }
+          name: { type: 'string' },
+        },
       };
 
       const args = { name: 'John', extraField: 'value' };
@@ -141,9 +141,9 @@ describe('ContractValidator', () => {
         properties: {
           name: { type: 'string' },
           age: { type: 'number' },
-          active: { type: 'boolean' }
+          active: { type: 'boolean' },
         },
-        required: ['name', 'age']
+        required: ['name', 'age'],
       };
 
       const args = { name: 'John', age: 30, active: true };
@@ -161,8 +161,8 @@ describe('ContractValidator', () => {
         required: ['status', 'data'],
         types: {
           status: 'string',
-          data: 'object'
-        }
+          data: 'object',
+        },
       };
 
       const output = { status: 'success' }; // Missing 'data'
@@ -177,8 +177,8 @@ describe('ContractValidator', () => {
       const contract = {
         required: ['count'],
         types: {
-          count: 'number'
-        }
+          count: 'number',
+        },
       };
 
       const invalidOutput = { count: '123' }; // Wrong type
@@ -192,8 +192,8 @@ describe('ContractValidator', () => {
       const contract = {
         types: {
           'user.name': 'string',
-          'user.age': 'number'
-        }
+          'user.age': 'number',
+        },
       };
 
       const validOutput = { user: { name: 'John', age: 30 } };
@@ -208,8 +208,8 @@ describe('ContractValidator', () => {
         required: ['status', 'data'],
         types: {
           status: 'string',
-          data: 'object'
-        }
+          data: 'object',
+        },
       };
 
       const output = { status: 'success', data: { result: 'OK' } };
@@ -226,7 +226,7 @@ describe('ContractValidator', () => {
       const response = {
         status: 'success',
         count: 42,
-        active: true
+        active: true,
       };
 
       const contract = ContractValidator.createContractFromResponse(response);
@@ -243,8 +243,8 @@ describe('ContractValidator', () => {
       const response = {
         user: {
           name: 'John',
-          age: 30
-        }
+          age: 30,
+        },
       };
 
       const contract = ContractValidator.createContractFromResponse(response);
@@ -257,7 +257,7 @@ describe('ContractValidator', () => {
     test('should handle arrays', () => {
       const response = {
         items: [1, 2, 3],
-        tags: ['a', 'b']
+        tags: ['a', 'b'],
       };
 
       const contract = ContractValidator.createContractFromResponse(response);
@@ -272,7 +272,7 @@ describe('ContractValidator', () => {
       const response = {
         name: 'John',
         middleName: null,
-        age: 30
+        age: 30,
       };
 
       const contract = ContractValidator.createContractFromResponse(response);

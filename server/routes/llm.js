@@ -18,7 +18,7 @@ const VALID_PROVIDERS = [
   'groq',
   'together',
   'openrouter',
-  'custom'
+  'custom',
 ];
 
 function getAllowedProviders() {
@@ -90,7 +90,7 @@ router.post('/config', async (req, res) => {
       clear_auth_secret,
       auth_extra_header_name,
       auth_extra_header_value,
-      clear_auth_extra_header
+      clear_auth_extra_header,
     } = req.body;
     const llmClient = getLLMClient();
     const persisted = await loadPersistedLLMConfig();
@@ -157,8 +157,12 @@ router.post('/config', async (req, res) => {
     if (auth_extra_header_name !== undefined || auth_extra_header_value !== undefined) {
       const currentExtra = nextAuth.extra_header || {};
       const nextExtra = {
-        name: auth_extra_header_name !== undefined ? auth_extra_header_name : currentExtra.name || '',
-        value: auth_extra_header_value !== undefined ? auth_extra_header_value : currentExtra.value || ''
+        name:
+          auth_extra_header_name !== undefined ? auth_extra_header_name : currentExtra.name || '',
+        value:
+          auth_extra_header_value !== undefined
+            ? auth_extra_header_value
+            : currentExtra.value || '',
       };
       if (nextExtra.name || nextExtra.value) {
         nextAuth.extra_header = nextExtra;
@@ -175,21 +179,21 @@ router.post('/config', async (req, res) => {
       ...existing,
       ...llmClient.config,
       provider: llmClient.provider,
-      auth: nextAuth
+      auth: nextAuth,
     });
 
     await savePersistedLLMConfig({
       ...existing,
       ...llmClient.config,
       provider: llmClient.provider,
-      auth: nextAuth
+      auth: nextAuth,
     });
     logAudit('llm.config_update', {
       provider: llmClient.provider,
       model: llmClient.config.model,
       base_url: llmClient.config.base_url || llmClient.getBaseUrl(),
       hasApiKey: !!llmClient.config.api_key,
-      auth_type: nextAuth?.type || 'none'
+      auth_type: nextAuth?.type || 'none',
     });
 
     res.json({

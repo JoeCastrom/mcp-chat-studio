@@ -6,10 +6,7 @@ export default {
       testEnvironment: 'node',
       testMatch: ['<rootDir>/server/__tests__/**/*.test.js'],
       transform: {},
-      collectCoverageFrom: [
-        'server/**/*.js',
-        '!server/__tests__/**',
-      ],
+      collectCoverageFrom: ['server/**/*.js', '!server/__tests__/**'],
     },
     // Frontend tests - jsdom environment
     {
@@ -18,10 +15,7 @@ export default {
       testMatch: ['<rootDir>/public/__tests__/**/*.test.js'],
       transform: {},
       setupFilesAfterEnv: ['<rootDir>/public/__tests__/setup.js'],
-      collectCoverageFrom: [
-        'public/**/*.js',
-        '!public/__tests__/**',
-      ],
+      collectCoverageFrom: ['public/**/*.js', '!public/__tests__/**'],
     },
   ],
   verbose: true,

@@ -200,7 +200,7 @@ router.post('/record', (req, res) => {
 
     if (!serverName || !toolName || duration === undefined || success === undefined) {
       return res.status(400).json({
-        error: 'serverName, toolName, duration, and success are required'
+        error: 'serverName, toolName, duration, and success are required',
       });
     }
 

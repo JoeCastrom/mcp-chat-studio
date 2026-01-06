@@ -14,11 +14,11 @@ const localStorageMock = {
 };
 
 // Implement storage behavior
-localStorageMock.getItem.mockImplementation((key) => localStorageMock._store[key] || null);
+localStorageMock.getItem.mockImplementation(key => localStorageMock._store[key] || null);
 localStorageMock.setItem.mockImplementation((key, value) => {
   localStorageMock._store[key] = String(value);
 });
-localStorageMock.removeItem.mockImplementation((key) => {
+localStorageMock.removeItem.mockImplementation(key => {
   delete localStorageMock._store[key];
 });
 localStorageMock.clear.mockImplementation(() => {
@@ -29,10 +29,10 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
 
 // requestAnimationFrame shim for jsdom
 if (!globalThis.requestAnimationFrame) {
-  globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  globalThis.requestAnimationFrame = cb => setTimeout(cb, 0);
 }
 if (!globalThis.cancelAnimationFrame) {
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  globalThis.cancelAnimationFrame = id => clearTimeout(id);
 }
 
 // Mock fetch

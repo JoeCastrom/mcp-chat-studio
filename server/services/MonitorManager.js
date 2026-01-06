@@ -74,7 +74,7 @@ export class MonitorManager {
       schedule,
       environment = {},
       enabled = true,
-      notifications = []
+      notifications = [],
     } = data;
 
     if (!name) {
@@ -101,7 +101,7 @@ export class MonitorManager {
       lastStatus: null,
       runCount: 0,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.monitors.set(monitor.id, monitor);
@@ -145,7 +145,7 @@ export class MonitorManager {
       ...monitor,
       ...updates,
       id: monitor.id, // Preserve ID
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     this.monitors.set(id, updated);
@@ -226,7 +226,7 @@ export class MonitorManager {
     try {
       const results = await this.collectionManager.runCollection(monitor.collectionId, {
         environment: monitor.environment,
-        stopOnError: false
+        stopOnError: false,
       });
 
       // Update monitor stats
@@ -246,7 +246,6 @@ export class MonitorManager {
       console.log(`[MonitorManager] Monitor ${id} completed: ${monitor.lastStatus}`);
 
       return results;
-
     } catch (error) {
       console.error(`[MonitorManager] Monitor ${id} failed:`, error.message);
 
@@ -287,25 +286,25 @@ export class MonitorManager {
     const payload = {
       monitor: {
         id: monitor.id,
-        name: monitor.name
+        name: monitor.name,
       },
       results: {
         status: monitor.lastStatus,
         total: results.total,
         passed: results.passed,
         failed: results.failed,
-        duration: results.duration
+        duration: results.duration,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     try {
       const response = await fetch(notification.url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -313,7 +312,6 @@ export class MonitorManager {
       }
 
       console.log(`[MonitorManager] Webhook notification sent to ${notification.url}`);
-
     } catch (error) {
       console.error(`[MonitorManager] Webhook failed:`, error.message);
     }
@@ -387,8 +385,8 @@ export class MonitorManager {
           id: m.id,
           name: m.name,
           lastRun: m.lastRun,
-          status: m.lastStatus
-        }))
+          status: m.lastStatus,
+        })),
     };
   }
 

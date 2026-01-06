@@ -22,7 +22,7 @@ describe.skip('Inspector auth overrides', () => {
       <div id="inspectorAuthStatus"></div>
     `;
     globalThis.showNotification = jest.fn();
-    globalThis.applyTemplateVariables = (value) => value;
+    globalThis.applyTemplateVariables = value => value;
     globalThis.window = globalThis;
     vm.runInThisContext(inspectorSource);
   });
@@ -48,7 +48,9 @@ describe.skip('Inspector auth overrides', () => {
     document.getElementById('inspectorAuthHeaders').value = '{"X-Trace":"123"}';
     document.getElementById('inspectorAuthQuery').value = '{"debug":"true"}';
 
-    const tool = { inputSchema: { properties: { __headers: { type: 'object' }, __query: { type: 'object' } } } };
+    const tool = {
+      inputSchema: { properties: { __headers: { type: 'object' }, __query: { type: 'object' } } },
+    };
     const result = globalThis.buildInspectorAuthOverrides(tool, {});
     expect(result.__headers['X-API-Key']).toBe('secret');
     expect(result.__headers['X-Trace']).toBe('123');

@@ -27,7 +27,11 @@ router.post('/', (req, res) => {
   }
   const payload = sanitizeSessionPayload(req.body || {});
   saveSession(sessionId, payload);
-  logAudit('session.save', { sessionId, messages: payload.messages.length, history: payload.toolHistory.length });
+  logAudit('session.save', {
+    sessionId,
+    messages: payload.messages.length,
+    history: payload.toolHistory.length,
+  });
   res.json({ success: true });
 });
 

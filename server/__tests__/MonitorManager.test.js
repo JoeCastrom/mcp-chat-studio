@@ -8,7 +8,7 @@ import { jest } from '@jest/globals';
 const mockFileData = new Map();
 
 jest.unstable_mockModule('fs', () => ({
-  readFileSync: jest.fn((path) => {
+  readFileSync: jest.fn(path => {
     if (mockFileData.has(path)) {
       return mockFileData.get(path);
     }
@@ -17,10 +17,10 @@ jest.unstable_mockModule('fs', () => ({
   writeFileSync: jest.fn((path, data) => {
     mockFileData.set(path, data);
   }),
-  existsSync: jest.fn((path) => {
+  existsSync: jest.fn(path => {
     return mockFileData.has(path) || path.includes('data');
   }),
-  mkdirSync: jest.fn()
+  mkdirSync: jest.fn(),
 }));
 
 // Mock CollectionManager
@@ -31,9 +31,9 @@ jest.unstable_mockModule('../services/CollectionManager.js', () => ({
       total: 5,
       passed: 4,
       failed: 1,
-      duration: 1000
-    })
-  }))
+      duration: 1000,
+    }),
+  })),
 }));
 
 // Import after mocking
@@ -46,7 +46,7 @@ describe('MonitorManager', () => {
     jest.clearAllMocks();
     mockFileData.clear();
     mockRunCollection.mockClear();
-    
+
     // Create fresh instance for each test
     manager = new MonitorManager();
   });
@@ -63,7 +63,7 @@ describe('MonitorManager', () => {
       const monitor = manager.createMonitor({
         name: 'Test Monitor',
         collectionId: 'col_123',
-        schedule: '5m'
+        schedule: '5m',
       });
 
       expect(monitor.id).toBeDefined();
@@ -77,24 +77,30 @@ describe('MonitorManager', () => {
     });
 
     test('createMonitor should throw error when name is missing', () => {
-      expect(() => manager.createMonitor({
-        collectionId: 'col_123',
-        schedule: '5m'
-      })).toThrow('Monitor name is required');
+      expect(() =>
+        manager.createMonitor({
+          collectionId: 'col_123',
+          schedule: '5m',
+        })
+      ).toThrow('Monitor name is required');
     });
 
     test('createMonitor should throw error when collectionId is missing', () => {
-      expect(() => manager.createMonitor({
-        name: 'Test',
-        schedule: '5m'
-      })).toThrow('Collection ID is required');
+      expect(() =>
+        manager.createMonitor({
+          name: 'Test',
+          schedule: '5m',
+        })
+      ).toThrow('Collection ID is required');
     });
 
     test('createMonitor should throw error when schedule is missing', () => {
-      expect(() => manager.createMonitor({
-        name: 'Test',
-        collectionId: 'col_123'
-      })).toThrow('Schedule is required');
+      expect(() =>
+        manager.createMonitor({
+          name: 'Test',
+          collectionId: 'col_123',
+        })
+      ).toThrow('Schedule is required');
     });
 
     test('getAllMonitors should return all monitors', () => {
@@ -110,7 +116,7 @@ describe('MonitorManager', () => {
       const created = manager.createMonitor({
         name: 'Test',
         collectionId: 'col_123',
-        schedule: '5m'
+        schedule: '5m',
       });
 
       const retrieved = manager.getMonitor(created.id);
@@ -120,15 +126,14 @@ describe('MonitorManager', () => {
     });
 
     test('getMonitor should throw error for non-existent ID', () => {
-      expect(() => manager.getMonitor('nonexistent'))
-        .toThrow('Monitor nonexistent not found');
+      expect(() => manager.getMonitor('nonexistent')).toThrow('Monitor nonexistent not found');
     });
 
     test('updateMonitor should update monitor properties', () => {
       const created = manager.createMonitor({
         name: 'Original',
         collectionId: 'col_123',
-        schedule: '5m'
+        schedule: '5m',
       });
 
       const updated = manager.updateMonitor(created.id, { name: 'Updated' });
@@ -141,7 +146,7 @@ describe('MonitorManager', () => {
       const created = manager.createMonitor({
         name: 'To Delete',
         collectionId: 'col_123',
-        schedule: '5m'
+        schedule: '5m',
       });
 
       const result = manager.deleteMonitor(created.id);
@@ -183,7 +188,7 @@ describe('MonitorManager', () => {
         name: 'Test',
         collectionId: 'col_123',
         schedule: '5m',
-        enabled: false
+        enabled: false,
       });
 
       const result = await manager.executeMonitor(monitor.id);
@@ -197,7 +202,7 @@ describe('MonitorManager', () => {
         name: 'Test',
         collectionId: 'col_123',
         schedule: '5m',
-        enabled: false
+        enabled: false,
       });
 
       await manager.executeMonitor(monitor.id);
@@ -213,14 +218,14 @@ describe('MonitorManager', () => {
         total: 5,
         passed: 5,
         failed: 0,
-        duration: 1000
+        duration: 1000,
       });
 
       const monitor = manager.createMonitor({
         name: 'Test',
         collectionId: 'col_123',
         schedule: '5m',
-        enabled: false
+        enabled: false,
       });
 
       await manager.executeMonitor(monitor.id);
@@ -236,7 +241,7 @@ describe('MonitorManager', () => {
         name: 'Test',
         collectionId: 'col_123',
         schedule: '5m',
-        enabled: false
+        enabled: false,
       });
 
       manager.startMonitor(monitor.id);
@@ -249,7 +254,7 @@ describe('MonitorManager', () => {
         name: 'Test',
         collectionId: 'col_123',
         schedule: '5m',
-        enabled: false
+        enabled: false,
       });
 
       manager.startMonitor(monitor.id);

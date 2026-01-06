@@ -11,11 +11,13 @@ The Workflow Builder allows you to chain MCP tools, AI models, and custom logic 
 ## 📦 Node Types
 
 ### 1. 🟢 TRIGGER
+
 - The starting point of every workflow.
 - Passes the initial input (JSON) to connected nodes.
 - **Output:** The input object (e.g., `{ "timestamp": 12345 }`).
 
 ### 2. 🔵 MCP TOOL
+
 - Executes a tool from any connected MCP server.
 - **Setup:**
   1. Select the **Server**.
@@ -24,6 +26,7 @@ The Workflow Builder allows you to chain MCP tools, AI models, and custom logic 
 - **Output:** The JSON result from the tool.
 
 ### 3. 🟠 LLM (AI)
+
 - Sends a prompt to the configured LLM.
 - **Setup:**
   - Write a prompt in the text area.
@@ -35,6 +38,7 @@ The Workflow Builder allows you to chain MCP tools, AI models, and custom logic 
 - **Output:** The AI's text response.
 
 ### 4. 🟣 JAVASCRIPT
+
 - Runs custom JavaScript code.
 - Useful for formatting data between tools.
 - **Context:**
@@ -48,15 +52,18 @@ The Workflow Builder allows you to chain MCP tools, AI models, and custom logic 
   ```
 
 ## 🔗 Connecting Nodes
+
 - Drag from the **Right Dot (Output)** of one node to the **Left Dot (Input)** of another.
 - Ensure the flow makes logical sense (A -> B -> C).
 
 ## ▶️ Execution
+
 1. Click **Run** in the toolbar.
 2. The **Execution Log** will open at the bottom.
 3. Green bars indicate success; Red indicates failure.
 4. Expand log entries to see exact inputs and outputs.
 
 ## 💾 Saving
+
 - Click **Save** to persist your workflow to `workflows.json`.
 - Workflows are saved locally on your machine.

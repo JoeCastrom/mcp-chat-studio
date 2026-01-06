@@ -8,30 +8,30 @@ const floatingWorkspace = {
 
   // Panel id counter for uniqueness
   panelIdCounter: 0,
-  
+
   // Drag state
   dragState: null,
   resizeState: null,
-  
+
   // Z-index counter
   zIndex: 100,
-  
+
   // Connection lines SVG
   connectionsSvg: null,
-  
+
   // Zoom state
   zoom: 1,
   minZoom: 0.25,
   maxZoom: 2,
   panX: 0,
   panY: 0,
-  
+
   // Pan state
   isPanning: false,
   panStartX: 0,
   panStartY: 0,
   spaceDown: false,
-  
+
   // Snap to grid settings
   snapToGrid: true,
   gridSize: 20,
@@ -62,22 +62,134 @@ const floatingWorkspace = {
 
   // Panel definitions with connection hints and data loaders
   panelDefs: {
-    chat: { icon: '💬', title: 'Chat', width: 500, height: 600, connects: ['inspector', 'history'], loader: null },
-    inspector: { icon: '🔧', title: 'Inspector', width: 450, height: 500, connects: ['workflows'], loader: 'loadInspectorServers' },
-    workflows: { icon: '⛓️', title: 'Workflows', width: 800, height: 600, connects: ['scenarios'], loader: 'loadWorkflowsList' },
-    scenarios: { icon: '🧪', title: 'Scenarios', width: 400, height: 450, connects: ['collections'], loader: 'refreshScenariosPanel' },
-    collections: { icon: '📚', title: 'Collections', width: 400, height: 400, connects: ['monitors'], loader: 'loadCollections' },
-    history: { icon: '📜', title: 'History', width: 400, height: 500, connects: ['toolexplorer'], loader: 'refreshHistoryPanel' },
-    toolexplorer: { icon: '📊', title: 'Tool Explorer', width: 500, height: 450, connects: ['performance'], loader: 'loadToolExplorer' },
-    monitors: { icon: '⏰', title: 'Monitors', width: 450, height: 400, connects: ['scenarios'], loader: 'loadMonitors' },
-    generator: { icon: '⚙️', title: 'Generator', width: 450, height: 500, connects: ['mocks'], loader: null },
-    mocks: { icon: '🎭', title: 'Mocks', width: 400, height: 400, connects: ['inspector'], loader: 'loadMockServers' },
-    scripts: { icon: '📝', title: 'Scripts', width: 450, height: 450, connects: ['scenarios'], loader: 'loadScripts' },
-    docs: { icon: '📖', title: 'Documentation', width: 500, height: 500, connects: ['inspector'], loader: null },
-    contracts: { icon: '📋', title: 'Contracts', width: 450, height: 400, connects: ['scenarios'], loader: 'loadContracts' },
-    performance: { icon: '⚡', title: 'Performance', width: 500, height: 450, connects: ['toolexplorer', 'debugger'], loader: 'loadPerformanceMetrics' },
-    debugger: { icon: '🐛', title: 'Debugger', width: 600, height: 500, connects: ['workflows'], loader: 'loadDebuggerWorkflows' },
-    brain: { icon: '🧠', title: 'Brain View', width: 450, height: 500, connects: ['chat'], loader: 'initBrainView' }
+    chat: {
+      icon: '💬',
+      title: 'Chat',
+      width: 500,
+      height: 600,
+      connects: ['inspector', 'history'],
+      loader: null,
+    },
+    inspector: {
+      icon: '🔧',
+      title: 'Inspector',
+      width: 450,
+      height: 500,
+      connects: ['workflows'],
+      loader: 'loadInspectorServers',
+    },
+    workflows: {
+      icon: '⛓️',
+      title: 'Workflows',
+      width: 800,
+      height: 600,
+      connects: ['scenarios'],
+      loader: 'loadWorkflowsList',
+    },
+    scenarios: {
+      icon: '🧪',
+      title: 'Scenarios',
+      width: 400,
+      height: 450,
+      connects: ['collections'],
+      loader: 'refreshScenariosPanel',
+    },
+    collections: {
+      icon: '📚',
+      title: 'Collections',
+      width: 400,
+      height: 400,
+      connects: ['monitors'],
+      loader: 'loadCollections',
+    },
+    history: {
+      icon: '📜',
+      title: 'History',
+      width: 400,
+      height: 500,
+      connects: ['toolexplorer'],
+      loader: 'refreshHistoryPanel',
+    },
+    toolexplorer: {
+      icon: '📊',
+      title: 'Tool Explorer',
+      width: 500,
+      height: 450,
+      connects: ['performance'],
+      loader: 'loadToolExplorer',
+    },
+    monitors: {
+      icon: '⏰',
+      title: 'Monitors',
+      width: 450,
+      height: 400,
+      connects: ['scenarios'],
+      loader: 'loadMonitors',
+    },
+    generator: {
+      icon: '⚙️',
+      title: 'Generator',
+      width: 450,
+      height: 500,
+      connects: ['mocks'],
+      loader: null,
+    },
+    mocks: {
+      icon: '🎭',
+      title: 'Mocks',
+      width: 400,
+      height: 400,
+      connects: ['inspector'],
+      loader: 'loadMockServers',
+    },
+    scripts: {
+      icon: '📝',
+      title: 'Scripts',
+      width: 450,
+      height: 450,
+      connects: ['scenarios'],
+      loader: 'loadScripts',
+    },
+    docs: {
+      icon: '📖',
+      title: 'Documentation',
+      width: 500,
+      height: 500,
+      connects: ['inspector'],
+      loader: null,
+    },
+    contracts: {
+      icon: '📋',
+      title: 'Contracts',
+      width: 450,
+      height: 400,
+      connects: ['scenarios'],
+      loader: 'loadContracts',
+    },
+    performance: {
+      icon: '⚡',
+      title: 'Performance',
+      width: 500,
+      height: 450,
+      connects: ['toolexplorer', 'debugger'],
+      loader: 'loadPerformanceMetrics',
+    },
+    debugger: {
+      icon: '🐛',
+      title: 'Debugger',
+      width: 600,
+      height: 500,
+      connects: ['workflows'],
+      loader: 'loadDebuggerWorkflows',
+    },
+    brain: {
+      icon: '🧠',
+      title: 'Brain View',
+      width: 450,
+      height: 500,
+      connects: ['chat'],
+      loader: 'initBrainView',
+    },
   },
 
   // Generate unique panel ids across fast adds
@@ -125,7 +237,7 @@ const floatingWorkspace = {
     const canvas = document.createElement('div');
     canvas.className = 'workspace-canvas';
     canvas.id = 'workspaceCanvas';
-    
+
     // Inner container that gets transformed for zoom/pan
     const inner = document.createElement('div');
     inner.className = 'workspace-inner';
@@ -215,8 +327,8 @@ const floatingWorkspace = {
     if (menu) {
       const rect = this.canvasOuter.getBoundingClientRect();
       // Calculate world coordinates from viewport coordinates
-      const x = (parseFloat(menu.style.left) - rect.left - rect.width/2 - this.panX) / this.zoom;
-      const y = (parseFloat(menu.style.top) - rect.top - rect.height/2 - this.panY) / this.zoom;
+      const x = (parseFloat(menu.style.left) - rect.left - rect.width / 2 - this.panX) / this.zoom;
+      const y = (parseFloat(menu.style.top) - rect.top - rect.height / 2 - this.panY) / this.zoom;
       this.addPanel(type, x - 150, y - 100);
     }
   },
@@ -225,19 +337,19 @@ const floatingWorkspace = {
   setZoom(level, center) {
     const oldZoom = this.zoom;
     this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, level));
-    
+
     if (center && this.canvasOuter) {
       const rect = this.canvasOuter.getBoundingClientRect();
-      
+
       // Mouse position relative to viewport center (0,0 in our transform logic)
       const mouseX = center.x - rect.left - rect.width / 2;
       const mouseY = center.y - rect.top - rect.height / 2;
-      
+
       // Logic: newPan = mouse + (pan - mouse) * (newZoom / oldZoom)
       this.panX = mouseX + (this.panX - mouseX) * (this.zoom / oldZoom);
       this.panY = mouseY + (this.panY - mouseY) * (this.zoom / oldZoom);
     }
-    
+
     this.applyTransform();
     document.getElementById('zoomLevel').textContent = `${Math.round(this.zoom * 100)}%`;
   },
@@ -258,45 +370,48 @@ const floatingWorkspace = {
   // Fit all panels in view (Truly centered find-all)
   fitAll() {
     if (this.panels.length === 0 || !this.canvasOuter) {
-       this.panX = 0;
-       this.panY = 0;
-       this.zoom = 1;
-       this.applyTransform();
-       return;
+      this.panX = 0;
+      this.panY = 0;
+      this.zoom = 1;
+      this.applyTransform();
+      return;
     }
-    
+
     // Find bounding box of all panels
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     this.panels.forEach(p => {
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + p.width);
       maxY = Math.max(maxY, p.y + p.height);
     });
-    
+
     const bboxWidth = maxX - minX;
     const bboxHeight = maxY - minY;
-    
+
     const padding = 150;
     const targetWidth = bboxWidth + padding * 2;
     const targetHeight = bboxHeight + padding * 2;
-    
+
     const rect = this.canvasOuter.getBoundingClientRect();
-    
+
     // Calculate zoom to fit
     const zoomX = rect.width / targetWidth;
     const zoomY = rect.height / targetHeight;
-    let newZoom = Math.min(zoomX, zoomY, 1.2); 
+    let newZoom = Math.min(zoomX, zoomY, 1.2);
     newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
-    
+
     this.zoom = newZoom;
 
     const centerWorldX = (minX + maxX) / 2;
     const centerWorldY = (minY + maxY) / 2;
 
     // Center logic: Position the center of the bounding box at the center of the viewport
-    this.panX = (rect.width / 2) - (centerWorldX * this.zoom);
-    this.panY = (rect.height / 2) - (centerWorldY * this.zoom);
+    this.panX = rect.width / 2 - centerWorldX * this.zoom;
+    this.panY = rect.height / 2 - centerWorldY * this.zoom;
 
     this.applyTransform();
     this.updateMiniMap();
@@ -313,24 +428,24 @@ const floatingWorkspace = {
         <div class="minimap-viewport" id="minimapViewport"></div>
       </div>
     `;
-    
+
     // Clicking minimap to pan
-    minimap.onclick = (e) => {
+    minimap.onclick = e => {
       const rect = minimap.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
-      
+
       // Calculate world coordinates from map percentage
       // We assume the map shows a large area, e.g. -5000 to 5000
       const range = 10000;
       const targetWorldX = (x - 0.5) * range;
       const targetWorldY = (y - 0.5) * range;
-      
+
       this.panX = -targetWorldX * this.zoom;
       this.panY = -targetWorldY * this.zoom;
       this.applyTransform();
     };
-    
+
     document.body.appendChild(minimap);
     this.minimapVisible = true;
   },
@@ -340,36 +455,36 @@ const floatingWorkspace = {
     const minimap = document.getElementById('workspaceMinimap');
     if (!minimap || !this.canvasOuter) return;
     if (minimap.classList.contains('hidden')) return;
-    
+
     const container = document.getElementById('minimapContainer');
     const viewportBox = document.getElementById('minimapViewport');
     const rect = this.canvasOuter.getBoundingClientRect();
-    
+
     // Configuration for map world range
     const range = 10000; // Total world units visible in map
     const scale = minimap.offsetWidth / range;
-    
+
     // Update viewport box
     // Viewport shows: panX/zoom to rect.width/zoom
     const viewWidth = rect.width / this.zoom;
     const viewHeight = rect.height / this.zoom;
-    const viewX = -this.panX / this.zoom + range/2 - viewWidth/2;
-    const viewY = -this.panY / this.zoom + range/2 - viewHeight/2;
-    
+    const viewX = -this.panX / this.zoom + range / 2 - viewWidth / 2;
+    const viewY = -this.panY / this.zoom + range / 2 - viewHeight / 2;
+
     viewportBox.style.width = `${viewWidth * scale}px`;
     viewportBox.style.height = `${viewHeight * scale}px`;
-    viewportBox.style.left = `${(range/2 - this.panX/this.zoom - viewWidth/2) * scale}px`;
-    viewportBox.style.top = `${(range/2 - this.panY/this.zoom - viewHeight/2) * scale}px`;
-    
+    viewportBox.style.left = `${(range / 2 - this.panX / this.zoom - viewWidth / 2) * scale}px`;
+    viewportBox.style.top = `${(range / 2 - this.panY / this.zoom - viewHeight / 2) * scale}px`;
+
     // Update panel dots
     // Remove old dots
     container.querySelectorAll('.minimap-panel-rect').forEach(d => d.remove());
-    
+
     this.panels.forEach(p => {
       const dot = document.createElement('div');
       dot.className = 'minimap-panel-rect';
-      dot.style.left = `${(p.x + range/2) * scale}px`;
-      dot.style.top = `${(p.y + range/2) * scale}px`;
+      dot.style.left = `${(p.x + range / 2) * scale}px`;
+      dot.style.top = `${(p.y + range / 2) * scale}px`;
       dot.style.width = `${p.width * scale}px`;
       dot.style.height = `${p.height * scale}px`;
       container.appendChild(dot);
@@ -396,18 +511,18 @@ const floatingWorkspace = {
     if (inner) {
       inner.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
     }
-    
+
     // Update grid background for infinite effect
     const canvas = document.getElementById('workspaceCanvas');
     if (canvas) {
       const gridSize = 60 * this.zoom;
       const posX = this.panX;
       const posY = this.panY;
-      
+
       canvas.style.backgroundSize = `${gridSize}px ${gridSize}px, ${gridSize}px ${gridSize}px, 100% 100%, 100% 100%, 100% 100%`;
       canvas.style.backgroundPosition = `${posX}px ${posY}px, ${posX}px ${posY}px, 0 0, 0 0, 0 0`;
     }
-    
+
     this.updateConnections();
     this.updateMiniMap();
   },
@@ -450,7 +565,9 @@ const floatingWorkspace = {
     }
 
     // Remove existing lines (keep defs)
-    const existingLines = this.connectionsSvg.querySelectorAll('.connection-line, .connection-endpoint');
+    const existingLines = this.connectionsSvg.querySelectorAll(
+      '.connection-line, .connection-endpoint'
+    );
     existingLines.forEach(line => line.remove());
 
     let connectionCount = 0;
@@ -571,10 +688,22 @@ const floatingWorkspace = {
 
     // Divider
     const divider = document.createElement('div');
-    divider.style.cssText = 'width: 24px; height: 1px; background: rgba(99, 102, 241, 0.3); margin: 4px 0;';
+    divider.style.cssText =
+      'width: 24px; height: 1px; background: rgba(99, 102, 241, 0.3); margin: 4px 0;';
     bar.appendChild(divider);
 
-    const mainPanels = ['chat', 'inspector', 'workflows', 'scenarios', 'collections', 'history', 'toolexplorer', 'performance', 'debugger', 'brain'];
+    const mainPanels = [
+      'chat',
+      'inspector',
+      'workflows',
+      'scenarios',
+      'collections',
+      'history',
+      'toolexplorer',
+      'performance',
+      'debugger',
+      'brain',
+    ];
     mainPanels.forEach(id => {
       const def = this.panelDefs[id];
       const btn = document.createElement('button');
@@ -648,7 +777,8 @@ const floatingWorkspace = {
     // Add close button
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn';
-    closeBtn.style.cssText = 'position: absolute; top: 10px; right: 10px; padding: 4px 8px; font-size: 0.8rem; z-index: 10;';
+    closeBtn.style.cssText =
+      'position: absolute; top: 10px; right: 10px; padding: 4px 8px; font-size: 0.8rem; z-index: 10;';
     closeBtn.innerHTML = '✕';
     closeBtn.onclick = () => this.toggleMCPSidebar();
     overlay.insertBefore(closeBtn, overlay.firstChild);
@@ -671,7 +801,10 @@ const floatingWorkspace = {
     sidebar.classList.remove('collapsed');
 
     if (this.sidebarOriginalParent && this.sidebarOriginalParent.isConnected) {
-      if (this.sidebarOriginalNextSibling && this.sidebarOriginalNextSibling.parentElement === this.sidebarOriginalParent) {
+      if (
+        this.sidebarOriginalNextSibling &&
+        this.sidebarOriginalNextSibling.parentElement === this.sidebarOriginalParent
+      ) {
         this.sidebarOriginalParent.insertBefore(sidebar, this.sidebarOriginalNextSibling);
       } else {
         this.sidebarOriginalParent.appendChild(sidebar);
@@ -701,14 +834,14 @@ const floatingWorkspace = {
     btn.innerHTML = '➕ Add Panel';
     btn.onclick = () => this.togglePanelPicker();
     document.body.appendChild(btn);
-    
+
     // Create panel picker
     const picker = document.createElement('div');
     picker.className = 'panel-picker';
     picker.id = 'panelPicker';
-    
+
     picker.innerHTML = `<div class="panel-picker-title">Add Panel</div>`;
-    
+
     Object.entries(this.panelDefs).forEach(([id, def]) => {
       const item = document.createElement('div');
       item.className = 'panel-picker-item';
@@ -722,7 +855,7 @@ const floatingWorkspace = {
       };
       picker.appendChild(item);
     });
-    
+
     document.body.appendChild(picker);
   },
 
@@ -740,14 +873,14 @@ const floatingWorkspace = {
   addPanel(type, x, y, options = {}) {
     const def = this.panelDefs[type];
     if (!def) return;
-    
+
     // Check if panel already exists
     const existing = this.panels.find(p => p.type === type);
     if (existing) {
       this.bringToFront(existing.id);
       return;
     }
-    
+
     // Default position: viewport center (Issue #3)
     if (x === undefined || y === undefined) {
       if (this.canvasOuter) {
@@ -761,11 +894,11 @@ const floatingWorkspace = {
         x += (this.panels.length % 5) * 30;
         y += (this.panels.length % 5) * 30;
       } else {
-        x = 100 + (this.panels.length * 50);
-        y = 80 + (this.panels.length * 30);
+        x = 100 + this.panels.length * 50;
+        y = 80 + this.panels.length * 30;
       }
     }
-    
+
     const id = this.generatePanelId();
     const panel = {
       id,
@@ -774,9 +907,9 @@ const floatingWorkspace = {
       y,
       width: def.width,
       height: def.height,
-      minimized: false
+      minimized: false,
     };
-    
+
     this.panels.push(panel);
     this.renderPanel(panel);
     this.updateQuickAccess();
@@ -790,7 +923,7 @@ const floatingWorkspace = {
   // Render a panel
   renderPanel(panel) {
     const def = this.panelDefs[panel.type];
-    
+
     const el = document.createElement('div');
     el.className = 'floating-panel';
     el.id = panel.id;
@@ -799,9 +932,9 @@ const floatingWorkspace = {
     el.style.width = `${panel.width}px`;
     el.style.height = panel.minimized ? 'auto' : `${panel.height}px`;
     el.style.zIndex = this.zIndex++;
-    
+
     if (panel.minimized) el.classList.add('minimized');
-    
+
     el.innerHTML = `
       <div class="panel-header" data-panel-id="${panel.id}">
         <span class="panel-icon">${def.icon}</span>
@@ -820,20 +953,20 @@ const floatingWorkspace = {
       </div>
       <div class="resize-handle" data-panel-id="${panel.id}"></div>
     `;
-    
+
     this.canvas.appendChild(el);
-    
+
     // Load content
     this.loadPanelContent(panel);
-    
+
     // Setup drag
     const header = el.querySelector('.panel-header');
-    header.addEventListener('mousedown', (e) => this.startDrag(e, panel.id));
-    
+    header.addEventListener('mousedown', e => this.startDrag(e, panel.id));
+
     // Setup resize
     const resizeHandle = el.querySelector('.resize-handle');
-    resizeHandle.addEventListener('mousedown', (e) => this.startResize(e, panel.id));
-    
+    resizeHandle.addEventListener('mousedown', e => this.startResize(e, panel.id));
+
     // Bring to front on click
     el.addEventListener('mousedown', () => this.bringToFront(panel.id));
   },
@@ -893,19 +1026,19 @@ const floatingWorkspace = {
   // Start dragging
   startDrag(e, panelId) {
     if (e.target.closest('.panel-action-btn')) return;
-    
+
     const panel = this.panels.find(p => p.id === panelId);
     const el = document.getElementById(panelId);
     if (!panel || !el) return;
-    
+
     this.dragState = {
       panelId,
       startX: e.clientX,
       startY: e.clientY,
       panelX: panel.x,
-      panelY: panel.y
+      panelY: panel.y,
     };
-    
+
     el.classList.add('dragging');
     document.addEventListener('mousemove', this.onDrag);
     document.addEventListener('mouseup', this.endDrag);
@@ -913,28 +1046,28 @@ const floatingWorkspace = {
   },
 
   // On drag
-  onDrag: function(e) {
+  onDrag: function (e) {
     const ws = floatingWorkspace;
     if (!ws.dragState) return;
-    
+
     const dx = e.clientX - ws.dragState.startX;
     const dy = e.clientY - ws.dragState.startY;
-    
+
     const panel = ws.panels.find(p => p.id === ws.dragState.panelId);
     const el = document.getElementById(ws.dragState.panelId);
     if (!panel || !el) return;
-    
+
     // Divide by zoom to make drag feel natural at all zoom levels (Issue #1)
     // Remove Math.max(0, ...) constraint for truly infinite canvas (Issue #5)
     let newX = ws.dragState.panelX + dx / ws.zoom;
     let newY = ws.dragState.panelY + dy / ws.zoom;
-    
+
     // Snap to grid if enabled
     if (ws.snapToGrid) {
       newX = Math.round(newX / ws.gridSize) * ws.gridSize;
       newY = Math.round(newY / ws.gridSize) * ws.gridSize;
     }
-    
+
     panel.x = newX;
     panel.y = newY;
 
@@ -949,7 +1082,7 @@ const floatingWorkspace = {
   },
 
   // End drag
-  endDrag: function() {
+  endDrag: function () {
     const ws = floatingWorkspace;
     if (!ws.dragState) return;
 
@@ -981,15 +1114,15 @@ const floatingWorkspace = {
     const panel = this.panels.find(p => p.id === panelId);
     const el = document.getElementById(panelId);
     if (!panel || !el) return;
-    
+
     this.resizeState = {
       panelId,
       startX: e.clientX,
       startY: e.clientY,
       startWidth: panel.width,
-      startHeight: panel.height
+      startHeight: panel.height,
     };
-    
+
     document.addEventListener('mousemove', this.onResize);
     document.addEventListener('mouseup', this.endResize);
     e.preventDefault();
@@ -997,39 +1130,39 @@ const floatingWorkspace = {
   },
 
   // On resize
-  onResize: function(e) {
+  onResize: function (e) {
     const ws = floatingWorkspace;
     if (!ws.resizeState) return;
-    
+
     const dx = e.clientX - ws.resizeState.startX;
     const dy = e.clientY - ws.resizeState.startY;
-    
+
     const panel = ws.panels.find(p => p.id === ws.resizeState.panelId);
     const el = document.getElementById(ws.resizeState.panelId);
     if (!panel || !el) return;
-    
+
     // Divide by zoom to make resize feel natural at all zoom levels (Issue #4)
     let newWidth = Math.max(320, ws.resizeState.startWidth + dx / ws.zoom);
     let newHeight = Math.max(200, ws.resizeState.startHeight + dy / ws.zoom);
-    
+
     // Snap to grid if enabled
     if (ws.snapToGrid) {
       newWidth = Math.round(newWidth / ws.gridSize) * ws.gridSize;
       newHeight = Math.round(newHeight / ws.gridSize) * ws.gridSize;
     }
-    
+
     panel.width = newWidth;
     panel.height = newHeight;
-    
+
     el.style.width = `${panel.width}px`;
     el.style.height = `${panel.height}px`;
-    
+
     // Update connection lines
     ws.updateConnections();
   },
 
   // End resize
-  endResize: function() {
+  endResize: function () {
     const ws = floatingWorkspace;
     ws.resizeState = null;
     document.removeEventListener('mousemove', ws.onResize);
@@ -1063,17 +1196,17 @@ const floatingWorkspace = {
     const panel = this.panels.find(p => p.id === panelId);
     const el = document.getElementById(panelId);
     if (!panel || !el) return;
-    
+
     panel.minimized = !panel.minimized;
     el.classList.toggle('minimized', panel.minimized);
-    
+
     const btn = el.querySelector('.panel-action-btn');
     if (btn) btn.innerHTML = panel.minimized ? '🔼' : '🔽';
-    
+
     if (!panel.minimized) {
       el.style.height = `${panel.height}px`;
     }
-    
+
     this.saveLayout();
   },
 
@@ -1090,7 +1223,10 @@ const floatingWorkspace = {
         sourcePanel.classList.remove('active');
         sourcePanel.style.display = panel.originalDisplay || '';
 
-        if (panel.originalNextSibling && panel.originalNextSibling.parentElement === panel.originalParent) {
+        if (
+          panel.originalNextSibling &&
+          panel.originalNextSibling.parentElement === panel.originalParent
+        ) {
           panel.originalParent.insertBefore(sourcePanel, panel.originalNextSibling);
         } else {
           panel.originalParent.appendChild(sourcePanel);
@@ -1120,7 +1256,9 @@ const floatingWorkspace = {
 
   closeAllPanels(options = {}) {
     const ids = this.panels.map(p => p.id);
-    ids.forEach(id => this.closePanel(id, { skipSave: true, skipConnections: true, skipMiniMap: true }));
+    ids.forEach(id =>
+      this.closePanel(id, { skipSave: true, skipConnections: true, skipMiniMap: true })
+    );
     this.updateConnections();
     this.updateMiniMap();
     if (!options.skipSave) this.saveLayout();
@@ -1178,7 +1316,9 @@ const floatingWorkspace = {
       const type = btn.getAttribute('data-panel');
       if (type) existingPanels.add(type);
       if (type === 'mcp-servers') {
-        const overlayVisible = document.getElementById('workspaceSidebarOverlay')?.classList.contains('visible');
+        const overlayVisible = document
+          .getElementById('workspaceSidebarOverlay')
+          ?.classList.contains('visible');
         btn.classList.toggle('has-panel', overlayVisible);
         return;
       }
@@ -1228,7 +1368,7 @@ const floatingWorkspace = {
         y: p.y,
         width: p.width,
         height: p.height,
-        minimized: p.minimized
+        minimized: p.minimized,
       }));
       localStorage.setItem('mcp_workspace_layout', JSON.stringify(layout));
     } catch (e) {
@@ -1246,7 +1386,7 @@ const floatingWorkspace = {
           const panel = this.addPanel(p.type, p.x, p.y, {
             skipSave: true,
             skipConnections: true,
-            skipMiniMap: true
+            skipMiniMap: true,
           });
           if (panel) {
             panel.width = p.width;
@@ -1294,7 +1434,9 @@ const floatingWorkspace = {
           this.canvasOuter.removeEventListener('contextmenu', this.handlers.canvasContextMenu);
         }
         if (this.handlers.canvasWheel) {
-          this.canvasOuter.removeEventListener('wheel', this.handlers.canvasWheel, { passive: false });
+          this.canvasOuter.removeEventListener('wheel', this.handlers.canvasWheel, {
+            passive: false,
+          });
         }
         if (this.handlers.canvasMouseDown) {
           this.canvasOuter.removeEventListener('mousedown', this.handlers.canvasMouseDown);
@@ -1421,13 +1563,13 @@ const floatingWorkspace = {
     document.body.appendChild(palette);
 
     const input = palette.querySelector('#commandInput');
-    input.addEventListener('input', (e) => this.filterCommands(e.target.value));
-    input.addEventListener('keydown', (e) => {
+    input.addEventListener('input', e => this.filterCommands(e.target.value));
+    input.addEventListener('keydown', e => {
       if (e.key === 'Escape') this.closeCommandPalette();
       if (e.key === 'Enter') this.executeSelectedCommand();
     });
 
-    palette.addEventListener('click', (e) => {
+    palette.addEventListener('click', e => {
       if (e.target === palette) this.closeCommandPalette();
     });
 
@@ -1449,34 +1591,157 @@ const floatingWorkspace = {
         id,
         icon: def.icon,
         title: `Open ${def.title}`,
-        action: () => { this.addPanel(id); this.closeCommandPalette(); }
+        action: () => {
+          this.addPanel(id);
+          this.closeCommandPalette();
+        },
       })),
-      { type: 'action', icon: '💾', title: 'Save Layout', action: () => { this.saveLayout(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '💾', title: 'Workspace Sessions', action: () => { this.showSessionsModal(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '🗂️', title: 'Workspace Templates', action: () => { this.showTemplatesModal(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '🧩', title: 'Manage Variables', action: () => { if (typeof showVariablesManager === 'function') { showVariablesManager(); } this.closeCommandPalette(); } },
-      { type: 'action', icon: '📥', title: 'Load Preset', action: () => { this.showPresetsModal(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '📤', title: 'Export Workspace', action: () => { this.exportWorkspace(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '📥', title: 'Import Workspace', action: () => { this.importWorkspace(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '📦', title: 'Export Project Bundle', action: () => { if (typeof exportProjectBundle === 'function') { exportProjectBundle(); } this.closeCommandPalette(); } },
-      { type: 'action', icon: '📥', title: 'Import Project Bundle', action: () => { if (typeof triggerProjectBundleImport === 'function') { triggerProjectBundleImport(); } this.closeCommandPalette(); } },
-      { type: 'action', icon: '🗺️', title: 'Toggle Mini-map', action: () => { this.toggleMiniMap(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '⤢', title: 'Fit All Panels', action: () => { this.fitAll(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '🎨', title: 'Change Theme', action: () => { this.showThemeSelector(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '⌨️', title: 'Keyboard Shortcuts', action: () => { this.showKeyboardShortcuts(); this.closeCommandPalette(); } },
-      { type: 'action', icon: '🔄', title: 'Reset Layout', action: () => { this.resetLayout(); this.closeCommandPalette(); } }
+      {
+        type: 'action',
+        icon: '💾',
+        title: 'Save Layout',
+        action: () => {
+          this.saveLayout();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '💾',
+        title: 'Workspace Sessions',
+        action: () => {
+          this.showSessionsModal();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '🗂️',
+        title: 'Workspace Templates',
+        action: () => {
+          this.showTemplatesModal();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '🧩',
+        title: 'Manage Variables',
+        action: () => {
+          if (typeof showVariablesManager === 'function') {
+            showVariablesManager();
+          }
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '📥',
+        title: 'Load Preset',
+        action: () => {
+          this.showPresetsModal();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '📤',
+        title: 'Export Workspace',
+        action: () => {
+          this.exportWorkspace();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '📥',
+        title: 'Import Workspace',
+        action: () => {
+          this.importWorkspace();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '📦',
+        title: 'Export Project Bundle',
+        action: () => {
+          if (typeof exportProjectBundle === 'function') {
+            exportProjectBundle();
+          }
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '📥',
+        title: 'Import Project Bundle',
+        action: () => {
+          if (typeof triggerProjectBundleImport === 'function') {
+            triggerProjectBundleImport();
+          }
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '🗺️',
+        title: 'Toggle Mini-map',
+        action: () => {
+          this.toggleMiniMap();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '⤢',
+        title: 'Fit All Panels',
+        action: () => {
+          this.fitAll();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '🎨',
+        title: 'Change Theme',
+        action: () => {
+          this.showThemeSelector();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '⌨️',
+        title: 'Keyboard Shortcuts',
+        action: () => {
+          this.showKeyboardShortcuts();
+          this.closeCommandPalette();
+        },
+      },
+      {
+        type: 'action',
+        icon: '🔄',
+        title: 'Reset Layout',
+        action: () => {
+          this.resetLayout();
+          this.closeCommandPalette();
+        },
+      },
     ];
 
-    const filtered = query
-      ? commands.filter(c => c.title.toLowerCase().includes(query))
-      : commands;
+    const filtered = query ? commands.filter(c => c.title.toLowerCase().includes(query)) : commands;
 
-    results.innerHTML = filtered.map((cmd, i) => `
+    results.innerHTML = filtered
+      .map(
+        (cmd, i) => `
       <div class="command-item" data-index="${i}" onclick="floatingWorkspace.executeCommand(${i})" style="padding: 10px; cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 10px; transition: background 0.2s">
         <span style="font-size: 1.2rem">${cmd.icon}</span>
         <span style="flex: 1">${cmd.title}</span>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
 
     this.commandsList = filtered;
   },
@@ -1536,20 +1801,40 @@ const floatingWorkspace = {
 
     const presets = this.getPresets();
     const builtInPresets = [
-      { id: 'debug', name: '🐛 Debug Layout', panels: ['chat', 'debugger', 'workflows', 'inspector'] },
-      { id: 'testing', name: '🧪 Testing Layout', panels: ['scenarios', 'collections', 'monitors', 'contracts'] },
-      { id: 'development', name: '💻 Development Layout', panels: ['chat', 'inspector', 'workflows', 'scripts', 'mocks'] },
-      { id: 'analytics', name: '📊 Analytics Layout', panels: ['toolexplorer', 'performance', 'monitors', 'history'] }
+      {
+        id: 'debug',
+        name: '🐛 Debug Layout',
+        panels: ['chat', 'debugger', 'workflows', 'inspector'],
+      },
+      {
+        id: 'testing',
+        name: '🧪 Testing Layout',
+        panels: ['scenarios', 'collections', 'monitors', 'contracts'],
+      },
+      {
+        id: 'development',
+        name: '💻 Development Layout',
+        panels: ['chat', 'inspector', 'workflows', 'scripts', 'mocks'],
+      },
+      {
+        id: 'analytics',
+        name: '📊 Analytics Layout',
+        panels: ['toolexplorer', 'performance', 'monitors', 'history'],
+      },
     ];
 
     const allPresets = [...builtInPresets, ...presets];
 
-    container.innerHTML = allPresets.map(preset => `
+    container.innerHTML = allPresets
+      .map(
+        preset => `
       <div class="preset-card" style="padding: 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer" onclick="floatingWorkspace.loadPreset('${preset.id}')">
         <div style="font-weight: 600; margin-bottom: 8px">${preset.name}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary)">${preset.panels ? preset.panels.length : 0} panels</div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   },
 
   getPresets() {
@@ -1564,7 +1849,7 @@ const floatingWorkspace = {
     const name = await appPrompt('Enter preset name:', {
       title: 'Save Preset',
       label: 'Preset name',
-      required: true
+      required: true,
     });
     if (!name) return;
 
@@ -1577,9 +1862,9 @@ const floatingWorkspace = {
         x: p.x,
         y: p.y,
         width: p.width,
-        height: p.height
+        height: p.height,
       })),
-      panels: this.panels.map(p => p.type)
+      panels: this.panels.map(p => p.type),
     });
 
     localStorage.setItem('mcp_workspace_presets', JSON.stringify(presets));
@@ -1596,7 +1881,7 @@ const floatingWorkspace = {
         debug: { panels: ['chat', 'debugger', 'workflows', 'inspector'] },
         testing: { panels: ['scenarios', 'collections', 'monitors', 'contracts'] },
         development: { panels: ['chat', 'inspector', 'workflows', 'scripts', 'mocks'] },
-        analytics: { panels: ['toolexplorer', 'performance', 'monitors', 'history'] }
+        analytics: { panels: ['toolexplorer', 'performance', 'monitors', 'history'] },
       };
       preset = builtIn[presetId];
       if (preset) {
@@ -1606,7 +1891,7 @@ const floatingWorkspace = {
           this.addPanel(type, 100 + (i % 3) * 400, 80 + Math.floor(i / 3) * 300, {
             skipSave: true,
             skipConnections: true,
-            skipMiniMap: true
+            skipMiniMap: true,
           });
         });
       }
@@ -1614,7 +1899,11 @@ const floatingWorkspace = {
       // Custom preset with saved positions
       this.closeAllPanels({ skipSave: true });
       preset.layout.forEach(p => {
-        this.addPanel(p.type, p.x, p.y, { skipSave: true, skipConnections: true, skipMiniMap: true });
+        this.addPanel(p.type, p.x, p.y, {
+          skipSave: true,
+          skipConnections: true,
+          skipMiniMap: true,
+        });
       });
     }
 
@@ -1659,18 +1948,18 @@ const floatingWorkspace = {
           width: p.width,
           height: p.height,
           minimized: p.minimized,
-          group: p.group
+          group: p.group,
         })),
         groups: this.groups,
         theme: this.workspaceTheme,
         zoom: this.zoom,
-        pan: { x: this.panX, y: this.panY }
+        pan: { x: this.panX, y: this.panY },
       },
       environment: {
         profiles: JSON.parse(localStorage.getItem(ENV_PROFILES_KEY) || '{}'),
-        current: localStorage.getItem(CURRENT_ENV_KEY) || 'development'
+        current: localStorage.getItem(CURRENT_ENV_KEY) || 'development',
       },
-      collections
+      collections,
     };
   },
 
@@ -1699,7 +1988,7 @@ const floatingWorkspace = {
       const panel = this.addPanel(p.type, p.x, p.y, {
         skipSave: true,
         skipConnections: true,
-        skipMiniMap: true
+        skipMiniMap: true,
       });
       if (panel) {
         panel.width = p.width;
@@ -1742,7 +2031,7 @@ const floatingWorkspace = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify(collection)
+            body: JSON.stringify(collection),
           });
         } catch (error) {
           console.warn('Failed to import collection:', error);
@@ -1764,7 +2053,7 @@ const floatingWorkspace = {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = async (e) => {
+    input.onchange = async e => {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -1815,8 +2104,8 @@ const floatingWorkspace = {
       confirmText: 'Save',
       fields: [
         { id: 'name', label: 'Template name', required: true },
-        { id: 'description', label: 'Description', placeholder: 'Optional' }
-      ]
+        { id: 'description', label: 'Description', placeholder: 'Optional' },
+      ],
     });
     if (!result.confirmed) return;
     const name = (result.values.name || '').trim();
@@ -1829,7 +2118,7 @@ const floatingWorkspace = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name, description, bundle })
+        body: JSON.stringify({ name, description, bundle }),
       });
       if (!res.ok) throw new Error(await res.text());
       await this.loadWorkspaceTemplates();
@@ -1843,11 +2132,14 @@ const floatingWorkspace = {
   async updateWorkspaceTemplate(templateId) {
     const template = this.workspaceTemplates.find(t => t.id === templateId);
     if (!template) return;
-    const confirmed = await appConfirm(`Overwrite template "${template.name}" with current workspace?`, {
-      title: 'Overwrite Template',
-      confirmText: 'Overwrite',
-      confirmVariant: 'danger'
-    });
+    const confirmed = await appConfirm(
+      `Overwrite template "${template.name}" with current workspace?`,
+      {
+        title: 'Overwrite Template',
+        confirmText: 'Overwrite',
+        confirmVariant: 'danger',
+      }
+    );
     if (!confirmed) return;
 
     try {
@@ -1859,8 +2151,8 @@ const floatingWorkspace = {
         body: JSON.stringify({
           name: template.name,
           description: template.description || '',
-          bundle
-        })
+          bundle,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       await this.loadWorkspaceTemplates();
@@ -1875,13 +2167,13 @@ const floatingWorkspace = {
     const confirmed = await appConfirm('Delete this workspace template?', {
       title: 'Delete Template',
       confirmText: 'Delete',
-      confirmVariant: 'danger'
+      confirmVariant: 'danger',
     });
     if (!confirmed) return;
     try {
       const res = await fetch(`/api/workspaces/${templateId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       });
       if (!res.ok) throw new Error(await res.text());
       await this.loadWorkspaceTemplates();
@@ -1949,7 +2241,9 @@ const floatingWorkspace = {
       return;
     }
 
-    list.innerHTML = this.workspaceTemplates.map(template => `
+    list.innerHTML = this.workspaceTemplates
+      .map(
+        template => `
       <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center; gap: 16px">
         <div>
           <div style="font-weight: 600">${template.name}</div>
@@ -1962,7 +2256,9 @@ const floatingWorkspace = {
           <button class="btn" style="background: var(--error); color: white" onclick="floatingWorkspace.deleteWorkspaceTemplate('${template.id}')">Delete</button>
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   },
 
   // ==========================================
@@ -1973,7 +2269,7 @@ const floatingWorkspace = {
     this.groups[groupId] = {
       name,
       panels: panelIds,
-      collapsed: false
+      collapsed: false,
     };
 
     panelIds.forEach(id => {
@@ -1995,9 +2291,9 @@ const floatingWorkspace = {
 
       // Check for edge proximity
       const leftDist = Math.abs(panel.x - (other.x + other.width));
-      const rightDist = Math.abs((panel.x + panel.width) - other.x);
+      const rightDist = Math.abs(panel.x + panel.width - other.x);
       const topDist = Math.abs(panel.y - (other.y + other.height));
-      const bottomDist = Math.abs((panel.y + panel.height) - other.y);
+      const bottomDist = Math.abs(panel.y + panel.height - other.y);
 
       if (leftDist < this.snapDistance && Math.abs(panel.y - other.y) < 50) {
         panel.x = other.x + other.width;
@@ -2032,7 +2328,7 @@ const floatingWorkspace = {
         guidelines.push({ type: 'vertical', pos: other.x });
       }
       // Check for vertical alignment (right edges)
-      if (Math.abs((panel.x + panel.width) - (other.x + other.width)) < snapThreshold) {
+      if (Math.abs(panel.x + panel.width - (other.x + other.width)) < snapThreshold) {
         guidelines.push({ type: 'vertical', pos: other.x + other.width });
       }
       // Check for horizontal alignment (top edges)
@@ -2040,7 +2336,7 @@ const floatingWorkspace = {
         guidelines.push({ type: 'horizontal', pos: other.y });
       }
       // Check for horizontal alignment (bottom edges)
-      if (Math.abs((panel.y + panel.height) - (other.y + other.height)) < snapThreshold) {
+      if (Math.abs(panel.y + panel.height - (other.y + other.height)) < snapThreshold) {
         guidelines.push({ type: 'horizontal', pos: other.y + other.height });
       }
     });
@@ -2108,11 +2404,11 @@ const floatingWorkspace = {
         y: p.y,
         width: p.width,
         height: p.height,
-        minimized: p.minimized
+        minimized: p.minimized,
       })),
       zoom: this.zoom,
       pan: { x: this.panX, y: this.panY },
-      theme: this.workspaceTheme
+      theme: this.workspaceTheme,
     };
 
     sessions.push(session);
@@ -2142,7 +2438,7 @@ const floatingWorkspace = {
       const panel = this.addPanel(p.type, p.x, p.y, {
         skipSave: true,
         skipConnections: true,
-        skipMiniMap: true
+        skipMiniMap: true,
       });
       if (panel) {
         panel.width = p.width;
@@ -2213,7 +2509,7 @@ const floatingWorkspace = {
     const name = await appPrompt('Enter session name:', {
       title: 'Save Workspace Session',
       label: 'Session name',
-      required: true
+      required: true,
     });
     if (!name) return;
     this.saveWorkspaceSession(name);
@@ -2227,11 +2523,14 @@ const floatingWorkspace = {
     const sessions = this.getWorkspaceSessions();
 
     if (sessions.length === 0) {
-      container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px">No saved sessions</div>';
+      container.innerHTML =
+        '<div style="text-align: center; color: var(--text-secondary); padding: 20px">No saved sessions</div>';
       return;
     }
 
-    container.innerHTML = sessions.map(session => `
+    container.innerHTML = sessions
+      .map(
+        session => `
       <div class="preset-card" style="padding: 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center">
         <div>
           <div style="font-weight: 600; margin-bottom: 4px">${session.name}</div>
@@ -2242,7 +2541,9 @@ const floatingWorkspace = {
           <button class="btn" onclick="floatingWorkspace.deleteWorkspaceSession('${session.id}'); floatingWorkspace.renderSessions()" style="font-size: 0.8rem; padding: 4px 12px">Delete</button>
         </div>
       </div>
-    `).join('');
+    `
+      )
+      .join('');
   },
 
   // ==========================================
@@ -2289,10 +2590,14 @@ const floatingWorkspace = {
     if (!canvas) return;
 
     const themes = {
-      default: 'radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.06) 0%, transparent 50%), var(--bg-base)',
-      ocean: 'radial-gradient(ellipse at 20% 30%, rgba(0, 180, 219, 0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(0, 131, 176, 0.08) 0%, transparent 50%), var(--bg-base)',
-      sunset: 'radial-gradient(ellipse at 20% 30%, rgba(250, 139, 255, 0.1) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(43, 210, 255, 0.08) 0%, transparent 50%), var(--bg-base)',
-      forest: 'radial-gradient(ellipse at 20% 30%, rgba(19, 78, 94, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(113, 178, 128, 0.1) 0%, transparent 50%), var(--bg-base)'
+      default:
+        'radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.06) 0%, transparent 50%), var(--bg-base)',
+      ocean:
+        'radial-gradient(ellipse at 20% 30%, rgba(0, 180, 219, 0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(0, 131, 176, 0.08) 0%, transparent 50%), var(--bg-base)',
+      sunset:
+        'radial-gradient(ellipse at 20% 30%, rgba(250, 139, 255, 0.1) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(43, 210, 255, 0.08) 0%, transparent 50%), var(--bg-base)',
+      forest:
+        'radial-gradient(ellipse at 20% 30%, rgba(19, 78, 94, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(113, 178, 128, 0.1) 0%, transparent 50%), var(--bg-base)',
     };
 
     canvas.style.background = themes[themeName] || themes.default;
@@ -2308,21 +2613,21 @@ const floatingWorkspace = {
 
     this.handlers = {};
 
-    this.handlers.canvasContextMenu = (e) => {
+    this.handlers.canvasContextMenu = e => {
       if (e.target.closest('.floating-panel')) return;
       e.preventDefault();
       this.showRadialMenu(e.clientX, e.clientY);
     };
     this.canvasOuter.addEventListener('contextmenu', this.handlers.canvasContextMenu);
 
-    this.handlers.documentClick = (e) => {
+    this.handlers.documentClick = e => {
       if (!e.target.closest('.radial-menu')) {
         this.closeRadialMenu();
       }
     };
     document.addEventListener('click', this.handlers.documentClick);
 
-    this.handlers.canvasWheel = (e) => {
+    this.handlers.canvasWheel = e => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -2352,7 +2657,7 @@ const floatingWorkspace = {
     };
     this.canvasOuter.addEventListener('wheel', this.handlers.canvasWheel, { passive: false });
 
-    this.handlers.canvasMouseDown = (e) => {
+    this.handlers.canvasMouseDown = e => {
       const clickedPanel = e.target.closest('.floating-panel');
       if (e.button === 1 || (e.button === 0 && this.spaceDown && !clickedPanel)) {
         e.preventDefault();
@@ -2366,14 +2671,14 @@ const floatingWorkspace = {
     };
     this.canvasOuter.addEventListener('mousedown', this.handlers.canvasMouseDown);
 
-    this.handlers.canvasAuxClick = (e) => {
+    this.handlers.canvasAuxClick = e => {
       if (e.button === 1) {
         e.preventDefault();
       }
     };
     this.canvasOuter.addEventListener('auxclick', this.handlers.canvasAuxClick);
 
-    this.handlers.documentMouseMove = (e) => {
+    this.handlers.documentMouseMove = e => {
       if (this.isPanning) {
         const deltaX = e.clientX - this.panStartMouseX;
         const deltaY = e.clientY - this.panStartMouseY;
@@ -2394,11 +2699,15 @@ const floatingWorkspace = {
     };
     document.addEventListener('mouseup', this.handlers.documentMouseUp);
 
-    this.handlers.documentKeyDown = (e) => {
+    this.handlers.documentKeyDown = e => {
       if (!document.body.classList.contains('workspace-mode')) return;
 
       if (e.code === 'Space' && !e.repeat) {
-        if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
+        if (
+          e.target.tagName !== 'INPUT' &&
+          e.target.tagName !== 'TEXTAREA' &&
+          !e.target.isContentEditable
+        ) {
           e.preventDefault();
           this.spaceDown = true;
           if (this.canvasOuter) this.canvasOuter.style.cursor = 'grab';
@@ -2456,7 +2765,13 @@ const floatingWorkspace = {
       }
 
       if (e.key === 'g' || e.key === 'G') {
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey &&
+          e.target.tagName !== 'INPUT' &&
+          e.target.tagName !== 'TEXTAREA'
+        ) {
           e.preventDefault();
           this.snapToGrid = !this.snapToGrid;
           console.log(`Snap to grid: ${this.snapToGrid ? 'ON' : 'OFF'}`);
@@ -2465,7 +2780,7 @@ const floatingWorkspace = {
     };
     document.addEventListener('keydown', this.handlers.documentKeyDown, true);
 
-    this.handlers.documentKeyUp = (e) => {
+    this.handlers.documentKeyUp = e => {
       if (e.code === 'Space') {
         this.spaceDown = false;
         if (this.canvasOuter && !this.isPanning) {
@@ -2474,7 +2789,7 @@ const floatingWorkspace = {
       }
     };
     document.addEventListener('keyup', this.handlers.documentKeyUp, true);
-  }
+  },
 };
 
 // Initialize when DOM is ready - with delay to ensure app.js runs first

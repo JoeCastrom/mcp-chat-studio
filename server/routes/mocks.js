@@ -442,7 +442,9 @@ router.post('/from-collection', (req, res) => {
     const { collectionId, collectionName, scenarios } = req.body;
 
     if (!collectionId || !collectionName || !scenarios) {
-      return res.status(400).json({ error: 'collectionId, collectionName, and scenarios are required' });
+      return res
+        .status(400)
+        .json({ error: 'collectionId, collectionName, and scenarios are required' });
     }
 
     const mock = manager.createFromCollection(collectionId, collectionName, scenarios);

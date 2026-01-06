@@ -15,7 +15,7 @@ function sanitizeHtml(html) {
     return window.DOMPurify.sanitize(input, {
       ALLOWED_TAGS: allowedTags,
       ALLOWED_ATTR: allowedAttrs,
-      FORBID_ATTR: ['style', 'on*']
+      FORBID_ATTR: ['style', 'on*'],
     });
   }
 
@@ -25,7 +25,7 @@ function sanitizeHtml(html) {
   const allowAttrSet = new Set(allowedAttrs);
   const allowedProtocols = new Set(['http:', 'https:', 'mailto:']);
 
-  const isSafeUrl = (value) => {
+  const isSafeUrl = value => {
     try {
       const parsed = new URL(value, window.location.origin);
       return allowedProtocols.has(parsed.protocol);
@@ -87,7 +87,7 @@ function showAppModal(options = {}) {
     cancelText = 'Cancel',
     showCancel = true,
     confirmVariant = 'primary',
-    maxWidth = '520px'
+    maxWidth = '520px',
   } = options;
 
   return new Promise(resolve => {
@@ -96,33 +96,38 @@ function showAppModal(options = {}) {
     overlay.dataset.appModal = 'true';
 
     const messageHtml = formatModalMessage(message);
-    const fieldHtml = fields.map((field, index) => {
-      const fieldId = field.id || `field_${index}`;
-      const label = field.label ? `<label class="form-label" for="${fieldId}">${escapeHtml(field.label)}</label>` : '';
-      const hint = field.hint ? `<div class="form-hint">${escapeHtml(field.hint)}</div>` : '';
-      const requiredAttr = field.required ? 'required' : '';
-      const placeholder = field.placeholder ? escapeHtml(field.placeholder) : '';
-      const value = field.value ?? '';
-      const inputStyle = field.monospace ? 'font-family: "JetBrains Mono", monospace;' : '';
+    const fieldHtml = fields
+      .map((field, index) => {
+        const fieldId = field.id || `field_${index}`;
+        const label = field.label
+          ? `<label class="form-label" for="${fieldId}">${escapeHtml(field.label)}</label>`
+          : '';
+        const hint = field.hint ? `<div class="form-hint">${escapeHtml(field.hint)}</div>` : '';
+        const requiredAttr = field.required ? 'required' : '';
+        const placeholder = field.placeholder ? escapeHtml(field.placeholder) : '';
+        const value = field.value ?? '';
+        const inputStyle = field.monospace ? 'font-family: "JetBrains Mono", monospace;' : '';
 
-      let inputHtml = '';
-      if (field.type === 'textarea') {
-        const rows = field.rows || 5;
-        inputHtml = `<textarea class="form-input" id="${fieldId}" ${requiredAttr} placeholder="${placeholder}" rows="${rows}" style="${inputStyle}">${escapeHtml(String(value))}</textarea>`;
-      } else if (field.type === 'select') {
-        const optionsHtml = (field.options || []).map(opt => {
-          const optValue = opt.value ?? opt;
-          const optLabel = opt.label ?? optValue;
-          const selected = optValue === value ? 'selected' : '';
-          return `<option value="${escapeHtml(String(optValue))}" ${selected}>${escapeHtml(String(optLabel))}</option>`;
-        }).join('');
-        inputHtml = `<select class="form-select" id="${fieldId}" ${requiredAttr}>${optionsHtml}</select>`;
-      } else {
-        const type = field.type || 'text';
-        inputHtml = `<input class="form-input" id="${fieldId}" type="${type}" ${requiredAttr} placeholder="${placeholder}" value="${escapeHtml(String(value))}" style="${inputStyle}" />`;
-      }
+        let inputHtml = '';
+        if (field.type === 'textarea') {
+          const rows = field.rows || 5;
+          inputHtml = `<textarea class="form-input" id="${fieldId}" ${requiredAttr} placeholder="${placeholder}" rows="${rows}" style="${inputStyle}">${escapeHtml(String(value))}</textarea>`;
+        } else if (field.type === 'select') {
+          const optionsHtml = (field.options || [])
+            .map(opt => {
+              const optValue = opt.value ?? opt;
+              const optLabel = opt.label ?? optValue;
+              const selected = optValue === value ? 'selected' : '';
+              return `<option value="${escapeHtml(String(optValue))}" ${selected}>${escapeHtml(String(optLabel))}</option>`;
+            })
+            .join('');
+          inputHtml = `<select class="form-select" id="${fieldId}" ${requiredAttr}>${optionsHtml}</select>`;
+        } else {
+          const type = field.type || 'text';
+          inputHtml = `<input class="form-input" id="${fieldId}" type="${type}" ${requiredAttr} placeholder="${placeholder}" value="${escapeHtml(String(value))}" style="${inputStyle}" />`;
+        }
 
-      return `
+        return `
         <div class="form-group" data-field-group="${fieldId}">
           ${label}
           ${inputHtml}
@@ -130,7 +135,8 @@ function showAppModal(options = {}) {
           ${hint}
         </div>
       `;
-    }).join('');
+      })
+      .join('');
 
     const confirmClass = confirmVariant === 'danger' ? 'btn danger' : 'btn primary';
     overlay.innerHTML = `
@@ -156,13 +162,13 @@ function showAppModal(options = {}) {
 
     document.body.appendChild(overlay);
 
-    const cleanup = (result) => {
+    const cleanup = result => {
       overlay.remove();
       document.removeEventListener('keydown', onKeyDown);
       resolve(result);
     };
 
-    const onKeyDown = (event) => {
+    const onKeyDown = event => {
       if (event.key === 'Escape') {
         event.preventDefault();
         cleanup({ confirmed: false, values: {} });
@@ -213,7 +219,7 @@ function showAppModal(options = {}) {
       return { valid, values };
     };
 
-    overlay.addEventListener('click', (event) => {
+    overlay.addEventListener('click', event => {
       if (event.target === overlay) {
         cleanup({ confirmed: false, values: {} });
       }
@@ -248,7 +254,7 @@ async function appConfirm(message, options = {}) {
     confirmText: options.confirmText || 'Confirm',
     cancelText: options.cancelText || 'Cancel',
     confirmVariant: options.confirmVariant || 'primary',
-    showCancel: true
+    showCancel: true,
   });
   return result.confirmed;
 }
@@ -259,7 +265,7 @@ async function appAlert(message, options = {}) {
     message,
     bodyHtml: options.bodyHtml || '',
     confirmText: options.confirmText || 'OK',
-    showCancel: false
+    showCancel: false,
   });
 }
 
@@ -273,15 +279,15 @@ async function appPrompt(message, options = {}) {
       {
         id: 'value',
         label: options.label || 'Value',
-        type: options.multiline ? 'textarea' : (options.type || 'text'),
+        type: options.multiline ? 'textarea' : options.type || 'text',
         value: options.defaultValue ?? '',
         placeholder: options.placeholder || '',
         required: options.required || false,
         rows: options.rows,
         monospace: options.monospace || false,
-        hint: options.hint
-      }
-    ]
+        hint: options.hint,
+      },
+    ],
   });
   if (!result.confirmed) return null;
   return result.values.value;
@@ -302,4 +308,3 @@ if (typeof globalThis !== 'undefined') {
   globalThis.appPrompt = appPrompt;
   globalThis.appFormModal = appFormModal;
 }
-

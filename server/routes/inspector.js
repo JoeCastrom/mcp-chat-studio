@@ -133,7 +133,7 @@ router.get('/timeline/:sessionId', (req, res) => {
       method,
       type,
       limit: limit ? parseInt(limit) : undefined,
-      offset: offset ? parseInt(offset) : undefined
+      offset: offset ? parseInt(offset) : undefined,
     });
 
     res.json(timeline);
@@ -273,7 +273,7 @@ router.post('/bulk-test', async (req, res) => {
 
     if (!serverName || !toolName || !inputs || !Array.isArray(inputs)) {
       return res.status(400).json({
-        error: 'serverName, toolName, and inputs array required'
+        error: 'serverName, toolName, and inputs array required',
       });
     }
 
@@ -283,7 +283,7 @@ router.post('/bulk-test', async (req, res) => {
       toolName,
       inputs,
       parallel: parallel !== false, // default true
-      continueOnError: continueOnError !== false // default true
+      continueOnError: continueOnError !== false, // default true
     });
 
     res.json(results);
@@ -361,7 +361,7 @@ router.post('/diff', async (req, res) => {
 
     if (!serverName || !toolName || !args1 || !args2) {
       return res.status(400).json({
-        error: 'serverName, toolName, args1, and args2 required'
+        error: 'serverName, toolName, args1, and args2 required',
       });
     }
 
@@ -372,7 +372,7 @@ router.post('/diff', async (req, res) => {
       args1,
       args2,
       label1,
-      label2
+      label2,
     });
 
     res.json(diffResult);

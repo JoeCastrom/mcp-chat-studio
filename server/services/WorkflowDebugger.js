@@ -20,8 +20,8 @@ export class WorkflowDebugger {
   async startDebugSession(workflowId, inputData, config = {}) {
     const {
       breakpoints = [], // Array of node IDs
-      stepMode = false,  // Pause at every node
-      llmConfig = {}
+      stepMode = false, // Pause at every node
+      llmConfig = {},
     } = config;
 
     const sessionId = `debug_${Date.now()}`;
@@ -42,13 +42,13 @@ export class WorkflowDebugger {
       context: {
         input: inputData,
         steps: {},
-        logs: []
+        logs: [],
       },
       executionLog: [],
       status: 'ready',
       pausePromise: null,
       pauseResolve: null,
-      llmConfig
+      llmConfig,
     };
 
     this.activeSessions.set(sessionId, debugState);
@@ -63,8 +63,8 @@ export class WorkflowDebugger {
       workflow: {
         id: workflow.id,
         name: workflow.name,
-        nodeCount: workflow.nodes.length
-      }
+        nodeCount: workflow.nodes.length,
+      },
     };
   }
 
@@ -92,7 +92,9 @@ export class WorkflowDebugger {
 
       // Find start nodes
       const incomingEdges = new Set(workflow.edges.map(e => e.to));
-      const startNodes = workflow.nodes.filter(n => !incomingEdges.has(n.id) || n.type === 'trigger');
+      const startNodes = workflow.nodes.filter(
+        n => !incomingEdges.has(n.id) || n.type === 'trigger'
+      );
 
       const queue = [...startNodes];
       const visited = new Set();
@@ -107,8 +109,8 @@ export class WorkflowDebugger {
           llm: {
             provider: 'ollama',
             model: 'llama3.1:8b',
-            base_url: 'http://localhost:11434'
-          }
+            base_url: 'http://localhost:11434',
+          },
         });
       }
 
@@ -137,7 +139,9 @@ export class WorkflowDebugger {
           // Create pause promise
           await new Promise(resolve => {
             state.pauseResolve = resolve;
-            state.pausePromise = new Promise(r => { state.pauseResolve = r; });
+            state.pausePromise = new Promise(r => {
+              state.pauseResolve = r;
+            });
           });
 
           // Check if aborted
@@ -162,7 +166,7 @@ export class WorkflowDebugger {
             type: node.type,
             status: 'success',
             output: result,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
 
           console.log(`[Debugger] Executed node ${node.id}: success`);
@@ -172,7 +176,7 @@ export class WorkflowDebugger {
             type: node.type,
             status: 'error',
             error: error.message,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
 
           console.error(`[Debugger] Node ${node.id} failed:`, error.message);
@@ -195,9 +199,8 @@ export class WorkflowDebugger {
         sessionId,
         status: 'completed',
         results: context.steps,
-        executionLog: state.executionLog
+        executionLog: state.executionLog,
       };
-
     } catch (error) {
       state.status = 'error';
       state.error = error.message;
@@ -206,7 +209,7 @@ export class WorkflowDebugger {
         sessionId,
         status: 'error',
         error: error.message,
-        executionLog: state.executionLog
+        executionLog: state.executionLog,
       };
     }
   }
@@ -220,7 +223,7 @@ export class WorkflowDebugger {
     debugState.context.logs.push({
       nodeId: node.id,
       message: `Executing ${node.type} node`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     switch (node.type) {
@@ -260,7 +263,7 @@ export class WorkflowDebugger {
 
         const response = await llmClient.chat({
           messages: [{ role: 'user', content: prompt }],
-          system: data.systemPrompt
+          system: data.systemPrompt,
         });
 
         return response.content;
@@ -278,11 +281,11 @@ export class WorkflowDebugger {
                   nodeId: node.id,
                   message: args.join(' '),
                   type: 'log',
-                  timestamp: new Date().toISOString()
+                  timestamp: new Date().toISOString(),
                 });
-              }
-            }
-          }
+              },
+            },
+          },
         });
 
         const wrappedCode = `(function() { ${data.code} })()`;
@@ -291,8 +294,10 @@ export class WorkflowDebugger {
 
       case 'assert': {
         const prevNodeIds = Object.keys(context.steps);
-        const prevOutput = prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
-        const outputStr = typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
+        const prevOutput =
+          prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
+        const outputStr =
+          typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
         const expected = data.expected || '';
         const condition = data.condition || 'contains';
 
@@ -331,7 +336,8 @@ export class WorkflowDebugger {
    */
   substituteVariables(text, steps) {
     for (const [nodeId, result] of Object.entries(steps)) {
-      const value = typeof result === 'object' && result.output !== undefined ? result.output : result;
+      const value =
+        typeof result === 'object' && result.output !== undefined ? result.output : result;
       const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
       text = text.replace(new RegExp(`\\{\\{${nodeId}\\.output\\}\\}`, 'g'), valueStr);
     }
@@ -419,16 +425,18 @@ export class WorkflowDebugger {
       sessionId: state.sessionId,
       workflowId: state.workflowId,
       status: state.status,
-      currentNode: state.currentNode ? {
-        id: state.currentNode.id,
-        type: state.currentNode.type,
-        data: state.currentNode.data
-      } : null,
+      currentNode: state.currentNode
+        ? {
+            id: state.currentNode.id,
+            type: state.currentNode.type,
+            data: state.currentNode.data,
+          }
+        : null,
       variables: state.context.steps,
       logs: state.context.logs,
       executionLog: state.executionLog,
       breakpoints: Array.from(state.breakpoints),
-      stepMode: state.stepMode
+      stepMode: state.stepMode,
     };
   }
 
@@ -444,7 +452,7 @@ export class WorkflowDebugger {
     return {
       input: state.context.input,
       steps: state.context.steps,
-      currentNode: state.currentNode?.id
+      currentNode: state.currentNode?.id,
     };
   }
 
@@ -461,7 +469,7 @@ export class WorkflowDebugger {
     console.log(`[Debugger] Added breakpoint at ${nodeId}`);
 
     return {
-      breakpoints: Array.from(state.breakpoints)
+      breakpoints: Array.from(state.breakpoints),
     };
   }
 
@@ -478,7 +486,7 @@ export class WorkflowDebugger {
     console.log(`[Debugger] Removed breakpoint at ${nodeId}`);
 
     return {
-      breakpoints: Array.from(state.breakpoints)
+      breakpoints: Array.from(state.breakpoints),
     };
   }
 
@@ -510,7 +518,7 @@ export class WorkflowDebugger {
       sessionId: id,
       workflowId: state.workflowId,
       status: state.status,
-      currentNode: state.currentNode?.id
+      currentNode: state.currentNode?.id,
     }));
   }
 }

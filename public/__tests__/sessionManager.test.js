@@ -20,7 +20,7 @@ describe('SessionManager', () => {
     getWelcomeMessage() {
       return {
         role: 'assistant',
-        content: '👋 Welcome to **MCP Chat Studio**! I\'m your AI assistant with MCP tool support.',
+        content: "👋 Welcome to **MCP Chat Studio**! I'm your AI assistant with MCP tool support.",
       };
     },
 
@@ -136,7 +136,7 @@ describe('SessionManager', () => {
         messages: messages.slice(0, forkAtIndex + 1),
         forkPoint: forkAtIndex,
         createdAt: new Date().toISOString(),
-        parentId: null
+        parentId: null,
       };
       branches.push(branch);
       localStorage.setItem(this.BRANCHES_KEY, JSON.stringify(branches));
@@ -161,7 +161,7 @@ describe('SessionManager', () => {
   describe('Session Storage', () => {
     test('getWelcomeMessage returns assistant message', () => {
       const msg = sessionManager.getWelcomeMessage();
-      
+
       expect(msg.role).toBe('assistant');
       expect(msg.content).toContain('MCP Chat Studio');
     });
@@ -170,7 +170,7 @@ describe('SessionManager', () => {
       const data = {
         messages: [{ role: 'user', content: 'Hello' }],
         toolHistory: [{ tool: 'test', timestamp: Date.now() }],
-        settings: { theme: 'dark' }
+        settings: { theme: 'dark' },
       };
 
       sessionManager.save(data);
@@ -185,7 +185,7 @@ describe('SessionManager', () => {
       // Save session with old timestamp
       const oldSession = {
         messages: [],
-        timestamp: Date.now() - (25 * 60 * 60 * 1000) // 25 hours ago
+        timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
       };
       localStorage.setItem(sessionManager.STORAGE_KEY, JSON.stringify(oldSession));
 
@@ -229,7 +229,7 @@ describe('SessionManager', () => {
       const id = sessionManager.saveScenario({ name: 'Test Scenario' });
 
       expect(id).toMatch(/^scenario_/);
-      
+
       const scenario = sessionManager.getScenario(id);
       expect(scenario.name).toBe('Test Scenario');
       expect(scenario.created).toBeDefined();
@@ -316,7 +316,7 @@ describe('Utility Functions', () => {
         '<': '&lt;',
         '>': '&gt;',
         '"': '&quot;',
-        "'": '&#39;'
+        "'": '&#39;',
       };
       return String(str).replace(/[&<>"']/g, m => escapeMap[m]);
     }
@@ -337,7 +337,7 @@ describe('Utility Functions', () => {
     test('handles nested tags', () => {
       const input = '<div onclick="alert(1)">XSS</div>';
       const output = escapeHtml(input);
-      
+
       expect(output).not.toContain('<');
       expect(output).not.toContain('>');
       expect(output).toBe('&lt;div onclick=&quot;alert(1)&quot;&gt;XSS&lt;/div&gt;');
@@ -382,7 +382,7 @@ describe('Utility Functions', () => {
 
     test('caches and retrieves data', () => {
       const id = cacheData({ expected: 'a', actual: 'b' });
-      
+
       expect(cache.has(id)).toBe(true);
       expect(cache.get(id)).toEqual({ expected: 'a', actual: 'b' });
     });

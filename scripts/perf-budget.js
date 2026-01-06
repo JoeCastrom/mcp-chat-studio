@@ -4,7 +4,7 @@ import { join } from 'path';
 const budgets = {
   'public/app.js': 950 * 1024,
   'public/advanced-features.js': 550 * 1024,
-  'public/workflow.js': 450 * 1024
+  'public/workflow.js': 450 * 1024,
 };
 
 let failed = false;

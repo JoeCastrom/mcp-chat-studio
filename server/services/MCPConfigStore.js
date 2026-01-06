@@ -90,7 +90,8 @@ export async function loadPersistedServers() {
       try {
         const fallbackName = `mcp-servers.json.broken-${Date.now()}`;
         await rename(STORE_PATH, join(DATA_DIR, fallbackName));
-        lastNotice = 'Saved server config was invalid and was moved aside. Please re-add servers if needed.';
+        lastNotice =
+          'Saved server config was invalid and was moved aside. Please re-add servers if needed.';
         console.warn(`[MCPConfigStore] Moved invalid file to ${fallbackName}`);
       } catch (renameError) {
         console.warn('[MCPConfigStore] Failed to move invalid config:', renameError.message);

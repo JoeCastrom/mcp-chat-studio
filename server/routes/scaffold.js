@@ -66,7 +66,7 @@ router.post('/generate', (req, res) => {
 
     if (!name || !language) {
       return res.status(400).json({
-        error: 'name and language are required'
+        error: 'name and language are required',
       });
     }
 
@@ -74,18 +74,18 @@ router.post('/generate', (req, res) => {
       name,
       language,
       description,
-      tools: tools || []
+      tools: tools || [],
     });
 
     res.json({
       success: true,
       files,
-      fileCount: Object.keys(files).length
+      fileCount: Object.keys(files).length,
     });
   } catch (error) {
     console.error('[Scaffold] Generation error:', error);
     res.status(500).json({
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -108,21 +108,21 @@ router.get('/templates', (req, res) => {
         id: 'python-basic',
         name: 'Python FastMCP Basic',
         language: 'python',
-        description: 'Basic Python MCP server using FastMCP'
+        description: 'Basic Python MCP server using FastMCP',
       },
       {
         id: 'nodejs-basic',
         name: 'Node.js MCP SDK Basic',
         language: 'nodejs',
-        description: 'Basic Node.js MCP server using official SDK'
+        description: 'Basic Node.js MCP server using official SDK',
       },
       {
         id: 'typescript-basic',
         name: 'TypeScript MCP SDK Basic',
         language: 'typescript',
-        description: 'Basic TypeScript MCP server with type safety'
-      }
-    ]
+        description: 'Basic TypeScript MCP server with type safety',
+      },
+    ],
   });
 });
 

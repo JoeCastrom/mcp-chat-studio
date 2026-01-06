@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getOAuthManager } from '../services/OAuthManager.js';
 import {
   loadPersistedOAuthConfig,
-  savePersistedOAuthConfig
+  savePersistedOAuthConfig,
 } from '../services/OAuthConfigStore.js';
 import { logAudit } from '../services/AuditLogger.js';
 
@@ -47,23 +47,23 @@ router.get('/config', async (req, res) => {
   const oauth = getOAuthManager();
   const persisted = await loadPersistedOAuthConfig();
 
-    res.json({
-      configured: oauth?.isConfigured() || false,
-      disabled: oauth?.config?.disabled || false,
-      provider: oauth?.provider || 'keycloak',
-      client_id: oauth?.clientId || '',
-      redirect_uri: oauth?.redirectUri || '',
-      scopes: oauth?.scopes || [],
-      use_pkce: oauth?.usePKCE !== false,
-      disable_ssl_verify: oauth?.config?.disable_ssl_verify || false,
-      keycloak_url: oauth?.keycloakUrl || '',
-      keycloak_realm: oauth?.realm || '',
-      authorize_url: oauth?.customEndpoints?.authorization || '',
-      token_url: oauth?.customEndpoints?.token || '',
-      userinfo_url: oauth?.customEndpoints?.userinfo || '',
+  res.json({
+    configured: oauth?.isConfigured() || false,
+    disabled: oauth?.config?.disabled || false,
+    provider: oauth?.provider || 'keycloak',
+    client_id: oauth?.clientId || '',
+    redirect_uri: oauth?.redirectUri || '',
+    scopes: oauth?.scopes || [],
+    use_pkce: oauth?.usePKCE !== false,
+    disable_ssl_verify: oauth?.config?.disable_ssl_verify || false,
+    keycloak_url: oauth?.keycloakUrl || '',
+    keycloak_realm: oauth?.realm || '',
+    authorize_url: oauth?.customEndpoints?.authorization || '',
+    token_url: oauth?.customEndpoints?.token || '',
+    userinfo_url: oauth?.customEndpoints?.userinfo || '',
     logout_url: oauth?.customEndpoints?.logout || '',
     hasClientSecret: !!oauth?.clientSecret,
-    source: persisted !== null ? 'ui' : 'config'
+    source: persisted !== null ? 'ui' : 'config',
   });
 });
 
@@ -99,7 +99,7 @@ router.post('/config', async (req, res) => {
       token_url: String(payload.token_url ?? existing.token_url ?? '').trim(),
       userinfo_url: String(payload.userinfo_url ?? existing.userinfo_url ?? '').trim(),
       logout_url: String(payload.logout_url ?? existing.logout_url ?? '').trim(),
-      disabled: payload.disabled === true ? true : false
+      disabled: payload.disabled === true ? true : false,
     };
 
     if (!nextConfig.client_id && !nextConfig.disabled) {
@@ -120,13 +120,13 @@ router.post('/config', async (req, res) => {
     logAudit('oauth.config_update', {
       provider: nextConfig.provider,
       disabled: nextConfig.disabled,
-      use_pkce: nextConfig.use_pkce
+      use_pkce: nextConfig.use_pkce,
     });
 
     res.json({
       success: true,
       configured: oauth?.isConfigured() || false,
-      provider: oauth?.provider || nextConfig.provider
+      provider: oauth?.provider || nextConfig.provider,
     });
   } catch (error) {
     console.error('[OAuth] Config update failed:', error.message);

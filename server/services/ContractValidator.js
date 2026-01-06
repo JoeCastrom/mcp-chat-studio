@@ -11,11 +11,11 @@
  */
 export function validateInput(args, schema) {
   const errors = [];
-  
+
   if (!schema || !schema.properties) {
     return { valid: true, errors: [] };
   }
-  
+
   // Check required fields
   const required = schema.required || [];
   for (const field of required) {
@@ -23,7 +23,7 @@ export function validateInput(args, schema) {
       errors.push(`Missing required field: ${field}`);
     }
   }
-  
+
   // Check types
   for (const [key, value] of Object.entries(args)) {
     const propSchema = schema.properties[key];
@@ -31,16 +31,16 @@ export function validateInput(args, schema) {
       // Unknown field - could be a warning, but we'll allow it
       continue;
     }
-    
+
     const typeError = validateType(value, propSchema, key);
     if (typeError) {
       errors.push(typeError);
     }
   }
-  
+
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -49,38 +49,41 @@ export function validateInput(args, schema) {
  */
 function validateType(value, propSchema, fieldName) {
   const expectedType = propSchema.type;
-  
+
   if (expectedType === 'string' && typeof value !== 'string') {
     return `Field '${fieldName}' expected string, got ${typeof value}`;
   }
-  
+
   if (expectedType === 'number' && typeof value !== 'number') {
     return `Field '${fieldName}' expected number, got ${typeof value}`;
   }
-  
+
   if (expectedType === 'integer') {
     if (typeof value !== 'number' || !Number.isInteger(value)) {
       return `Field '${fieldName}' expected integer, got ${typeof value}`;
     }
   }
-  
+
   if (expectedType === 'boolean' && typeof value !== 'boolean') {
     return `Field '${fieldName}' expected boolean, got ${typeof value}`;
   }
-  
+
   if (expectedType === 'array' && !Array.isArray(value)) {
     return `Field '${fieldName}' expected array, got ${typeof value}`;
   }
-  
-  if (expectedType === 'object' && (typeof value !== 'object' || Array.isArray(value) || value === null)) {
+
+  if (
+    expectedType === 'object' &&
+    (typeof value !== 'object' || Array.isArray(value) || value === null)
+  ) {
     return `Field '${fieldName}' expected object, got ${typeof value}`;
   }
-  
+
   // Check enum values
   if (propSchema.enum && !propSchema.enum.includes(value)) {
     return `Field '${fieldName}' must be one of: ${propSchema.enum.join(', ')}`;
   }
-  
+
   return null;
 }
 
@@ -93,11 +96,11 @@ function validateType(value, propSchema, fieldName) {
 export function validateOutput(output, contract) {
   const errors = [];
   const warnings = [];
-  
+
   if (!contract) {
     return { valid: true, errors: [], warnings: ['No output contract defined'] };
   }
-  
+
   // Check required output fields
   const required = contract.required || [];
   for (const field of required) {
@@ -105,7 +108,7 @@ export function validateOutput(output, contract) {
       errors.push(`Missing required output field: ${field}`);
     }
   }
-  
+
   // Check types if specified
   if (contract.types) {
     for (const [path, expectedType] of Object.entries(contract.types)) {
@@ -118,11 +121,11 @@ export function validateOutput(output, contract) {
       }
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
-    warnings
+    warnings,
   };
 }
 
@@ -140,17 +143,17 @@ function hasField(obj, path) {
  */
 function getNestedValue(obj, path) {
   if (!obj || !path) return undefined;
-  
+
   const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
   let current = obj;
-  
+
   for (const part of parts) {
     if (current === null || current === undefined) {
       return undefined;
     }
     current = current[part];
   }
-  
+
   return current;
 }
 
@@ -171,28 +174,28 @@ function getValueType(value) {
 export function createContractFromResponse(response) {
   const contract = {
     required: [],
-    types: {}
+    types: {},
   };
-  
+
   function processObject(obj, prefix = '') {
     if (!obj || typeof obj !== 'object') return;
-    
+
     for (const [key, value] of Object.entries(obj)) {
       const path = prefix ? `${prefix}.${key}` : key;
-      
+
       if (value !== null && value !== undefined) {
         contract.types[path] = getValueType(value);
-        
+
         // Add to required if it exists
         if (prefix === '') {
           contract.required.push(key);
         }
-        
+
         // Recurse into objects (but not arrays)
         if (typeof value === 'object' && !Array.isArray(value)) {
           processObject(value, path);
         }
-        
+
         // For arrays, check first item type
         if (Array.isArray(value) && value.length > 0) {
           contract.types[`${path}[]`] = getValueType(value[0]);
@@ -200,7 +203,7 @@ export function createContractFromResponse(response) {
       }
     }
   }
-  
+
   processObject(response);
   return contract;
 }
@@ -213,32 +216,32 @@ export function createContractFromResponse(response) {
  */
 export function compareSchemas(baseline, actual) {
   const changes = [];
-  
+
   const baselineContract = createContractFromResponse(baseline);
   const actualContract = createContractFromResponse(actual);
-  
+
   // Check for removed fields
   for (const field of baselineContract.required) {
     if (!actualContract.required.includes(field)) {
       changes.push({
         type: 'removed',
         field,
-        message: `Field '${field}' was removed`
+        message: `Field '${field}' was removed`,
       });
     }
   }
-  
+
   // Check for new fields
   for (const field of actualContract.required) {
     if (!baselineContract.required.includes(field)) {
       changes.push({
         type: 'added',
         field,
-        message: `New field '${field}' was added`
+        message: `New field '${field}' was added`,
       });
     }
   }
-  
+
   // Check for type changes
   for (const [path, type] of Object.entries(baselineContract.types)) {
     const actualType = actualContract.types[path];
@@ -246,14 +249,14 @@ export function compareSchemas(baseline, actual) {
       changes.push({
         type: 'type_changed',
         field: path,
-        message: `Field '${path}' type changed from ${type} to ${actualType}`
+        message: `Field '${path}' type changed from ${type} to ${actualType}`,
       });
     }
   }
-  
+
   return {
     hasChanges: changes.length > 0,
-    changes
+    changes,
   };
 }
 
@@ -261,5 +264,5 @@ export default {
   validateInput,
   validateOutput,
   createContractFromResponse,
-  compareSchemas
+  compareSchemas,
 };

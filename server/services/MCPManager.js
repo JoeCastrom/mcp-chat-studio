@@ -62,7 +62,7 @@ class MCPConnection {
           command: this.config.command,
           args: this.config.args || [],
           env,
-          cwd: this.config.cwd
+          cwd: this.config.cwd,
         });
       } else if (this.config.type === 'sse' || this.config.url) {
         const url = new URL(this.config.url);
@@ -98,7 +98,7 @@ class MCPConnection {
         server: this.serverName,
         transport: this.config.type || (this.config.command ? 'stdio' : 'unknown'),
         status: 'success',
-        durationMs: Date.now() - startedAt
+        durationMs: Date.now() - startedAt,
       });
 
       // Fetch available tools
@@ -112,7 +112,7 @@ class MCPConnection {
         server: this.serverName,
         transport: this.config.type || (this.config.command ? 'stdio' : 'unknown'),
         status: 'error',
-        error: error.message
+        error: error.message,
       });
       throw error;
     }
@@ -232,7 +232,7 @@ class MCPConnection {
         tool: toolName,
         status: 'success',
         durationMs: Date.now() - startedAt,
-        argKeys: Object.keys(args || {})
+        argKeys: Object.keys(args || {}),
       });
       return result;
     } catch (error) {
@@ -243,7 +243,7 @@ class MCPConnection {
         status: 'error',
         durationMs: Date.now() - startedAt,
         error: error.message,
-        argKeys: Object.keys(args || {})
+        argKeys: Object.keys(args || {}),
       });
       throw error;
     }
@@ -331,7 +331,7 @@ class MCPConnection {
     console.log(`[MCP][${this.serverName}] Disconnected`);
     logAudit('mcp.disconnect', {
       server: this.serverName,
-      transport: this.config.type || (this.config.command ? 'stdio' : 'unknown')
+      transport: this.config.type || (this.config.command ? 'stdio' : 'unknown'),
     });
   }
 
@@ -385,7 +385,7 @@ class MockConnection {
         tool: toolName,
         status: 'success',
         durationMs: Date.now() - startedAt,
-        argKeys: Object.keys(args || {})
+        argKeys: Object.keys(args || {}),
       });
       return response;
     } catch (error) {
@@ -396,7 +396,7 @@ class MockConnection {
         status: 'error',
         durationMs: Date.now() - startedAt,
         error: error.message,
-        argKeys: Object.keys(args || {})
+        argKeys: Object.keys(args || {}),
       });
       throw error;
     }

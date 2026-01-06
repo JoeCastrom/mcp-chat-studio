@@ -30,7 +30,7 @@ export class ToolExplorer {
         latencies: [],
         errors: [],
         lastCalled: null,
-        firstCalled: null
+        firstCalled: null,
       });
     }
 
@@ -60,7 +60,7 @@ export class ToolExplorer {
       // Keep last 10 errors
       stat.errors.push({
         message: error || 'Unknown error',
-        timestamp: stat.lastCalled
+        timestamp: stat.lastCalled,
       });
       if (stat.errors.length > 10) {
         stat.errors.shift();
@@ -98,7 +98,7 @@ export class ToolExplorer {
         totalCalls: 0,
         successCount: 0,
         failureCount: 0,
-        message: 'No usage data available'
+        message: 'No usage data available',
       };
     }
 
@@ -109,13 +109,9 @@ export class ToolExplorer {
    * Calculate metrics from raw stats
    */
   calculateMetrics(stat) {
-    const successRate = stat.totalCalls > 0
-      ? (stat.successCount / stat.totalCalls) * 100
-      : 0;
+    const successRate = stat.totalCalls > 0 ? (stat.successCount / stat.totalCalls) * 100 : 0;
 
-    const avgDuration = stat.successCount > 0
-      ? stat.totalDuration / stat.successCount
-      : 0;
+    const avgDuration = stat.successCount > 0 ? stat.totalDuration / stat.successCount : 0;
 
     // Calculate percentiles
     const latencies = [...stat.latencies].sort((a, b) => a - b);
@@ -138,7 +134,7 @@ export class ToolExplorer {
       p99Duration: p99,
       recentErrors: stat.errors,
       lastCalled: stat.lastCalled,
-      firstCalled: stat.firstCalled
+      firstCalled: stat.firstCalled,
     };
   }
 
@@ -196,9 +192,7 @@ export class ToolExplorer {
     const totalSuccess = stats.reduce((sum, s) => sum + s.successCount, 0);
     const totalFailures = stats.reduce((sum, s) => sum + s.failureCount, 0);
 
-    const overallSuccessRate = totalCalls > 0
-      ? (totalSuccess / totalCalls) * 100
-      : 0;
+    const overallSuccessRate = totalCalls > 0 ? (totalSuccess / totalCalls) * 100 : 0;
 
     // Find problematic tools (success rate < 50%)
     const problematicTools = stats.filter(s => s.successRate < 50 && s.totalCalls > 5);
@@ -215,13 +209,13 @@ export class ToolExplorer {
       problematicTools: problematicTools.map(t => ({
         server: t.serverName,
         tool: t.toolName,
-        successRate: t.successRate
+        successRate: t.successRate,
       })),
       slowTools: slowTools.map(t => ({
         server: t.serverName,
         tool: t.toolName,
-        p95Duration: t.p95Duration
-      }))
+        p95Duration: t.p95Duration,
+      })),
     };
   }
 
@@ -262,9 +256,19 @@ export class ToolExplorer {
       return JSON.stringify(stats, null, 2);
     } else if (format === 'csv') {
       const headers = [
-        'Server', 'Tool', 'Total Calls', 'Success', 'Failure', 'Success Rate %',
-        'Avg Duration (ms)', 'Min Duration (ms)', 'Max Duration (ms)',
-        'P50 (ms)', 'P95 (ms)', 'P99 (ms)', 'Last Called'
+        'Server',
+        'Tool',
+        'Total Calls',
+        'Success',
+        'Failure',
+        'Success Rate %',
+        'Avg Duration (ms)',
+        'Min Duration (ms)',
+        'Max Duration (ms)',
+        'P50 (ms)',
+        'P95 (ms)',
+        'P99 (ms)',
+        'Last Called',
       ];
 
       const rows = [headers.join(',')];
@@ -283,7 +287,7 @@ export class ToolExplorer {
           stat.p50Duration,
           stat.p95Duration,
           stat.p99Duration,
-          stat.lastCalled || ''
+          stat.lastCalled || '',
         ];
         rows.push(row.join(','));
       }
@@ -300,7 +304,7 @@ export class ToolExplorer {
   getTrends(hours = 24) {
     // This is a simplified version - in production you'd want to track hourly buckets
     const now = Date.now();
-    const cutoff = now - (hours * 60 * 60 * 1000);
+    const cutoff = now - hours * 60 * 60 * 1000;
 
     const recentTools = [];
 
@@ -312,7 +316,7 @@ export class ToolExplorer {
             serverName: stat.serverName,
             toolName: stat.toolName,
             totalCalls: stat.totalCalls,
-            lastCalled: stat.lastCalled
+            lastCalled: stat.lastCalled,
           });
         }
       }
@@ -323,7 +327,7 @@ export class ToolExplorer {
     return {
       period: `${hours} hours`,
       activeTools: recentTools.length,
-      tools: recentTools
+      tools: recentTools,
     };
   }
 
@@ -364,9 +368,8 @@ export class ToolExplorer {
         toolName,
         description: tool.description,
         exampleArgs,
-        schema: tool.inputSchema
+        schema: tool.inputSchema,
       };
-
     } catch (error) {
       return null;
     }

@@ -41,7 +41,7 @@ function createIsolatedVM(options = {}) {
   const consoleProxy = {
     log: (...args) => console.log('[sandbox]', ...args),
     warn: (...args) => console.warn('[sandbox]', ...args),
-    error: (...args) => console.error('[sandbox]', ...args)
+    error: (...args) => console.error('[sandbox]', ...args),
   };
   jail.setSync('console', new ivm.ExternalCopy(consoleProxy).copyInto());
 
@@ -60,7 +60,7 @@ function createIsolatedVM(options = {}) {
     },
     dispose() {
       isolate.dispose();
-    }
+    },
   };
 }
 

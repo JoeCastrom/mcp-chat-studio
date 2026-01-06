@@ -35,7 +35,10 @@ export class ContractTester {
   normalizeContract(contract, fileName = null) {
     const fileId = fileName ? fileName.replace(/\.json$/i, '') : null;
     const name = contract.name || contract.id || fileId || null;
-    const server = contract.server || contract.serverName || (name && name.includes('.') ? name.split('.')[0] : null);
+    const server =
+      contract.server ||
+      contract.serverName ||
+      (name && name.includes('.') ? name.split('.')[0] : null);
     let toolName = contract.toolName || contract.tool || contract.tool_name || null;
 
     if (!toolName && name && name.includes('.')) {
@@ -45,7 +48,8 @@ export class ContractTester {
       toolName = fileId.split('.').slice(1).join('.');
     }
 
-    const id = contract.id || name || (server && toolName ? this.makeContractId(server, toolName) : fileId);
+    const id =
+      contract.id || name || (server && toolName ? this.makeContractId(server, toolName) : fileId);
 
     return {
       ...contract,
@@ -64,7 +68,7 @@ export class ContractTester {
       failureCount: contract.failureCount || 0,
       createdAt: contract.createdAt || new Date().toISOString(),
       updatedAt: contract.updatedAt || new Date().toISOString(),
-      tests: contract.tests || []
+      tests: contract.tests || [],
     };
   }
 
@@ -73,7 +77,7 @@ export class ContractTester {
 
     const contract = {
       required: [],
-      types: {}
+      types: {},
     };
 
     const walk = (currentSchema, path) => {
@@ -139,7 +143,7 @@ export class ContractTester {
     const normalized = this.normalizeContract({
       ...contract,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
 
     if (!normalized.server || !normalized.toolName) {
@@ -150,7 +154,7 @@ export class ContractTester {
     const contractData = {
       ...normalized,
       id,
-      name: normalized.name || id
+      name: normalized.name || id,
     };
 
     const filePath = this.getContractPath(id);
@@ -229,7 +233,7 @@ export class ContractTester {
       passed: 0,
       failed: 0,
       skipped: 0,
-      tests: []
+      tests: [],
     };
 
     const startTime = Date.now();
@@ -257,14 +261,7 @@ export class ContractTester {
    * Run a single test
    */
   async runTest(serverName, test) {
-    const {
-      name,
-      description,
-      tool,
-      args = {},
-      expectations = {},
-      skip = false
-    } = test;
+    const { name, description, tool, args = {}, expectations = {}, skip = false } = test;
 
     const result = {
       name,
@@ -273,7 +270,7 @@ export class ContractTester {
       status: 'pending',
       duration: 0,
       errors: [],
-      assertions: []
+      assertions: [],
     };
 
     if (skip) {
@@ -320,12 +317,11 @@ export class ContractTester {
       // Determine status
       const hasErrors = result.errors.length > 0;
       result.status = hasErrors ? 'failed' : 'passed';
-
     } catch (error) {
       result.status = 'failed';
       result.errors.push({
         type: 'execution_error',
-        message: error.message
+        message: error.message,
       });
     }
 
@@ -345,7 +341,7 @@ export class ContractTester {
           if (expected.required && response[key] === undefined) {
             result.errors.push({
               type: 'schema_error',
-              message: `Missing required property: ${key}`
+              message: `Missing required property: ${key}`,
             });
           }
 
@@ -354,7 +350,7 @@ export class ContractTester {
             if (actualType !== expected.type) {
               result.errors.push({
                 type: 'schema_error',
-                message: `Property '${key}' has wrong type. Expected ${expected.type}, got ${actualType}`
+                message: `Property '${key}' has wrong type. Expected ${expected.type}, got ${actualType}`,
               });
             }
           }
@@ -363,12 +359,12 @@ export class ContractTester {
 
       result.assertions.push({
         type: 'schema',
-        status: result.errors.length === 0 ? 'passed' : 'failed'
+        status: result.errors.length === 0 ? 'passed' : 'failed',
       });
     } catch (error) {
       result.errors.push({
         type: 'schema_error',
-        message: `Schema validation failed: ${error.message}`
+        message: `Schema validation failed: ${error.message}`,
       });
     }
   }
@@ -385,13 +381,13 @@ export class ContractTester {
     result.assertions.push({
       type: 'contains',
       expected: expectedStr,
-      status: contains ? 'passed' : 'failed'
+      status: contains ? 'passed' : 'failed',
     });
 
     if (!contains) {
       result.errors.push({
         type: 'assertion_error',
-        message: `Response does not contain expected value: ${expectedStr}`
+        message: `Response does not contain expected value: ${expectedStr}`,
       });
     }
   }
@@ -406,13 +402,13 @@ export class ContractTester {
       type: 'equals',
       expected,
       actual: response,
-      status: equals ? 'passed' : 'failed'
+      status: equals ? 'passed' : 'failed',
     });
 
     if (!equals) {
       result.errors.push({
         type: 'assertion_error',
-        message: 'Response does not equal expected value'
+        message: 'Response does not equal expected value',
       });
     }
   }
@@ -427,13 +423,13 @@ export class ContractTester {
       type: 'statusCode',
       expected: expectedCode,
       actual: actualCode,
-      status: actualCode === expectedCode ? 'passed' : 'failed'
+      status: actualCode === expectedCode ? 'passed' : 'failed',
     });
 
     if (actualCode !== expectedCode) {
       result.errors.push({
         type: 'assertion_error',
-        message: `Expected status code ${expectedCode}, got ${actualCode}`
+        message: `Expected status code ${expectedCode}, got ${actualCode}`,
       });
     }
   }
@@ -448,13 +444,13 @@ export class ContractTester {
       type: 'responseTime',
       expected: `<= ${maxTime}ms`,
       actual: `${duration}ms`,
-      status: withinLimit ? 'passed' : 'failed'
+      status: withinLimit ? 'passed' : 'failed',
     });
 
     if (!withinLimit) {
       result.errors.push({
         type: 'assertion_error',
-        message: `Response time ${duration}ms exceeds limit of ${maxTime}ms`
+        message: `Response time ${duration}ms exceeds limit of ${maxTime}ms`,
       });
     }
   }
@@ -506,20 +502,19 @@ export class ContractTester {
         operator,
         expected: value,
         actual,
-        status: passed ? 'passed' : 'failed'
+        status: passed ? 'passed' : 'failed',
       });
 
       if (!passed) {
         result.errors.push({
           type: 'assertion_error',
-          message: `Custom assertion failed: ${path} ${operator} ${value}`
+          message: `Custom assertion failed: ${path} ${operator} ${value}`,
         });
       }
-
     } catch (error) {
       result.errors.push({
         type: 'assertion_error',
-        message: `Custom assertion error: ${error.message}`
+        message: `Custom assertion error: ${error.message}`,
       });
     }
   }
@@ -549,7 +544,7 @@ export class ContractTester {
     const updated = this.normalizeContract({
       ...contract,
       ...updates,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
 
     const filePath = this.getContractPath(updated.id);
@@ -618,7 +613,7 @@ export class ContractTester {
       validation = {
         valid: false,
         errors: [error.message],
-        warnings: []
+        warnings: [],
       };
     }
 
@@ -632,12 +627,12 @@ export class ContractTester {
         duration,
         valid: validation.valid && !executionError,
         errors: normalizedErrors,
-        warnings: validation.warnings || []
+        warnings: validation.warnings || [],
       },
       validationCount: (contract.validationCount || 0) + 1,
       successCount: (contract.successCount || 0) + (validation.valid && !executionError ? 1 : 0),
       failureCount: (contract.failureCount || 0) + (validation.valid && !executionError ? 0 : 1),
-      baselineResponse: contract.baselineResponse || response
+      baselineResponse: contract.baselineResponse || response,
     });
 
     return {
@@ -649,7 +644,7 @@ export class ContractTester {
       warnings: validation.warnings || [],
       response,
       duration,
-      timestamp
+      timestamp,
     };
   }
 
@@ -673,20 +668,20 @@ export class ContractTester {
           {
             type: 'execution_error',
             field: 'response',
-            description: error.message
-          }
-        ]
+            description: error.message,
+          },
+        ],
       };
     }
 
     if (!contract.baselineResponse) {
       this.updateContract(contract.id, {
         baselineResponse: response,
-        breakingChanges: []
+        breakingChanges: [],
       });
       return {
         breakingChanges: [],
-        baselineCaptured: true
+        baselineCaptured: true,
       };
     }
 
@@ -694,14 +689,14 @@ export class ContractTester {
     const breakingChanges = diff.changes.map(change => ({
       type: change.type,
       field: change.field,
-      description: change.message || change.description || 'Schema change detected'
+      description: change.message || change.description || 'Schema change detected',
     }));
 
     this.updateContract(contract.id, { breakingChanges });
 
     return {
       breakingChanges,
-      hasChanges: diff.hasChanges
+      hasChanges: diff.hasChanges,
     };
   }
 
@@ -719,7 +714,7 @@ export class ContractTester {
           server: contract.server,
           toolName: contract.toolName,
           valid: false,
-          errors: [{ field: 'response', message: error.message }]
+          errors: [{ field: 'response', message: error.message }],
         });
       }
     }
@@ -747,9 +742,8 @@ export class ContractTester {
         version: '1.0.0',
         schema: null,
         sampleArgs,
-        tests: []
+        tests: [],
       });
-
     } catch (error) {
       throw new Error(`Failed to generate contract: ${error.message}`);
     }

@@ -30,9 +30,7 @@ router.get('/', (req, res) => {
     const runner = getScriptRunner();
     const { type } = req.query;
 
-    const scripts = type
-      ? runner.getScriptsByType(type)
-      : runner.getAllScripts();
+    const scripts = type ? runner.getScriptsByType(type) : runner.getAllScripts();
 
     res.json({ scripts });
   } catch (error) {

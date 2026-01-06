@@ -28,17 +28,20 @@ MCP Chat Studio is a full-stack web application for testing and developing Model
 ### Technology Stack
 
 **Frontend:**
+
 - Vanilla JavaScript (ES6+)
 - CSS3 with custom properties (glassmorphism design)
 - No frontend framework (intentional for simplicity)
 
 **Backend:**
+
 - Node.js 18+ with ES Modules
 - Express.js for REST API
 - MCP SDK (@modelcontextprotocol/sdk)
 - vm2 for sandboxed JavaScript execution
 
 **Storage:**
+
 - localStorage for client-side data (sessions, scenarios, branches)
 - File system for workflows (workflows.json)
 - In-memory for active connections and OAuth tokens
@@ -111,22 +114,30 @@ public/
 ### Key Design Patterns
 
 #### 1. **Module Pattern**
+
 Each major feature is encapsulated in its own scope:
 
 ```javascript
 // Session management
 const sessionManager = {
-  saveSession() { /* ... */ },
-  loadSession() { /* ... */ },
-  createBranch() { /* ... */ }
+  saveSession() {
+    /* ... */
+  },
+  loadSession() {
+    /* ... */
+  },
+  createBranch() {
+    /* ... */
+  },
 };
 ```
 
 #### 2. **Event-Driven Architecture**
+
 Keyboard shortcuts, UI interactions, and API responses drive the application:
 
 ```javascript
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'k') {
     // Focus tool search
   }
@@ -134,7 +145,9 @@ document.addEventListener('keydown', (e) => {
 ```
 
 #### 3. **State Management**
+
 State is managed via:
+
 - `localStorage` for persistence
 - In-memory variables for runtime state
 - DOM as the source of truth for UI state
@@ -195,6 +208,7 @@ server/routes/
 ### Key Design Patterns
 
 #### 1. **Singleton Pattern**
+
 Services are singletons to maintain state:
 
 ```javascript
@@ -208,6 +222,7 @@ export function getMCPManager() {
 ```
 
 #### 2. **Strategy Pattern**
+
 LLM providers use strategy pattern:
 
 ```javascript
@@ -225,6 +240,7 @@ class LLMClient {
 ```
 
 #### 3. **Adapter Pattern**
+
 Each LLM provider has request/response transformers:
 
 ```javascript
@@ -335,6 +351,7 @@ transformAnthropicResponse(response) {
 ## Security Model
 
 ### 1. **Sandboxing**
+
 JavaScript nodes execute in vm2 sandbox:
 
 ```javascript
@@ -342,12 +359,13 @@ const vm = new VM({
   timeout: 5000,
   sandbox: {
     input: context.steps,
-    console: { log, error }
-  }
+    console: { log, error },
+  },
 });
 ```
 
 **Protections:**
+
 - No file system access
 - No network access
 - 5-second timeout
@@ -368,6 +386,7 @@ class OAuthManager {
 ```
 
 **Recommendations:**
+
 - Use Redis for multi-instance deployments
 - Implement token rotation
 - Add token revocation
@@ -377,12 +396,12 @@ class OAuthManager {
 ```javascript
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30 // 30 requests per minute
+  max: 30, // 30 requests per minute
 });
 
 const mcpLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100 // 100 requests per minute
+  max: 100, // 100 requests per minute
 });
 ```
 
@@ -392,7 +411,7 @@ const mcpLimiter = rateLimit({
 // Zod schema validation for workflows
 const WorkflowSchema = z.object({
   nodes: z.array(NodeSchema),
-  edges: z.array(EdgeSchema)
+  edges: z.array(EdgeSchema),
 });
 
 const result = WorkflowSchema.safeParse(workflow);
@@ -404,17 +423,19 @@ if (!result.success) {
 ### 5. **CORS Configuration**
 
 ```javascript
-app.use(cors({
-  origin: (origin, callback) => {
-    // Strict localhost-only by default
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed'), false);
-    }
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Strict localhost-only by default
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS not allowed'), false);
+      }
+    },
+    credentials: true,
+  })
+);
 ```
 
 ---
@@ -422,6 +443,7 @@ app.use(cors({
 ## Performance Considerations
 
 ### 1. **Connection Pooling**
+
 MCP connections are reused per session:
 
 ```javascript
@@ -434,11 +456,13 @@ class MCPManager {
 ```
 
 ### 2. **Caching**
+
 - Tool lists cached per connection
 - LLM configurations cached
 - Session data in localStorage
 
 ### 3. **Parallel Execution**
+
 Workflows support concurrent node execution:
 
 ```javascript
@@ -451,6 +475,7 @@ while (queue.length > 0) {
 ```
 
 ### 4. **Response Streaming**
+
 LLM responses streamed for better UX:
 
 ```javascript
@@ -461,6 +486,7 @@ for await (const chunk of stream) {
 ```
 
 ### 5. **Lazy Loading**
+
 MCP servers connect on-demand:
 
 ```javascript
@@ -510,7 +536,7 @@ getBaseUrl() {
 
 ```javascript
 const NodeSchema = z.object({
-  type: z.enum(['trigger', 'tool', 'llm', 'javascript', 'assert', 'NEW_TYPE'])
+  type: z.enum(['trigger', 'tool', 'llm', 'javascript', 'assert', 'NEW_TYPE']),
 });
 ```
 
@@ -523,7 +549,7 @@ case 'NEW_TYPE':
 ```
 
 3. **Update UI:**
-Add node type to workflow builder (`workflow.js`)
+   Add node type to workflow builder (`workflow.js`)
 
 ### Adding a New API Route
 
@@ -565,6 +591,7 @@ app.use('/api/newfeature', newFeatureRoutes);
 ## Testing Strategy
 
 ### Unit Tests
+
 ```
 server/__tests__/
 ├── LLMClient.test.js          # LLM provider transforms
@@ -574,6 +601,7 @@ server/__tests__/
 ```
 
 ### Integration Tests
+
 Test API endpoints end-to-end:
 
 ```javascript
@@ -581,7 +609,7 @@ describe('POST /api/mcp/call', () => {
   it('should execute tool successfully', async () => {
     const response = await fetch('/api/mcp/call', {
       method: 'POST',
-      body: JSON.stringify({ serverName, toolName, args })
+      body: JSON.stringify({ serverName, toolName, args }),
     });
     expect(response.ok).toBe(true);
   });
@@ -589,6 +617,7 @@ describe('POST /api/mcp/call', () => {
 ```
 
 ### Performance Tests
+
 Use PerformanceTester service:
 
 ```javascript
@@ -596,7 +625,7 @@ const results = await tester.runLoadTest({
   serverName: 'test-server',
   toolName: 'test-tool',
   concurrency: 50,
-  duration: 10000
+  duration: 10000,
 });
 ```
 
@@ -643,6 +672,7 @@ const results = await tester.runLoadTest({
 ## Configuration Management
 
 ### Environment Variables (.env)
+
 ```bash
 # LLM Providers
 OPENAI_API_KEY=sk-...
@@ -658,6 +688,7 @@ CORS_ORIGINS=https://app.example.com
 ```
 
 ### Config File (config.yaml)
+
 ```yaml
 llm:
   provider: openai
@@ -673,16 +704,17 @@ mcpServers:
 ```
 
 ### Swagger Configuration
+
 ```javascript
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
       title: 'MCP Chat Studio API',
-      version: '1.1.0'
-    }
+      version: '1.1.0',
+    },
   },
-  apis: ['./server/routes/*.js']
+  apis: ['./server/routes/*.js'],
 };
 ```
 
@@ -691,17 +723,20 @@ const swaggerOptions = {
 ## Monitoring and Observability
 
 ### Logging
+
 ```javascript
 console.log(`[${service}] ${message}`);
 console.error(`[${service}] Error:`, error);
 ```
 
 ### Health Checks
+
 ```bash
 curl http://localhost:3082/api/health
 ```
 
 ### Performance Metrics
+
 Available via `/api/performance/*` endpoints
 
 ---
@@ -709,25 +744,35 @@ Available via `/api/performance/*` endpoints
 ## Future Architecture Considerations
 
 ### 1. **Microservices Split**
+
 - LLM Gateway Service
 - MCP Proxy Service
 - Workflow Execution Service
 
 ### 2. **Event-Driven Architecture**
+
 Replace HTTP polling with WebSockets/SSE for real-time updates
 
 ### 3. **Database Layer**
+
 Add PostgreSQL for:
+
 - User management
 - Workflow persistence
 - Audit logs
 
 ### 4. **Plugin System**
+
 Allow third-party extensions:
+
 ```javascript
 class MCPPlugin {
-  onToolCall(result) { /* custom logic */ }
-  onWorkflowComplete(result) { /* custom logic */ }
+  onToolCall(result) {
+    /* custom logic */
+  }
+  onWorkflowComplete(result) {
+    /* custom logic */
+  }
 }
 ```
 
