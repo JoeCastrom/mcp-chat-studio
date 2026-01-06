@@ -5,6 +5,8 @@
 Test, debug, and develop Model Context Protocol servers with a beautiful glassmorphism UI and a powerful Workspace mode.  
 **Record scenarios** • **Collections + run reports** • **Workspace canvas** • **Workflow export (Python + Node)** • **Mock servers** • **Docs generator** • **Zero config with Ollama**
 
+**Need help?** Use the **Studio Assistant** (bottom‑right compass) to learn features, generate workflows, import OpenAPI, and navigate the UI — just ask it.
+
 ![MCP Chat Studio](https://img.shields.io/badge/MCP-Chat%20Studio-blueviolet?style=for-the-badge)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
@@ -15,9 +17,9 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 
 ![Main Showcase](docs/gif/showcase.gif)
 
-| Workspace Canvas | AI Workflow Builder | Documentation Generator |
-| --- | --- | --- |
-| ![Workspace Showcase](docs/gif/showcase-workspaces.gif) | ![AI Builder Showcase](docs/gif/showcase-workflow-ai-builder.gif) | ![Docs Generator Showcase](docs/gif/showcase-docs-generator.gif) |
+| Workspace Canvas | Studio Assistant | AI Workflow Builder | Documentation Generator |
+| --- | --- | --- | --- |
+| ![Workspace Showcase](docs/gif/showcase-workspaces.gif) | ![Assistant Showcase](docs/gif/showcase-assistant.gif) | ![AI Builder Showcase](docs/gif/showcase-workflow-ai-builder.gif) | ![Docs Generator Showcase](docs/gif/showcase-docs-generator.gif) |
 
 > **📌 Local MCP Test Bench** - Designed for development. Not intended for internet exposure.
 
