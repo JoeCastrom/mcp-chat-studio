@@ -27,14 +27,6 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 
 ---
 
-## 🗺️ Roadmap
-
-- Full roadmap: `ROADMAP.md`
-- Executive summary: `docs/ROADMAP_EXEC.md`
-- Phase 1 milestones: `docs/PHASE1_MILESTONES.md`
-
----
-
 ## ⚡ Get Started in 60 Seconds
 
 ```bash

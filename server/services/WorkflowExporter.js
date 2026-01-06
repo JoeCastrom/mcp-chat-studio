@@ -95,7 +95,7 @@ async def main():
     const sortedNodes = this.sortNodes(nodes, edges);
 
     for (const node of sortedNodes) {
-      const safeId = node.id.replace(/[^a-zA-Z0-9]/g, '_');
+      const _safeId = node.id.replace(/[^a-zA-Z0-9]/g, '_');
 
       code += `
         # --- Node: ${node.id} (${node.type}) --- 
