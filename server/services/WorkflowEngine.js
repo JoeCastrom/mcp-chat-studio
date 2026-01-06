@@ -223,7 +223,7 @@ export class WorkflowEngine {
       case 'trigger':
         return context.input; // Pass through initial input
 
-      case 'tool':
+      case 'tool': {
         if (!data.server || !data.tool)
           throw new Error('Tool node missing server or tool selection');
         let args = data.args;
@@ -268,8 +268,9 @@ export class WorkflowEngine {
           }
         }
         return await this.mcpManager.callTool(data.server, data.tool, args, sessionId);
+      }
 
-      case 'llm':
+      case 'llm': {
         let prompt = data.prompt;
         if (!prompt || String(prompt).trim().length === 0) {
           if (context.lastNodeId && context.steps[context.lastNodeId] !== undefined) {
@@ -299,6 +300,7 @@ export class WorkflowEngine {
         const response = await llmClient.chat(messages, {});
         const content = response?.choices?.[0]?.message?.content;
         return content !== undefined ? content : response;
+      }
 
       case 'javascript':
         // Execute JavaScript in sandboxed environment
@@ -328,7 +330,7 @@ export class WorkflowEngine {
           throw new Error(`Script execution failed: ${e.message}`);
         }
 
-      case 'assert':
+      case 'assert': {
         // Get the previous node's output
         const prevNodeIds = Object.keys(context.steps);
         const prevOutput =
@@ -368,7 +370,7 @@ export class WorkflowEngine {
               prevOutput !== 'undefined';
             message = passed ? 'Output is truthy' : 'Output is falsy';
             break;
-          case 'length_gt':
+          case 'length_gt': {
             const length =
               typeof prevOutput === 'string'
                 ? prevOutput.length
@@ -381,6 +383,7 @@ export class WorkflowEngine {
               ? `Length ${length} > ${threshold}`
               : `Length ${length} <= ${threshold}`;
             break;
+          }
         }
 
         return {
@@ -391,6 +394,7 @@ export class WorkflowEngine {
           message,
           actualOutput: outputStr.substring(0, 200),
         };
+      }
 
       default:
         return null;
