@@ -76,3 +76,4 @@ WHATS_NEW.md
 
 # Alybridge task system
 .alybridge/
+data/oauth-tokens.json
