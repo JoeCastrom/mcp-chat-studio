@@ -1,5 +1,6 @@
 # USAGE:
-# - Use local Ollama:  docker-compose up mcp-chat-studio
+# - Default (full):    docker-compose up mcp-chat-studio
+# - Lite image:        docker-compose --profile lite up mcp-chat-studio-lite
 # - Include Ollama:    docker-compose --profile with-ollama up
 # - Just the app:      docker-compose up (uses host.docker.internal for local Ollama)
 
@@ -32,6 +33,34 @@ services:
       # Comment out this line if you don't have config.yaml
       # - ./config.yaml:/app/config.yaml:ro
       # Mount for MCP server logs (optional)
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # Optional: Lite image without Python/MCP auto-run
+  mcp-chat-studio-lite:
+    build:
+      context: .
+      dockerfile: Dockerfile.lite
+    container_name: mcp-chat-studio-lite
+    profiles:
+      - lite
+    ports:
+      - '3082:3082'
+    environment:
+      - PORT=3082
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
       - ./logs:/app/logs
     restart: unless-stopped
     networks:

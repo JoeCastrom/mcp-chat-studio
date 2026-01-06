@@ -575,6 +575,14 @@ docker-compose up -d
 
 The app automatically connects to your local Ollama at `http://localhost:11434`.
 
+#### Option 1b: Lite Profile (No Python/MCP Auto-Run)
+
+If you want a smaller container without Generator auto‑run:
+
+```bash
+docker-compose --profile lite up mcp-chat-studio-lite
+```
+
 #### Option 2: Include Ollama in Docker
 
 If you don't have Ollama installed locally:
@@ -620,6 +628,41 @@ docker run -p 3082:3082 \
   -v $(pwd)/config.yaml:/app/config.yaml:ro \
   mcp-chat-studio
 ```
+
+### Lite Docker Image (Smaller)
+
+If you don’t need **Generator auto‑run**, use the lite image:
+
+```bash
+# Build lite image
+docker build -f Dockerfile.lite -t mcp-chat-studio:lite .
+
+# Run lite image
+docker run -p 3082:3082 mcp-chat-studio:lite
+```
+
+> Note: Lite image omits Python/MCP, so “Run & Connect (Auto)” is disabled.
+
+### Persisting Studio Data (Recommended)
+
+Persist sessions, mocks, monitors, OAuth tokens, and logs by mounting `data/`:
+
+```bash
+docker run -p 3082:3082 \
+  -v $(pwd)/data:/app/data \
+  mcp-chat-studio
+```
+
+If you use **Generator → Run & Connect (Auto)** in Docker, also mount the temp project folder:
+
+```bash
+docker run -p 3082:3082 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/.mcp-generator:/app/.mcp-generator \
+  mcp-chat-studio
+```
+
+> Note: The Docker image includes the MCP Python package needed for auto‑run.
 
 ### Health Check
 
