@@ -73,3 +73,6 @@ WHATS_NEW.md
 
 # Claude Code configuration
 .claude/
+
+# Alybridge task system
+.alybridge/

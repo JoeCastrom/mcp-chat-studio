@@ -23,10 +23,7 @@ describe('normalizeOrigin', () => {
 });
 
 describe('createOriginValidator', () => {
-  const defaultAllowed = [
-    'http://localhost:3082',
-    'http://127.0.0.1:3082',
-  ];
+  const defaultAllowed = ['http://localhost:3082', 'http://127.0.0.1:3082'];
 
   describe('in production mode', () => {
     const isAllowedOrigin = createOriginValidator(defaultAllowed, 'production');

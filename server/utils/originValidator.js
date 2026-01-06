@@ -17,9 +17,7 @@ export function normalizeOrigin(origin) {
 }
 
 export function createOriginValidator(allowedOrigins, nodeEnv = 'development') {
-  const allowedOriginSet = new Set(
-    allowedOrigins.map(normalizeOrigin).filter(Boolean)
-  );
+  const allowedOriginSet = new Set(allowedOrigins.map(normalizeOrigin).filter(Boolean));
 
   return function isAllowedOrigin(origin) {
     // Allow requests with no origin (mobile apps, curl, etc.)
