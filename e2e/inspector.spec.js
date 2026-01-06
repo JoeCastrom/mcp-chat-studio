@@ -93,7 +93,7 @@ test.describe('MCP Chat Studio - Collections Panel', () => {
     await expect(page.locator('#collectionsPanel')).toBeVisible();
   });
 
-  test.skip('create collection button exists', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /Create Collection/i })).toBeVisible();
+  test('create collection button exists', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /New Collection/i })).toBeVisible();
   });
 });

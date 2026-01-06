@@ -35,7 +35,7 @@ test.describe('MCP Chat Studio - Basic Functionality', () => {
     expect(theme === null || theme === 'dark').toBeTruthy();
   });
 
-  test.skip('layout switching works', async ({ page }) => {
+  test('layout switching works', async ({ page }) => {
     await page.goto('/');
 
     // Find layout switch buttons
@@ -49,8 +49,8 @@ test.describe('MCP Chat Studio - Basic Functionality', () => {
     await workspaceBtn.click();
     await expect(workspaceBtn).toHaveClass(/active/);
 
-    // Check workspace canvas appears
-    await expect(page.locator('#floatingWorkspace')).toBeVisible();
+    // Check workspace canvas appears (element is #workspaceCanvas, created dynamically)
+    await expect(page.locator('#workspaceCanvas')).toBeVisible();
 
     // Click classic mode
     await classicBtn.click();
