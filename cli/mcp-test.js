@@ -481,7 +481,7 @@ async function reportResults(results, reporter, exportPath) {
 function reportCLI(results) {
   console.log(chalk.blue.bold('📊 Results\n'));
 
-  results.scenarios.forEach((scenario, index) => {
+  results.scenarios.forEach((scenario, _index) => {
     const icon =
       scenario.status === 'passed'
         ? chalk.green('✓')

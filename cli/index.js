@@ -144,7 +144,7 @@ async function executeTool(serverUrl, serverName, toolName, args) {
 }
 
 // Simple hash for response comparison
-function hashResponse(obj) {
+function _hashResponse(obj) {
   return JSON.stringify(obj)
     .split('')
     .reduce((a, b) => {
@@ -200,7 +200,7 @@ function compareResponses(expected, actual) {
 }
 
 // Run a single scenario
-async function runScenario(serverUrl, scenario, verbose = true) {
+async function runScenario(serverUrl, scenario, _verbose = true) {
   const results = {
     name: scenario.name,
     steps: [],
