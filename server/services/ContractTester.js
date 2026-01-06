@@ -463,7 +463,7 @@ export class ContractTester {
    * Run custom assertion
    */
   runCustomAssertion(response, assertion, result) {
-    const { type, path, operator, value } = assertion;
+    const { type: _type, path, operator, value } = assertion;
 
     try {
       // Get value at path

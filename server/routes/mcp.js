@@ -348,7 +348,7 @@ router.put('/update/:serverName', async (req, res) => {
     const { type, command, args, url, env, description, requiresAuth, timeout, mockId, cwd } = req.body;
 
     const mcpManager = getMCPManager();
-    const existingConfig = mcpManager.configs.get(serverName);
+    const _existingConfig = mcpManager.configs.get(serverName);
 
     // Check if server exists
     if (!mcpManager.configs.has(serverName)) {
