@@ -37,7 +37,8 @@ jest.unstable_mockModule('../services/CollectionManager.js', () => ({
 }));
 
 // Import after mocking
-const { MonitorManager, getMonitorManager: _getMonitorManager } = await import('../services/MonitorManager.js');
+const { MonitorManager, getMonitorManager: _getMonitorManager } =
+  await import('../services/MonitorManager.js');
 
 describe('MonitorManager', () => {
   let manager;
