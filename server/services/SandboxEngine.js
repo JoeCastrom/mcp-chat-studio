@@ -25,7 +25,7 @@ function copySandboxValue(ivm, value) {
   } catch (error) {
     try {
       return new ivm.ExternalCopy(JSON.parse(JSON.stringify(value))).copyInto();
-    } catch (nested) {
+    } catch (_nested) {
       return undefined;
     }
   }

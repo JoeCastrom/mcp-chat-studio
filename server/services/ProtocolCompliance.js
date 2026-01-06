@@ -42,7 +42,7 @@ export class ProtocolCompliance {
     };
   }
 
-  validateRequest(message, errors, warnings) {
+  validateRequest(message, errors, _warnings) {
     // Request must have method
     if (typeof message.method !== 'string') {
       errors.push('Request "method" must be a string');
@@ -61,7 +61,7 @@ export class ProtocolCompliance {
     }
   }
 
-  validateResponse(message, errors, warnings) {
+  validateResponse(message, errors, _warnings) {
     // Response must have either result or error, not both
     if (message.result !== undefined && message.error !== undefined) {
       errors.push('Response must not have both "result" and "error"');
@@ -87,7 +87,7 @@ export class ProtocolCompliance {
     }
   }
 
-  validateNotification(message, errors, warnings) {
+  validateNotification(message, errors, _warnings) {
     // Notification must have method
     if (typeof message.method !== 'string') {
       errors.push('Notification "method" must be a string');

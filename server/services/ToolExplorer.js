@@ -74,7 +74,7 @@ export class ToolExplorer {
   getAllStats() {
     const results = [];
 
-    for (const [key, stat] of this.stats.entries()) {
+    for (const [_key, stat] of this.stats.entries()) {
       results.push(this.calculateMetrics(stat));
     }
 
@@ -170,7 +170,7 @@ export class ToolExplorer {
   getStatsByServer(serverName) {
     const results = [];
 
-    for (const [key, stat] of this.stats.entries()) {
+    for (const [_key, stat] of this.stats.entries()) {
       if (stat.serverName === serverName) {
         results.push(this.calculateMetrics(stat));
       }
@@ -308,7 +308,7 @@ export class ToolExplorer {
 
     const recentTools = [];
 
-    for (const [key, stat] of this.stats.entries()) {
+    for (const [_key, stat] of this.stats.entries()) {
       if (stat.lastCalled) {
         const lastCalledTime = new Date(stat.lastCalled).getTime();
         if (lastCalledTime >= cutoff) {
@@ -346,7 +346,7 @@ export class ToolExplorer {
       }
 
       // Generate example args from schema
-      let exampleArgs = {};
+      const exampleArgs = {};
       if (tool.inputSchema?.properties) {
         for (const [key, prop] of Object.entries(tool.inputSchema.properties)) {
           if (prop.type === 'string') {

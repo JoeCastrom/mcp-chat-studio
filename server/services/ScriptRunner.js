@@ -291,7 +291,7 @@ JSON.stringify({
    * Delete a script
    */
   deleteScript(id) {
-    const script = this.getScript(id);
+    this.getScript(id); // Validates script exists, throws if not found
 
     this.scripts.delete(id);
     this.saveScripts();

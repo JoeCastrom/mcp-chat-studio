@@ -169,7 +169,7 @@ export class MonitorManager {
    * Delete a monitor
    */
   deleteMonitor(id) {
-    const monitor = this.getMonitor(id);
+    this.getMonitor(id); // Validates monitor exists, throws if not found
 
     this.stopMonitor(id);
     this.monitors.delete(id);
