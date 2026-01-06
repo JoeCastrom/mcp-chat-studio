@@ -67,3 +67,9 @@ docs/windows.html
 docs/Screenshot 2025-12-29 033227.png
 VIBETEST_FIXES.md
 WHATS_NEW.md
+
+# Moat task system
+.moat/
+
+# Claude Code configuration
+.claude/

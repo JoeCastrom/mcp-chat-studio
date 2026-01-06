@@ -117,17 +117,37 @@ const allowedOrigins = getCorsOrigins();
 const corsMode = process.env.CORS_ORIGINS ? 'custom' : 'localhost-only';
 const CSRF_COOKIE_NAME = 'csrf_token';
 
+function normalizeOrigin(origin) {
+  try {
+    return new URL(origin).origin;
+  } catch (error) {
+    return null;
+  }
+}
+
+const allowedOriginSet = new Set(
+  allowedOrigins
+    .map(normalizeOrigin)
+    .filter(Boolean)
+);
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
-    return true;
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  if (allowedOriginSet.has(normalized)) return true;
+
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+        return true;
+      }
+    } catch (error) {
+      return false;
+    }
   }
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)
-  ) {
-    return true;
-  }
+
   return false;
 }
 
@@ -139,19 +159,12 @@ app.use(
       if (!origin) return callback(null, true);
 
       // Check if origin is in allowed list
-      if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/:\d+$/, '')))) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
 
       // In development, allow all localhost ports if configured or default to safer regex
       // Stricter regex to prevent subdomains or similar looking domains
-      if (
-        process.env.NODE_ENV !== 'production' &&
-        origin.match(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/)
-      ) {
-        return callback(null, true);
-      }
-
       callback(new Error('CORS not allowed'), false);
     },
     credentials: true,

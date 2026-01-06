@@ -157,7 +157,17 @@ export class WorkflowEngine {
       console.log('[Workflow] No LLM config provided, using default Ollama llama3.1:8b');
     }
 
+    let iterations = 0;
+    const maxIterations = Math.max(workflow.nodes.length * 10, 50);
+
     while (queue.length > 0) {
+      iterations += 1;
+      if (iterations > maxIterations) {
+        const pending = Array.from(new Set(queue.map(n => n.id)));
+        throw new Error(
+          `Workflow stalled (possible cycle or missing dependency). Pending: ${pending.join(', ')}`
+        );
+      }
       const node = queue.shift();
 
       // If we've already visited this node in this path, skip to avoid cycles
@@ -304,37 +314,47 @@ export class WorkflowEngine {
 
       case 'javascript':
         // Execute JavaScript in sandboxed environment
-        try {
-          const vm = createSandboxVM({
-            timeout: 5000, // 5 second timeout
-            sandbox: {
-              input: context.steps,
-              context: context,
-              console: {
-                log: (...args) => console.log('[Workflow JS]', ...args),
-                error: (...args) => console.error('[Workflow JS]', ...args),
+        {
+          let vm;
+          try {
+            vm = createSandboxVM({
+              timeout: 5000, // 5 second timeout
+              eval: false,
+              wasm: false,
+              sandbox: {
+                input: context.steps,
+                context: context,
+                console: {
+                  log: (...args) => console.log('[Workflow JS]', ...args),
+                  error: (...args) => console.error('[Workflow JS]', ...args),
+                },
               },
-            },
-          });
+            });
 
-          // Wrap code to return result
-          const wrappedCode = `
-            (function() {
-              ${data.code}
-            })()
-          `;
+            // Wrap code to return result
+            const wrappedCode = `
+              (function() {
+                ${data.code}
+              })()
+            `;
 
-          const result = vm.run(wrappedCode);
-          return result;
-        } catch (e) {
-          throw new Error(`Script execution failed: ${e.message}`);
+            const result = vm.run(wrappedCode);
+            return result;
+          } catch (e) {
+            throw new Error(`Script execution failed: ${e.message}`);
+          } finally {
+            if (vm && typeof vm.dispose === 'function') {
+              vm.dispose();
+            }
+          }
         }
 
       case 'assert': {
         // Get the previous node's output
-        const prevNodeIds = Object.keys(context.steps);
         const prevOutput =
-          prevNodeIds.length > 0 ? context.steps[prevNodeIds[prevNodeIds.length - 1]] : null;
+          context.lastNodeId && context.steps[context.lastNodeId] !== undefined
+            ? context.steps[context.lastNodeId]
+            : null;
         const outputStr =
           typeof prevOutput === 'string' ? prevOutput : JSON.stringify(prevOutput || '');
         const expected = data.expected || '';
