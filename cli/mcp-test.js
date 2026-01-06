@@ -11,10 +11,7 @@ import { resolve } from 'path';
 import chalk from 'chalk';
 import axios from 'axios';
 
-program
-  .name('mcp-test')
-  .description('CLI runner for MCP test collections')
-  .version('1.4.0');
+program.name('mcp-test').description('CLI runner for MCP test collections').version('1.4.0');
 
 /**
  * Run command
@@ -72,7 +69,9 @@ program
           throw new Error('Iteration data must be a JSON array');
         }
         iterationData = data;
-        console.log(chalk.cyan(`🔁 Iteration data: ${options.data} (${iterationData.length} rows)\n`));
+        console.log(
+          chalk.cyan(`🔁 Iteration data: ${options.data} (${iterationData.length} rows)\n`)
+        );
       }
 
       // Run collection via API
@@ -84,7 +83,7 @@ program
           delay: parseInt(options.delay, 10),
           stopOnError: !!options.bail,
           iterations: parseInt(options.iterationCount, 10),
-          iterationData
+          iterationData,
         },
         timeout,
         authHeaders
@@ -98,7 +97,6 @@ program
 
       // Exit with appropriate code
       process.exit(results.failed > 0 ? 1 : 0);
-
     } catch (error) {
       console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
       process.exit(1);
@@ -123,7 +121,7 @@ program
 program
   .command('validate <collection>')
   .description('Validate a collection file')
-  .action((collectionPath) => {
+  .action(collectionPath => {
     try {
       const collection = loadJSON(collectionPath);
 
@@ -143,7 +141,6 @@ program
       }
 
       console.log();
-
     } catch (error) {
       console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
       process.exit(1);
@@ -174,7 +171,7 @@ schemaCmd
         capturedAt: new Date().toISOString(),
         serverUrl,
         toolCount: tools.length,
-        tools
+        tools,
       };
 
       const json = JSON.stringify(snapshot, null, 2);
@@ -261,27 +258,23 @@ function buildAuthHeaders(options = {}) {
 async function importCollection(serverUrl, collection, timeout, authHeaders = {}) {
   const res = await axios.post(`${serverUrl}/api/collections/import`, collection, {
     timeout,
-    headers: { 'Content-Type': 'application/json', ...authHeaders }
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
   });
   return res.data;
 }
 
 async function runCollectionViaApi(serverUrl, collectionId, payload, timeout, authHeaders = {}) {
-  const res = await axios.post(
-    `${serverUrl}/api/collections/${collectionId}/run`,
-    payload,
-    {
-      timeout,
-      headers: { 'Content-Type': 'application/json', ...authHeaders }
-    }
-  );
+  const res = await axios.post(`${serverUrl}/api/collections/${collectionId}/run`, payload, {
+    timeout,
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+  });
   return res.data;
 }
 
 async function fetchToolsSnapshot(serverUrl, timeout, authHeaders = {}) {
   const res = await axios.get(`${serverUrl}/api/mcp/tools`, {
     timeout,
-    headers: { ...authHeaders }
+    headers: { ...authHeaders },
   });
   const tools = (res.data?.tools || [])
     .filter(tool => !tool.notConnected)
@@ -289,7 +282,7 @@ async function fetchToolsSnapshot(serverUrl, timeout, authHeaders = {}) {
       serverName: tool.serverName,
       name: tool.name,
       description: tool.description || '',
-      inputSchema: tool.inputSchema || { type: 'object', properties: {} }
+      inputSchema: tool.inputSchema || { type: 'object', properties: {} },
     }))
     .sort((a, b) => {
       if (a.serverName === b.serverName) {
@@ -341,11 +334,11 @@ function diffSnapshots(baselineSnapshot, currentSnapshot) {
 
     const previousSignature = stableStringify({
       description: previous.description || '',
-      inputSchema: previous.inputSchema || {}
+      inputSchema: previous.inputSchema || {},
     });
     const currentSignature = stableStringify({
       description: tool.description || '',
-      inputSchema: tool.inputSchema || {}
+      inputSchema: tool.inputSchema || {},
     });
 
     if (previousSignature !== currentSignature) {
@@ -354,7 +347,7 @@ function diffSnapshots(baselineSnapshot, currentSnapshot) {
         serverName: tool.serverName,
         name: tool.name,
         before: previous,
-        after: tool
+        after: tool,
       });
     }
     baselineMap.delete(key);
@@ -368,7 +361,7 @@ function diffSnapshots(baselineSnapshot, currentSnapshot) {
     added: added.length,
     removed: removed.length,
     changed: changed.length,
-    totalChanges: added.length + removed.length + changed.length
+    totalChanges: added.length + removed.length + changed.length,
   };
 
   return { summary, added, removed, changed };
@@ -489,9 +482,12 @@ function reportCLI(results) {
   console.log(chalk.blue.bold('📊 Results\n'));
 
   results.scenarios.forEach((scenario, index) => {
-    const icon = scenario.status === 'passed' ? chalk.green('✓') :
-                 scenario.status === 'failed' ? chalk.red('✗') :
-                 chalk.yellow('○');
+    const icon =
+      scenario.status === 'passed'
+        ? chalk.green('✓')
+        : scenario.status === 'failed'
+          ? chalk.red('✗')
+          : chalk.yellow('○');
 
     console.log(`${icon} ${scenario.name}`);
 
@@ -535,9 +531,13 @@ function reportJUnit(results, exportPath) {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="${results.collectionName}" tests="${results.total}" failures="${results.failed}" time="${results.duration / 1000}">
   <testsuite name="${results.collectionName}" tests="${results.total}" failures="${results.failed}" time="${results.duration / 1000}">
-${results.scenarios.map(scenario => `    <testcase name="${scenario.name}" time="${(scenario.duration || 0) / 1000}">
+${results.scenarios
+  .map(
+    scenario => `    <testcase name="${scenario.name}" time="${(scenario.duration || 0) / 1000}">
 ${scenario.status === 'failed' ? `      <failure message="${scenario.error || 'Test failed'}"></failure>` : ''}
-    </testcase>`).join('\n')}
+    </testcase>`
+  )
+  .join('\n')}
   </testsuite>
 </testsuites>`;
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * MCP Chat Studio CLI Test Runner
- * 
+ *
  * Run scenario tests from command line for CI/CD integration.
- * 
+ *
  * Usage:
  *   npx mcp-chat-studio test scenarios.json
  *   npx mcp-chat-studio test scenarios.json --fail-on-diff
@@ -46,7 +46,7 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    
+
     if (arg === '--help' || arg === '-h') {
       options.help = true;
     } else if (arg === '--fail-on-diff') {
@@ -108,7 +108,7 @@ ${colors.bright}Scenario File Format:${colors.reset}
 // Load scenarios from file
 function loadScenarios(filePath) {
   const fullPath = resolve(process.cwd(), filePath);
-  
+
   if (!existsSync(fullPath)) {
     throw new Error(`Scenario file not found: ${fullPath}`);
   }
@@ -116,7 +116,7 @@ function loadScenarios(filePath) {
   try {
     const content = readFileSync(fullPath, 'utf8');
     const data = JSON.parse(content);
-    
+
     // Handle both single scenario and array of scenarios
     return Array.isArray(data) ? data : [data];
   } catch (error) {
@@ -145,28 +145,31 @@ async function executeTool(serverUrl, serverName, toolName, args) {
 
 // Simple hash for response comparison
 function hashResponse(obj) {
-  return JSON.stringify(obj).split('').reduce((a, b) => {
-    a = ((a << 5) - a) + b.charCodeAt(0);
-    return a & a;
-  }, 0).toString(16);
+  return JSON.stringify(obj)
+    .split('')
+    .reduce((a, b) => {
+      a = (a << 5) - a + b.charCodeAt(0);
+      return a & a;
+    }, 0)
+    .toString(16);
 }
 
 // Compare responses (semantic diff)
 function compareResponses(expected, actual) {
   const diffs = [];
-  
+
   function compare(exp, act, path = '') {
     if (exp === null && act === null) return;
     if (exp === undefined && act === undefined) return;
-    
+
     const expType = Array.isArray(exp) ? 'array' : typeof exp;
     const actType = Array.isArray(act) ? 'array' : typeof act;
-    
+
     if (expType !== actType) {
       diffs.push({ type: 'type_change', path, expected: expType, actual: actType });
       return;
     }
-    
+
     if (expType === 'object' && exp !== null) {
       const allKeys = new Set([...Object.keys(exp || {}), ...Object.keys(act || {})]);
       for (const key of allKeys) {
@@ -191,7 +194,7 @@ function compareResponses(expected, actual) {
       diffs.push({ type: 'changed', path, expected: exp, actual: act });
     }
   }
-  
+
   compare(expected, actual);
   return diffs;
 }
@@ -268,29 +271,33 @@ function formatConsole(results, failOnDiff) {
   for (const scenario of results) {
     log(colors.cyan, `\n📋 ${scenario.name}`);
     log(colors.reset, `   ${scenario.steps.length} steps, ${scenario.duration}ms`);
-    
+
     for (const step of scenario.steps) {
       let icon, color;
       switch (step.status) {
         case 'passed':
-          icon = '✅'; color = colors.green;
+          icon = '✅';
+          color = colors.green;
           break;
         case 'diff':
-          icon = '🔶'; color = colors.yellow;
+          icon = '🔶';
+          color = colors.yellow;
           break;
         case 'failed':
-          icon = '❌'; color = colors.red;
+          icon = '❌';
+          color = colors.red;
           break;
         default:
-          icon = '❓'; color = colors.reset;
+          icon = '❓';
+          color = colors.reset;
       }
-      
+
       log(color, `   ${icon} ${step.index}. ${step.tool} @ ${step.server} (${step.duration}ms)`);
-      
+
       if (step.status === 'failed' && step.error) {
         log(colors.red, `      Error: ${step.error}`);
       }
-      
+
       if (step.status === 'diff' && step.diffs.length > 0) {
         for (const diff of step.diffs.slice(0, 3)) {
           log(colors.yellow, `      ${diff.type}: ${diff.path}`);
@@ -336,19 +343,19 @@ function formatJUnit(results) {
 
   for (const scenario of results) {
     xml += `  <testsuite name="${escapeXml(scenario.name)}" tests="${scenario.steps.length}" failures="${scenario.failed + scenario.diffed}" time="${(scenario.duration / 1000).toFixed(3)}">\n`;
-    
+
     for (const step of scenario.steps) {
       xml += `    <testcase name="${escapeXml(step.tool)}" classname="${escapeXml(step.server)}" time="${(step.duration / 1000).toFixed(3)}">\n`;
-      
+
       if (step.status === 'failed') {
         xml += `      <failure message="${escapeXml(step.error || 'Unknown error')}">${escapeXml(JSON.stringify(step, null, 2))}</failure>\n`;
       } else if (step.status === 'diff') {
         xml += `      <failure message="Response differs from baseline">${escapeXml(JSON.stringify(step.diffs, null, 2))}</failure>\n`;
       }
-      
+
       xml += `    </testcase>\n`;
     }
-    
+
     xml += `  </testsuite>\n`;
   }
 
@@ -365,7 +372,7 @@ function formatTAP(results) {
       testNum++;
       const ok = step.status === 'passed' ? 'ok' : 'not ok';
       output += `${ok} ${testNum} - ${scenario.name}: ${step.tool} @ ${step.server}\n`;
-      
+
       if (step.status !== 'passed') {
         output += `  ---\n`;
         output += `  status: ${step.status}\n`;
@@ -448,7 +455,6 @@ async function main() {
       }
 
       process.exit(exitCode);
-
     } catch (error) {
       log(colors.red, `Error: ${error.message}`);
       process.exit(1);

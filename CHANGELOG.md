@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Major Features
 
 **Collections System (like Postman):**
+
 - ✨ **Organize scenarios** - Group test scenarios into logical collections
 - ✨ **Environment variables** - Define variables at collection level
 - ✨ **Authentication support** - Collection-level auth configuration
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **12 API endpoints** - Complete CRUD + run/fork/import/export at `/api/collections/*`
 
 **CLI Runner (like newman):**
+
 - ✨ **Command-line testing** - Run collections from terminal with `mcp-test` command
 - ✨ **Multiple reporters** - CLI (color-coded), JSON, JUnit formats
 - ✨ **CI/CD integration** - Exit codes and JUnit XML for Jenkins/GitLab
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **3 commands** - `run`, `list`, `validate` with full option support
 
 **Monitors (like Postman Monitors):**
+
 - ✨ **Scheduled execution** - Run collections automatically on a schedule
 - ✨ **Flexible scheduling** - Simple formats (5m, 1h, 30s) and cron expressions
 - ✨ **Auto-start on load** - Monitors resume automatically on server restart
@@ -42,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.0] - 2026-01-06
 
 ### 🚀 Major Features
+
 - ✨ **Workspace Mode** - Infinite canvas with floating panels, quick bar, command palette, sessions, templates, and export/import bundles.
 - ✨ **Studio Assistant** - Context-aware helper with quick actions, FAQs, and OpenAPI import support (URL/JSON/file).
 - ✨ **Visual MCP Generator v2** - OpenAPI JSON/YAML import, proxy mode, auth mapping, Test-in-Studio, and one‑click Run & Connect (auto‑naming + error details).
@@ -51,16 +55,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **Workflows** - AI Builder, debugger (step/breakpoints), and Python/Node exports.
 
 ### 🔐 Security & Reliability
+
 - CSRF protection + audit logging (`data/audit.log`)
 - Server-side session persistence (`data/sessions.json`)
 - DOMPurify fallback sanitizer
 - OAuth Settings UI with Test OAuth + self‑signed toggle
 
 ### 🧪 Testing & CI
+
 - Playwright E2E suite + expanded unit tests
 - CI: coverage, security audit, perf budget, and E2E job
 
 ### 🧹 Fixes & Polish
+
 - LLM settings UI improvements (provider visibility, Bearer auto‑prefix)
 - Server status badges (Connected / Failed / Not connected) with error details
 - Workspace & generator UX refinements, cleaner modals and toasts
@@ -68,18 +75,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Collections:**
+
 - ✨ **Scenario management** - Add/remove scenarios from collections
 - ✨ **Collection statistics** - Total collections, scenarios, recent activity
 - ✨ **Runtime options** - stopOnError, delay between scenarios, environment overrides
 - ✨ **Detailed results** - Per-scenario status, duration, error tracking
 
 **CLI Runner:**
+
 - ✨ **Color-coded output** - Green ✓ for pass, Red ✗ for fail, Yellow ○ for skip
 - ✨ **Summary statistics** - Total/passed/failed/skipped counts with duration
 - ✨ **Iteration support** - Run collections multiple times for load testing
 - ✨ **Progress tracking** - Real-time feedback during execution
 
 **Monitors:**
+
 - ✨ **Email notifications** - Infrastructure ready (implementation pending)
 - ✨ **Health dashboard** - Failed monitor tracking and statistics
 - ✨ **Recent runs** - Last 10 executions with timestamps and status
@@ -119,6 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Major Features
 
 **Mock MCP Servers (like Postman Mock Servers):**
+
 - ✨ **Runtime mock servers** - Create mock MCP servers that return canned responses
 - ✨ **Variable substitution** - Use `{{variableName}}` syntax in responses
 - ✨ **Simulated behavior** - Configure delay and error rates for realistic testing
@@ -128,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **14 API endpoints** - Complete mock server management at `/api/mocks/*`
 
 **Pre/Post Scripts (like Postman Scripts):**
+
 - ✨ **Pre-request scripts** - Execute JavaScript before tool calls
 - ✨ **Post-response scripts** - Execute JavaScript after receiving responses
 - ✨ **Test assertions** - Use `pm.test()` and `pm.expect()` for validation
@@ -138,6 +150,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **8 API endpoints** - Script management at `/api/scripts/*`
 
 **Documentation Generator:**
+
 - ✨ **Auto-generate docs** - Create documentation from MCP server schemas
 - ✨ **Multiple formats** - Export as Markdown, HTML, or JSON
 - ✨ **Beautiful HTML output** - Professional styled HTML documentation
@@ -149,12 +162,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Mock Servers:**
+
 - ✨ **Tools, Resources, Prompts** - Full MCP capability mocking
 - ✨ **Response templates** - JSON templates with variable substitution
 - ✨ **Statistics** - Track total calls and most-used mocks
 - ✨ **Reset stats** - Clear call counters for fresh testing
 
 **Scripts:**
+
 - ✨ **Postman-compatible API** - Familiar `pm.variables`, `pm.environment`, `pm.test()`
 - ✨ **Assertion helpers** - `expect().to.equal()`, `.contain()`, `.have.property()`
 - ✨ **Console logging** - Debug scripts with `console.log()`
@@ -162,6 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **Enable/Disable** - Control script execution without deletion
 
 **Documentation:**
+
 - ✨ **Table of contents** - Auto-generated navigation
 - ✨ **Type information** - Parameter types and requirements
 - ✨ **MIME types** - Resource content types
@@ -196,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Major Features
 
 **Collections System (like Postman):**
+
 - ✨ **Organize scenarios** - Group test scenarios into logical collections
 - ✨ **Environment variables** - Define variables at collection level
 - ✨ **Authentication support** - Collection-level auth configuration
@@ -206,6 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **12 API endpoints** - Complete CRUD + run/fork/import/export at `/api/collections/*`
 
 **CLI Runner (like newman):**
+
 - ✨ **Command-line testing** - Run collections from terminal with `mcp-test` command
 - ✨ **Multiple reporters** - CLI (color-coded), JSON, JUnit formats
 - ✨ **CI/CD integration** - Exit codes and JUnit XML for Jenkins/GitLab
@@ -216,6 +234,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **3 commands** - `run`, `list`, `validate` with full option support
 
 **Monitors (like Postman Monitors):**
+
 - ✨ **Scheduled execution** - Run collections automatically on a schedule
 - ✨ **Flexible scheduling** - Simple formats (5m, 1h, 30s) and cron expressions
 - ✨ **Auto-start on load** - Monitors resume automatically on server restart
@@ -228,18 +247,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Collections:**
+
 - ✨ **Scenario management** - Add/remove scenarios from collections
 - ✨ **Collection statistics** - Total collections, scenarios, recent activity
 - ✨ **Runtime options** - stopOnError, delay between scenarios, environment overrides
 - ✨ **Detailed results** - Per-scenario status, duration, error tracking
 
 **CLI Runner:**
+
 - ✨ **Color-coded output** - Green ✓ for pass, Red ✗ for fail, Yellow ○ for skip
 - ✨ **Summary statistics** - Total/passed/failed/skipped counts with duration
 - ✨ **Iteration support** - Run collections multiple times for load testing
 - ✨ **Progress tracking** - Real-time feedback during execution
 
 **Monitors:**
+
 - ✨ **Email notifications** - Infrastructure ready (implementation pending)
 - ✨ **Health dashboard** - Failed monitor tracking and statistics
 - ✨ **Recent runs** - Last 10 executions with timestamps and status
@@ -279,6 +301,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Major Features
 
 **Workflow Debugger:**
+
 - ✨ **Breakpoint debugging** - Pause workflow execution at specific nodes
 - ✨ **Step-through mode** - Execute workflows one node at a time
 - ✨ **Variable inspection** - View context, inputs, and outputs at any point
@@ -287,6 +310,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **11 API endpoints** - Complete debug API at `/api/workflows/debug/*`
 
 **Advanced Inspector Features:**
+
 - ✨ **Message Timeline** - Chronological log of all JSON-RPC messages with timestamps
 - ✨ **Bulk Testing** - Execute tools with multiple inputs, parallel or sequential
 - ✨ **Result Diff** - Side-by-side comparison of tool outputs with similarity scoring
@@ -296,6 +320,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **3 new sub-tabs** - Timeline, Bulk Test, and Diff in Inspector panel
 
 **Contract Testing Suite:**
+
 - ✨ **Consumer-driven contracts** - Define expected tool behavior
 - ✨ **Multiple assertion types** - Schema, contains, equals, response time, custom
 - ✨ **Contract versioning** - Track contract changes over time
@@ -305,6 +330,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **API endpoints** - `/api/contracts/*` for programmatic access
 
 **Tool Explorer & Analytics:**
+
 - ✨ **Usage statistics** - Track calls, success rates, latency per tool
 - ✨ **Performance metrics** - Avg/min/max/p50/p95/p99 latency tracking
 - ✨ **Error tracking** - Record and display recent errors per tool
@@ -317,18 +343,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Inspector Enhancements:**
+
 - ✨ **6 sub-tabs total** - Tools, Resources, Prompts, Timeline, Bulk Test, Diff
 - ✨ **Real-time tracking** - Live updates during tool execution
 - ✨ **Similarity scoring** - Percentage-based diff comparison
 - ✨ **Test summaries** - Comprehensive result breakdowns
 
 **Contract Testing:**
+
 - ✨ **Path-based assertions** - Query nested response properties
 - ✨ **Custom operators** - equals, notEquals, greaterThan, lessThan, contains, exists
 - ✨ **Contract storage** - Persisted to `contracts/` directory
 - ✨ **Test suites** - Multiple tests per contract
 
 **Developer Experience:**
+
 - ✨ **11 new API endpoints** - Workflow debugging routes
 - ✨ **12 new API endpoints** - Inspector enhancement routes
 - ✨ **7 new API endpoints** - Contract testing routes
@@ -360,12 +389,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Major Features
 
 **MCP Server Scaffolding:**
+
 - ✨ **Full project generation** - Create complete MCP servers with one API call
 - ✨ **Multi-language support** - Python (FastMCP), Node.js, TypeScript
 - ✨ **Best practices included** - Tests, linting, README, .gitignore
 - ✨ **API endpoint** - `/api/scaffold/generate` for programmatic access
 
 **Protocol Compliance Checker:**
+
 - ✨ **JSON-RPC 2.0 validation** - Validate message format compliance
 - ✨ **MCP spec validation** - Check tools, resources, prompts format
 - ✨ **Initialization validation** - Verify server capabilities
@@ -373,6 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **API endpoints** - `/api/mcp/compliance/check` and `/api/mcp/compliance/validate-message`
 
 **Performance Testing:**
+
 - ✨ **Load testing** - Sustained concurrent requests
 - ✨ **Stress testing** - Gradually increase load to find limits
 - ✨ **Spike testing** - Test sudden traffic bursts
@@ -389,11 +421,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 
 **Enhanced Testing:**
+
 - ✨ **MCPManager tests** - Comprehensive unit tests (13 test cases)
 - ✨ **ContractValidator tests** - Schema validation tests (12 test cases)
 - ✨ **Total test coverage** - 51 tests across 4 test suites
 
 **Keyboard Shortcuts:**
+
 - ✨ **Ctrl+T** - Quick tool search
 - ✨ **Ctrl+R** - Refresh all servers
 - ✨ **F5** - Re-run last tool call
@@ -401,12 +435,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✨ **Enhanced help** - Organized shortcut categories
 
 **CI/CD Integration:**
+
 - ✨ **GitHub Actions template** - Ready-to-use workflow for MCP servers
 - ✨ **GitLab CI template** - Complete pipeline configuration
 - ✨ **Documentation** - Comprehensive CI/CD integration guide
 - ✨ **Pre-commit hooks** - Example hooks for local testing
 
 **Developer Tools:**
+
 - ✨ **Architecture documentation** - Complete system architecture guide
 - ✨ **API documentation** - Swagger specs for all new endpoints
 - ✨ **Extension guide** - How to add providers, nodes, routes

@@ -44,10 +44,7 @@
                       "path": "content[0].text"
                     }
                   },
-                  "required": [
-                    "type",
-                    "text"
-                  ]
+                  "required": ["type", "text"]
                 },
                 "minItems": 1
               },
@@ -56,10 +53,7 @@
                 "path": "isError"
               }
             },
-            "required": [
-              "content",
-              "isError"
-            ]
+            "required": ["content", "isError"]
           },
           "timing": 1020,
           "success": true
@@ -111,10 +105,7 @@
                       "path": "content[0].text"
                     }
                   },
-                  "required": [
-                    "type",
-                    "text"
-                  ]
+                  "required": ["type", "text"]
                 },
                 "minItems": 1
               },
@@ -123,10 +114,7 @@
                 "path": "isError"
               }
             },
-            "required": [
-              "content",
-              "isError"
-            ]
+            "required": ["content", "isError"]
           },
           "timing": 1020,
           "success": true
