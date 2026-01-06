@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,13 +17,6 @@ function warnOnce(message) {
   if (warned) return;
   warned = true;
   console.warn(message);
-}
-
-function ensureDir() {
-  const dir = dirname(STORE_PATH);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
 }
 
 function getKey() {
@@ -85,10 +79,9 @@ function persistToDisk() {
     warnOnce('[OAuthTokenStore] OAUTH_TOKEN_KEY missing; tokens kept in memory only.');
     return;
   }
-  ensureDir();
   const payload = Object.fromEntries(memoryTokens.entries());
   const encrypted = encryptPayload(payload, key);
-  writeFileSync(STORE_PATH, JSON.stringify({ payload: encrypted }, null, 2));
+  atomicWriteJsonSync(STORE_PATH, { payload: encrypted });
 }
 
 export function getToken(sessionId) {
@@ -115,11 +108,9 @@ export function deleteToken(sessionId) {
 export function clearTokens() {
   loadFromDisk();
   memoryTokens.clear();
-  if (existsSync(STORE_PATH)) {
-    try {
-      writeFileSync(STORE_PATH, JSON.stringify({ payload: null }, null, 2));
-    } catch (error) {
-      console.warn('[OAuthTokenStore] Failed to clear tokens:', error.message);
-    }
+  try {
+    atomicWriteJsonSync(STORE_PATH, { payload: null });
+  } catch (error) {
+    console.warn('[OAuthTokenStore] Failed to clear tokens:', error.message);
   }
 }

@@ -4,12 +4,16 @@
  */
 
 import { createSandboxVM } from './SandboxEngine.js';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Security: Scripts disabled by default
+const ENABLE_SCRIPTS = process.env.ENABLE_SCRIPTS === 'true';
 
 export class ScriptRunner {
   constructor() {
@@ -192,7 +196,7 @@ JSON.stringify({
   saveScripts() {
     try {
       const data = Array.from(this.scripts.values());
-      writeFileSync(this.scriptsFile, JSON.stringify(data, null, 2));
+      atomicWriteJsonSync(this.scriptsFile, data);
     } catch (error) {
       console.error('[ScriptRunner] Failed to save scripts:', error.message);
     }
@@ -396,6 +400,11 @@ JSON.stringify({
    * Execute a script in a sandboxed environment
    */
   async executeScript(script, context) {
+    if (!ENABLE_SCRIPTS) {
+      throw new Error(
+        'Script execution disabled (ENABLE_SCRIPTS=false). Set ENABLE_SCRIPTS=true to enable.'
+      );
+    }
     console.log(`[ScriptRunner] Executing ${script.type}-script: ${script.name}`);
     try {
       const payload = this.buildSandboxPayload(context);

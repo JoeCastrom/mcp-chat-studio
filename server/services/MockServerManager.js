@@ -3,9 +3,10 @@
  * Create runtime mock MCP servers with canned responses (like Postman Mock Servers)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -50,7 +51,7 @@ export class MockServerManager {
   saveMocks() {
     try {
       const data = Array.from(this.mocks.values());
-      writeFileSync(this.mocksFile, JSON.stringify(data, null, 2));
+      atomicWriteJsonSync(this.mocksFile, data);
     } catch (error) {
       console.error('[MockServerManager] Failed to save mocks:', error.message);
     }

@@ -1,19 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const STORE_PATH = join(__dirname, '../../data/session-shares.json');
 const DEFAULT_TTL_HOURS = 24 * 7;
-
-function ensureDir() {
-  const dir = dirname(STORE_PATH);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
 
 function loadShares() {
   try {
@@ -26,8 +20,7 @@ function loadShares() {
 }
 
 function saveShares(data) {
-  ensureDir();
-  writeFileSync(STORE_PATH, JSON.stringify(data, null, 2));
+  atomicWriteJsonSync(STORE_PATH, data);
 }
 
 function cleanupShares(data) {

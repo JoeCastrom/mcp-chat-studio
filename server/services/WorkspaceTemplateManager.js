@@ -3,9 +3,10 @@
  * Persist workspace bundles to disk for team/Git sharing
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,7 +41,7 @@ export class WorkspaceTemplateManager {
   saveTemplates() {
     try {
       const data = Array.from(this.templates.values());
-      writeFileSync(this.templatesFile, JSON.stringify(data, null, 2));
+      atomicWriteJsonSync(this.templatesFile, data);
     } catch (error) {
       console.error('[WorkspaceTemplateManager] Failed to save templates:', error.message);
     }

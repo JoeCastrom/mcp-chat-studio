@@ -1195,6 +1195,33 @@ Click **Login** to authenticate.
 
 ## 🔐 Security Best Practices
 
+### Security Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_SCRIPTS` | `false` | Enable script execution (ScriptRunner, JS workflow nodes). **Disabled by default for security.** |
+| `HOST` | `127.0.0.1` | Server bind address. Defaults to localhost only. |
+| `ALLOW_REMOTE` | `false` | Required if `HOST=0.0.0.0`. Prevents accidental network exposure. |
+| `CORS_ORIGINS` | localhost | Comma-separated list of allowed origins for CORS. |
+
+#### Script Execution
+
+Script execution (pre/post-request scripts, JavaScript workflow nodes) is **disabled by default** for security. To enable:
+
+```bash
+ENABLE_SCRIPTS=true npm run dev
+```
+
+#### Network Binding
+
+By default, the server binds to `127.0.0.1` (localhost only). To expose to all network interfaces:
+
+```bash
+HOST=0.0.0.0 ALLOW_REMOTE=true npm run dev
+```
+
+The server will refuse to start if `HOST=0.0.0.0` without `ALLOW_REMOTE=true` to prevent accidental exposure.
+
 ### Important Security Notes
 
 - ⚠️ **Never commit `.env` file** - Contains API keys and secrets
@@ -1207,7 +1234,7 @@ Click **Login** to authenticate.
 - 📝 **Audit logging** - Security-relevant events are written to `data/audit.log`.
 - 💾 **Server-side sessions** - Chat sessions/tool history sync to `data/sessions.json` (tied to `sessionId` cookie).
 - 🧼 **HTML sanitization** - DOMPurify is used when installed (fallback allowlist sanitizer).
-- 🔗 **Session share links** - Share the current session via Settings → “Share” (one-time link to import a session snapshot).
+- 🔗 **Session share links** - Share the current session via Settings → "Share" (one-time link to import a session snapshot).
 
 ### For Development
 

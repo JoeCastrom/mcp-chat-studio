@@ -1,17 +1,11 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { atomicWriteJsonSync } from '../utils/atomicJsonStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SESSIONS_FILE = join(__dirname, '../../data/sessions.json');
-
-function ensureDataDir() {
-  const dir = dirname(SESSIONS_FILE);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
 
 function loadAllSessions() {
   try {
@@ -24,8 +18,7 @@ function loadAllSessions() {
 }
 
 function saveAllSessions(data) {
-  ensureDataDir();
-  writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2));
+  atomicWriteJsonSync(SESSIONS_FILE, data);
 }
 
 export function getSession(sessionId) {

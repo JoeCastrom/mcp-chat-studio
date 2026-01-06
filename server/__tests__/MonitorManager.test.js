@@ -21,6 +21,15 @@ jest.unstable_mockModule('fs', () => ({
     return mockFileData.has(path) || path.includes('data');
   }),
   mkdirSync: jest.fn(),
+  renameSync: jest.fn((oldPath, newPath) => {
+    if (mockFileData.has(oldPath)) {
+      mockFileData.set(newPath, mockFileData.get(oldPath));
+      mockFileData.delete(oldPath);
+    }
+  }),
+  unlinkSync: jest.fn(path => {
+    mockFileData.delete(path);
+  }),
 }));
 
 // Mock CollectionManager

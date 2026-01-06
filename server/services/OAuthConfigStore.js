@@ -1,6 +1,7 @@
-import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { atomicWriteJson } from '../utils/atomicJsonStore.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '../../data');
@@ -24,9 +25,7 @@ export async function loadPersistedOAuthConfig() {
 }
 
 export async function savePersistedOAuthConfig(config) {
-  await mkdir(DATA_DIR, { recursive: true });
-  const payload = JSON.stringify(config || {}, null, 2);
-  await writeFile(STORE_PATH, payload, 'utf8');
+  await atomicWriteJson(STORE_PATH, config || {});
 }
 
 export async function clearPersistedOAuthConfig() {

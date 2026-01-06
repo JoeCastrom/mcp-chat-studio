@@ -10,6 +10,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WORKFLOWS_FILE = path.join(__dirname, '../../workflows.json');
 
+// Security: Scripts disabled by default
+const ENABLE_SCRIPTS = process.env.ENABLE_SCRIPTS === 'true';
+
 // Zod schema for workflow validation
 const NodeDataSchema = z
   .object({
@@ -314,6 +317,11 @@ export class WorkflowEngine {
 
       case 'javascript':
         // Execute JavaScript in sandboxed environment
+        if (!ENABLE_SCRIPTS) {
+          throw new Error(
+            'Script execution disabled (ENABLE_SCRIPTS=false). Set ENABLE_SCRIPTS=true to enable.'
+          );
+        }
         {
           let vm;
           try {

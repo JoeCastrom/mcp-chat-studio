@@ -19,6 +19,30 @@ import { logAudit } from './AuditLogger.js';
 
 console.log('[MCP] Loading MCPManager with raw transport tool calls (bypasses SDK validation)');
 
+// Security: Max tool response size (1MB)
+const MAX_TOOL_RESPONSE_SIZE = 1 * 1024 * 1024;
+
+/**
+ * Truncate large tool responses to prevent memory/storage issues
+ */
+function truncateResponse(result, maxSize = MAX_TOOL_RESPONSE_SIZE) {
+  try {
+    const str = typeof result === 'string' ? result : JSON.stringify(result);
+    if (str.length > maxSize) {
+      console.warn(`[MCP] Tool response truncated: ${str.length} bytes > ${maxSize} max`);
+      return {
+        _truncated: true,
+        _originalSize: str.length,
+        _maxSize: maxSize,
+        preview: str.slice(0, 1000) + '...<truncated>',
+      };
+    }
+    return result;
+  } catch (_e) {
+    return result; // If we can't stringify, return as-is
+  }
+}
+
 class MCPConnection {
   constructor(serverName, config) {
     this.serverName = serverName;
@@ -234,7 +258,7 @@ class MCPConnection {
         durationMs: Date.now() - startedAt,
         argKeys: Object.keys(args || {}),
       });
-      return result;
+      return truncateResponse(result);
     } catch (error) {
       console.error(`[MCP][${this.serverName}] Tool call failed:`, error.message);
       logAudit('mcp.tool_call', {
@@ -387,7 +411,7 @@ class MockConnection {
         durationMs: Date.now() - startedAt,
         argKeys: Object.keys(args || {}),
       });
-      return response;
+      return truncateResponse(response);
     } catch (error) {
       logAudit('mock.tool_call', {
         server: this.serverName,

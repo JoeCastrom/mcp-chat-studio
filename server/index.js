@@ -25,6 +25,7 @@ import { createOAuthManager, getOAuthManager } from './services/OAuthManager.js'
 import { loadPersistedServers } from './services/MCPConfigStore.js';
 import { loadPersistedOAuthConfig } from './services/OAuthConfigStore.js';
 import { loadPersistedLLMConfig } from './services/LLMConfigStore.js';
+import { createOriginValidator } from './utils/originValidator.js';
 import chatRoutes from './routes/chat.js';
 import mcpRoutes from './routes/mcp.js';
 import oauthRoutes from './routes/oauth.js';
@@ -96,6 +97,8 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3082;
+const HOST = process.env.HOST || '127.0.0.1';
+const ALLOW_REMOTE = process.env.ALLOW_REMOTE === 'true';
 
 // CORS configuration - secure by default
 function getCorsOrigins() {
@@ -117,39 +120,8 @@ const allowedOrigins = getCorsOrigins();
 const corsMode = process.env.CORS_ORIGINS ? 'custom' : 'localhost-only';
 const CSRF_COOKIE_NAME = 'csrf_token';
 
-function normalizeOrigin(origin) {
-  try {
-    return new URL(origin).origin;
-  } catch (error) {
-    return null;
-  }
-}
-
-const allowedOriginSet = new Set(
-  allowedOrigins
-    .map(normalizeOrigin)
-    .filter(Boolean)
-);
-
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  const normalized = normalizeOrigin(origin);
-  if (!normalized) return false;
-  if (allowedOriginSet.has(normalized)) return true;
-
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const parsed = new URL(origin);
-      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
-        return true;
-      }
-    } catch (error) {
-      return false;
-    }
-  }
-
-  return false;
-}
+// Use origin validator utility for consistent CORS/CSRF protection
+const isAllowedOrigin = createOriginValidator(allowedOrigins, process.env.NODE_ENV);
 
 // Middleware
 app.use(
@@ -518,15 +490,29 @@ async function start() {
     }
     await initializeServices(config);
 
-    app.listen(PORT, () => {
+    // Bind-host safety check
+    if (HOST === '0.0.0.0' && !ALLOW_REMOTE) {
+      console.error('\n========================================');
+      console.error('  ERROR: Binding to 0.0.0.0 requires ALLOW_REMOTE=true');
+      console.error('========================================');
+      console.error('  This exposes the server to all network interfaces.');
+      console.error('  Set ALLOW_REMOTE=true if this is intentional:');
+      console.error('    HOST=0.0.0.0 ALLOW_REMOTE=true npm run dev');
+      console.error('========================================\n');
+      process.exit(1);
+    }
+
+    const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+    app.listen(PORT, HOST, () => {
       console.log(`\n========================================`);
       console.log(`  MCP Chat Studio Server`);
       console.log(`  with MCP + LLM + OAuth Support`);
       console.log(`========================================`);
-      console.log(`  Server:   http://localhost:${PORT}`);
-      console.log(`  API:      http://localhost:${PORT}/api`);
-      console.log(`  API Docs: http://localhost:${PORT}/api-docs`);
-      console.log(`  Health:   http://localhost:${PORT}/api/health`);
+      console.log(`  Host:     ${HOST}${HOST === '0.0.0.0' ? ' (all interfaces)' : ''}`);
+      console.log(`  Server:   http://${displayHost}:${PORT}`);
+      console.log(`  API:      http://${displayHost}:${PORT}/api`);
+      console.log(`  API Docs: http://${displayHost}:${PORT}/api-docs`);
+      console.log(`  Health:   http://${displayHost}:${PORT}/api/health`);
       console.log(`========================================\n`);
     });
   } catch (error) {
