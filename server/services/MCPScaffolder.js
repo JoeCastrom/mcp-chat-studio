@@ -248,7 +248,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
     return code;
   }
 
-  generatePythonTests(packageName, tools) {
+  generatePythonTests(packageName, _tools) {
     return `"""Tests for ${packageName}"""
 
 import pytest
@@ -538,7 +538,7 @@ main().catch((error) => {
     return code;
   }
 
-  generateNodeTests(packageName, tools, isTypescript) {
+  generateNodeTests(packageName, _tools, _isTypescript) {
     return `/**
  * Tests for ${packageName}
  */

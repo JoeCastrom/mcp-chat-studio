@@ -643,7 +643,7 @@ export class MCPManager {
   async disconnectUserSession(sessionId) {
     const userConns = this.userConnections.get(sessionId);
     if (userConns) {
-      for (const [serverName, connection] of userConns) {
+      for (const [_serverName, connection] of userConns) {
         await connection.disconnect();
       }
       this.userConnections.delete(sessionId);

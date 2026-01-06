@@ -24,7 +24,7 @@ jest.unstable_mockModule('fs', () => ({
 }));
 
 // Import after mocking
-const { MockServerManager, getMockServerManager } =
+const { MockServerManager, getMockServerManager: _getMockServerManager } =
   await import('../services/MockServerManager.js');
 
 describe('MockServerManager', () => {

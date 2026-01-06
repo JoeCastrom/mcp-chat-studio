@@ -140,7 +140,7 @@ export class MockServerManager {
    * Delete a mock
    */
   deleteMock(id) {
-    const mock = this.getMock(id);
+    this.getMock(id); // Validates mock exists, throws if not found
 
     this.mocks.delete(id);
     this.saveMocks();

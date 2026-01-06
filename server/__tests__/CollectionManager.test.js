@@ -50,7 +50,7 @@ jest.unstable_mockModule('../services/ScriptRunner.js', () => ({
 }));
 
 // Import after mocking
-const { CollectionManager, getCollectionManager } =
+const { CollectionManager, getCollectionManager: _getCollectionManager } =
   await import('../services/CollectionManager.js');
 
 describe('CollectionManager', () => {

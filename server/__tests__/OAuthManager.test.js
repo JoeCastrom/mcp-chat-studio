@@ -21,7 +21,7 @@ jest.unstable_mockModule('uuid', () => ({
 }));
 
 // Import after mocking
-const { OAuthManager, createOAuthManager, getOAuthManager } =
+const { OAuthManager, createOAuthManager: _createOAuthManager, getOAuthManager: _getOAuthManager } =
   await import('../services/OAuthManager.js');
 
 describe('OAuthManager', () => {
