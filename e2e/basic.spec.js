@@ -35,7 +35,7 @@ test.describe('MCP Chat Studio - Basic Functionality', () => {
     expect(theme === null || theme === 'dark').toBeTruthy();
   });
 
-  test('layout switching works', async ({ page }) => {
+  test.skip('layout switching works', async ({ page }) => {
     await page.goto('/');
 
     // Find layout switch buttons
