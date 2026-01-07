@@ -1197,12 +1197,12 @@ Click **Login** to authenticate.
 
 ### Security Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_SCRIPTS` | `false` | Enable script execution (ScriptRunner, JS workflow nodes). **Disabled by default for security.** |
-| `HOST` | `127.0.0.1` | Server bind address. Defaults to localhost only. |
-| `ALLOW_REMOTE` | `false` | Required if `HOST=0.0.0.0`. Prevents accidental network exposure. |
-| `CORS_ORIGINS` | localhost | Comma-separated list of allowed origins for CORS. |
+| Variable         | Default     | Description                                                                                      |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| `ENABLE_SCRIPTS` | `false`     | Enable script execution (ScriptRunner, JS workflow nodes). **Disabled by default for security.** |
+| `HOST`           | `127.0.0.1` | Server bind address. Defaults to localhost only.                                                 |
+| `ALLOW_REMOTE`   | `false`     | Required if `HOST=0.0.0.0`. Prevents accidental network exposure.                                |
+| `CORS_ORIGINS`   | localhost   | Comma-separated list of allowed origins for CORS.                                                |
 
 #### Script Execution
 
