@@ -12,6 +12,7 @@ Test, debug, and develop Model Context Protocol servers with a beautiful glassmo
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 [![CI](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/JoeCastrom/mcp-chat-studio/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-ready-blue?style=flat-square&logo=docker)
+[![MseeP.ai Security Assessment](https://mseep.net/pr/joecastrom-mcp-chat-studio-badge.png)](https://mseep.ai/app/joecastrom-mcp-chat-studio)
 
 > **🆕 Major Update (January 2025):** This version includes significant new features like OAuth config UI, LLM settings persistence, E2E tests, session management, security enhancements, and much more. The previous stable version is available in the [`v2` branch](https://github.com/JoeCastrom/mcp-chat-studio/tree/v2) as a backup.
 
