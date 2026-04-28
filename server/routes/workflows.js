@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { validateOutboundUrl } from '../utils/urlValidator.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -137,6 +138,20 @@ router.post('/:id/execute', async (req, res) => {
     // Use provided config or fallback to file-based load
     const configToUse = llmConfig || loadLLMConfig();
 
+    // Validate user-supplied URLs against SSRF
+    if (configToUse.base_url) {
+      const check = validateOutboundUrl(configToUse.base_url);
+      if (!check.valid) {
+        return res.status(403).json({ error: `SSRF protection: ${check.reason}`, status: 'error' });
+      }
+    }
+    if (configToUse.auth?.auth_url) {
+      const check = validateOutboundUrl(configToUse.auth.auth_url);
+      if (!check.valid) {
+        return res.status(403).json({ error: `SSRF protection: ${check.reason}`, status: 'error' });
+      }
+    }
+
     const sessionId = getSessionId(req);
     const result = await engine.executeWorkflow(req.params.id, input, configToUse, sessionId);
     res.json(result);
@@ -183,10 +198,26 @@ router.post('/:id/debug/start', async (req, res) => {
     const engine = getWorkflowEngine();
     const workflowDebugger = getWorkflowDebugger(engine);
 
+    const configToUse = llmConfig || loadLLMConfig();
+
+    // Validate user-supplied URLs against SSRF
+    if (configToUse.base_url) {
+      const check = validateOutboundUrl(configToUse.base_url);
+      if (!check.valid) {
+        return res.status(403).json({ error: `SSRF protection: ${check.reason}` });
+      }
+    }
+    if (configToUse.auth?.auth_url) {
+      const check = validateOutboundUrl(configToUse.auth.auth_url);
+      if (!check.valid) {
+        return res.status(403).json({ error: `SSRF protection: ${check.reason}` });
+      }
+    }
+
     const session = await workflowDebugger.startDebugSession(req.params.id, input || {}, {
       breakpoints: breakpoints || [],
       stepMode: stepMode || false,
-      llmConfig: llmConfig || loadLLMConfig(),
+      llmConfig: configToUse,
     });
 
     res.json(session);

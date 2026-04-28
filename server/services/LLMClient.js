@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { assertSafeUrl } from '../utils/urlValidator.js';
 
 export class LLMClient {
   constructor(config) {
@@ -180,6 +181,8 @@ export class LLMClient {
       return this.authToken;
     }
 
+    assertSafeUrl(auth.auth_url, 'LLMClient/auth');
+
     const params = new URLSearchParams({
       grant_type: 'client_credentials',
       client_id: auth.client_id || '',
@@ -266,6 +269,7 @@ export class LLMClient {
    */
   getChatEndpoint() {
     const baseUrl = this.getBaseUrl();
+    assertSafeUrl(baseUrl, 'LLMClient/endpoint');
 
     switch (this.provider) {
       case 'azure':

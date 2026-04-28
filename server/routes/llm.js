@@ -7,6 +7,7 @@ import express from 'express';
 import { getLLMClient } from '../services/LLMClient.js';
 import { loadPersistedLLMConfig, savePersistedLLMConfig } from '../services/LLMConfigStore.js';
 import { logAudit } from '../services/AuditLogger.js';
+import { assertSafeUrl } from '../utils/urlValidator.js';
 
 const router = express.Router();
 const VALID_PROVIDERS = [
@@ -129,6 +130,7 @@ router.post('/config', async (req, res) => {
 
     // Update base_url (only if explicitly provided)
     if (base_url) {
+      assertSafeUrl(base_url, 'llm/config');
       llmClient.config.base_url = base_url;
       console.log(`[LLM/Config] Base URL changed to: ${base_url}`);
     }
@@ -145,7 +147,10 @@ router.post('/config', async (req, res) => {
 
     const nextAuth = { ...(existing.auth || {}), ...(llmClient.config.auth || {}) };
     if (auth_type) nextAuth.type = auth_type;
-    if (auth_url !== undefined) nextAuth.auth_url = auth_url;
+    if (auth_url !== undefined) {
+      if (auth_url) assertSafeUrl(auth_url, 'llm/config/auth_url');
+      nextAuth.auth_url = auth_url;
+    }
     if (auth_client_id !== undefined) nextAuth.client_id = auth_client_id;
     if (auth_scope !== undefined) nextAuth.scope = auth_scope;
     if (auth_audience !== undefined) nextAuth.audience = auth_audience;
@@ -225,11 +230,16 @@ router.get('/models', async (req, res) => {
       try {
         const override = typeof req.query.base_url === 'string' ? req.query.base_url.trim() : '';
         const baseUrl = override || llmClient.config.base_url || 'http://localhost:11434';
-        const response = await fetch(`${baseUrl}/api/tags`);
+        const targetUrl = `${baseUrl}/api/tags`;
+        assertSafeUrl(targetUrl, 'llm/models');
+        const response = await fetch(targetUrl);
         const data = await response.json();
         const models = data.models?.map(m => m.name) || [];
         return res.json({ models });
       } catch (error) {
+        if (error.message.includes('SSRF protection')) {
+          return res.status(403).json({ models: [], error: error.message });
+        }
         return res.json({ models: [], error: 'Could not fetch Ollama models: ' + error.message });
       }
     }
