@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/joecastrom-mcp-chat-studio-badge.png)](https://mseep.ai/app/joecastrom-mcp-chat-studio)
+
 # 🚀 MCP Chat Studio
 
 **The Ultimate Testing Platform for MCP Servers**
